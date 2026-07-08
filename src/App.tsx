@@ -32,8 +32,6 @@ function extractUserInfoFromHash(): { id: string | null, firstName: string | nul
 }
 
 // ========== ФУНКЦИИ ДЛЯ РАБОТЫ С БАЗОЙ ==========
-// (они остаются такими же, как в предыдущей версии)
-
 async function getTeacherPrograms(teacherId: string) {
   const { data, error } = await supabase
     .from('programs')
@@ -151,11 +149,6 @@ async function loadProgressForProgram(userId: string, programId: string): Promis
   return progress;
 }
 
-// Функция для сохранения прогресса (пока не используется, но оставлена на будущее)
-// async function saveProgressForProgram(userId: string, programId: string, progress: Record<string, boolean>) {
-//   ...
-// }
-
 async function getStudentPrograms(studentId: string) {
   const { data, error } = await supabase
     .from('applications')
@@ -184,19 +177,18 @@ async function getApplicationStatus(studentId: string, programId: string) {
   return data;
 }
 
-// ========== ФУНКЦИЯ ПОСТРОЕНИЯ ДЕРЕВА ИЗ ZIP ==========
+// ========== ФУНКЦИЯ ПОСТРОЕНИЯ ДЕРЕВА ИЗ ZIP (ИСПРАВЛЕННАЯ) ==========
 function buildTreeFromZip(zip: JSZip): { name: string; structure: any } {
-  // Корневая папка ZIP может называться как угодно, возьмём имя первой папки
-  const rootFolderName = Object.keys(zip.files).find(path => path.includes('/'))?.split('/')[0] || 'Программа';
+  // Определяем имя корневой папки как название программы
+  const allKeys = Object.keys(zip.files);
+  // Находим самую верхнюю папку (первый сегмент пути)
+  const rootFolderName = allKeys.find(path => path.includes('/'))?.split('/')[0] || 'Программа';
   
-  // Рекурсивная функция построения узла по пути
-  function buildNode(path: string): any {
-    // Получаем префикс для поиска вложенных элементов
-    const prefix = path ? path + '/' : '';
-    // Все записи внутри этой папки (исключая саму папку)
-    const entries = Object.keys(zip.files).filter(key => key.startsWith(prefix) && key !== prefix && !key.endsWith('/'));
-
-    // Группируем по первому элементу после префикса
+  // Рекурсивная функция построения дерева
+  function buildNode(prefix: string): any {
+    // Все записи внутри текущего префикса (исключая саму папку)
+    const entries = allKeys.filter(key => key.startsWith(prefix) && key !== prefix && !key.endsWith('/'));
+    // Группируем по первому сегменту после префикса
     const childrenMap = new Map<string, { isFile: boolean; name: string }>();
     entries.forEach(key => {
       const relative = key.slice(prefix.length);
@@ -210,32 +202,32 @@ function buildTreeFromZip(zip: JSZip): { name: string; structure: any } {
       }
     });
 
-    // Строим дочерние узлы
     const children: any[] = [];
     for (const [key, info] of childrenMap) {
       if (info.isFile) {
         children.push({ id: info.name, name: info.name });
       } else {
         // Это папка, спускаемся рекурсивно
-        const subNode = buildNode(path ? path + '/' + key : key);
+        const newPrefix = prefix + key + '/';
+        const subNode = buildNode(newPrefix);
         if (subNode) {
           children.push(subNode);
         }
       }
     }
 
-    // Если это корень, возвращаем структуру с именем программы
-    if (path === '') {
-      // Дополнительно обрабатываем файлы, лежащие прямо в корне (без папок)
-      const rootEntries = Object.keys(zip.files).filter(key => !key.includes('/') && !key.endsWith('/'));
-      rootEntries.forEach(fileName => {
+    // Если это корень (пустой префикс), возвращаем структуру с корневым узлом
+    if (prefix === '') {
+      // Также добавляем файлы, которые лежат прямо в корне (без папок)
+      const rootFiles = allKeys.filter(key => !key.includes('/') && !key.endsWith('/'));
+      rootFiles.forEach(fileName => {
         const nameWithoutExt = fileName.replace(/\.[^/.]+$/, '');
         children.push({ id: nameWithoutExt, name: nameWithoutExt });
       });
       return { id: 'root', name: rootFolderName, children };
     } else {
-      // Возвращаем узел папки
-      const folderName = path.split('/').pop() || 'folder';
+      // Возвращаем узел папки (имя берём из последнего сегмента)
+      const folderName = prefix.replace(/\/$/, '').split('/').pop() || 'folder';
       return { id: folderName, name: folderName, children };
     }
   }
@@ -284,30 +276,44 @@ function getAllLessonIds(node: any): string[] {
   return result;
 }
 
+// ========== ОБНОВЛЁННЫЙ renderCustomNode: вся область кликабельна ==========
 const renderCustomNode = ({ nodeDatum, toggleNode }: any) => {
   const isLesson = nodeDatum.__isLesson;
   const completed = nodeDatum.__completed;
   const bgColor = isLesson ? (completed ? '#4CAF50' : '#FF9800') : '#2196F3';
-  const radius = isLesson ? 18 : 24;
+  const radius = isLesson ? 22 : 30;
+  const padding = 10;
+  const textWidth = nodeDatum.name.length * 8 + 20;
+  const boxWidth = Math.max(radius * 2 + 20, textWidth);
+  const boxHeight = radius * 2 + 20;
+
   return (
-    <g>
-      <circle
-        r={radius}
+    <g onClick={toggleNode} style={{ cursor: 'pointer' }}>
+      <rect
+        x={-boxWidth / 2}
+        y={-boxHeight / 2}
+        width={boxWidth}
+        height={boxHeight}
+        rx={10}
         fill={bgColor}
         stroke="#fff"
         strokeWidth="2"
-        onClick={toggleNode}
-        cursor="pointer"
+      />
+      <circle
+        cx={0}
+        cy={0}
+        r={radius}
+        fill={bgColor}
+        stroke="none"
       />
       <text
         fill="#fff"
-        stroke="none"
-        strokeWidth="0"
-        x={radius + 10}
-        y="4"
+        x={0}
+        y={4}
         fontSize={isLesson ? 14 : 16}
         fontFamily="Arial, sans-serif"
-        textAnchor="start"
+        textAnchor="middle"
+        dominantBaseline="middle"
         style={{ fontWeight: isLesson ? 'normal' : 'bold' }}
       >
         {nodeDatum.name}
@@ -330,6 +336,7 @@ function SkillTreeView({ structure, progress }: { structure: any; progress: Reco
         draggable={true}
         separation={{ siblings: 1.5, nonSiblings: 1.5 }}
         nodeSize={{ x: 200, y: 100 }}
+        collapsible={false} // отключаем сворачивание
       />
     </div>
   );
@@ -401,7 +408,6 @@ function App() {
   const [newProgramZip, setNewProgramZip] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
 
-  // Загрузка данных пользователя
   useEffect(() => {
     const init = async () => {
       const { id, firstName, lastName, username } = extractUserInfoFromHash();
@@ -459,6 +465,7 @@ function App() {
     }
     setView('programs');
     setCurrentProgramId(null);
+    setSelectedStudentId(null);
   };
 
   const selectProgram = async (programId: string) => {
@@ -481,7 +488,6 @@ function App() {
     }
   };
 
-  // Функция для создания программы из ZIP
   const handleCreateProgramFromZip = async () => {
     if (!newProgramName.trim()) {
       alert('Введите название программы');
@@ -495,7 +501,6 @@ function App() {
     try {
       const zip = await JSZip.loadAsync(await newProgramZip.arrayBuffer());
       const { name, structure } = buildTreeFromZip(zip);
-      // Если имя программы не задано явно, берём из ZIP
       const programName = newProgramName.trim() || name;
       const id = await createProgram(programName, userId, structure);
       if (id) {
@@ -548,6 +553,7 @@ function App() {
   const backToAdmin = () => {
     setSelectedStudentId(null);
     setView('admin');
+    // перезагружаем прогресс учителя для этой программы (показываем превью)
     loadProgressForProgram(userId, currentProgramId!).then(p => setProgress(p));
   };
 
@@ -563,7 +569,7 @@ function App() {
         <button onClick={() => setView('programs')}>⬅ Назад</button>
         <h2>Создать программу из ZIP</h2>
         <div>
-          <label>Название программы (опционально, если не указано, будет взято из имени ZIP):</label><br />
+          <label>Название программы (опционально):</label><br />
           <input
             type="text"
             value={newProgramName}
@@ -595,6 +601,7 @@ function App() {
 
   if (isAdmin && view === 'admin' && currentProgramId) {
     if (selectedStudentId) {
+      // Режим редактирования ученика
       return (
         <div style={{ width: '100vw', height: '100vh', backgroundColor: '#1a1a2e' }}>
           <div style={{ position: 'absolute', top: 10, left: 10, zIndex: 10, display: 'flex', gap: '10px' }}>
@@ -606,6 +613,7 @@ function App() {
       );
     }
 
+    // Основная админка
     return (
       <div style={{ padding: '20px', color: '#fff', backgroundColor: '#1a1a2e', minHeight: '100vh' }}>
         <button onClick={() => { setView('programs'); setCurrentProgramId(null); }}>⬅ Назад к программам</button>
@@ -632,9 +640,9 @@ function App() {
 
             <h3>Принятые ученики</h3>
             {acceptedStudents.map(student => (
-              <div key={student.id} style={{ marginBottom: '10px', backgroundColor: '#333', padding: '10px', borderRadius: '8px' }}>
+              <div key={student.id} style={{ marginBottom: '10px', backgroundColor: '#333', padding: '10px', borderRadius: '8px', cursor: 'pointer' }} onClick={() => handleSelectStudent(student.id)}>
                 <span>{student.name || `ID: ${student.id}`}</span>
-                <button onClick={() => handleSelectStudent(student.id)} style={{ marginLeft: '10px' }}>📝 Редактировать</button>
+                <span style={{ marginLeft: '10px', color: '#aaa' }}>📝 кликните для редактирования</span>
               </div>
             ))}
             {acceptedStudents.length === 0 && <p>Нет принятых учеников</p>}
@@ -665,9 +673,9 @@ function App() {
           <button onClick={() => setView('create')}>➕ Создать программу (ZIP)</button>
           {programs.length === 0 && <p>У вас пока нет программ. Создайте первую!</p>}
           {programs.map(prog => (
-            <div key={prog.id} style={{ margin: '10px 0', backgroundColor: '#333', padding: '15px', borderRadius: '8px', display: 'flex', justifyContent: 'space-between' }}>
+            <div key={prog.id} style={{ margin: '10px 0', backgroundColor: '#333', padding: '15px', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', cursor: 'pointer' }} onClick={() => selectProgram(prog.id)}>
               <span>{prog.name}</span>
-              <button onClick={() => selectProgram(prog.id)}>Открыть</button>
+              <span style={{ color: '#aaa' }}>▶</span>
             </div>
           ))}
         </div>
@@ -678,9 +686,9 @@ function App() {
           <h2>Мои программы</h2>
           {programs.length === 0 && <p>Вы ещё не приняты ни в одну программу. Подайте заявку ниже.</p>}
           {programs.map(prog => (
-            <div key={prog.id} style={{ margin: '10px 0', backgroundColor: '#333', padding: '15px', borderRadius: '8px', display: 'flex', justifyContent: 'space-between' }}>
+            <div key={prog.id} style={{ margin: '10px 0', backgroundColor: '#333', padding: '15px', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', cursor: 'pointer' }} onClick={() => selectProgram(prog.id)}>
               <span>{prog.name}</span>
-              <button onClick={() => selectProgram(prog.id)}>Открыть</button>
+              <span style={{ color: '#aaa' }}>▶</span>
             </div>
           ))}
 
