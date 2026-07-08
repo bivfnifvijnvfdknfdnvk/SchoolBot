@@ -85,6 +85,7 @@ async function deleteProgram(programId: string) {
   return true;
 }
 
+// Получить заявки с именами учеников
 async function getApplicationsForProgram(programId: string) {
   const { data, error } = await supabase
     .from('applications')
@@ -94,7 +95,24 @@ async function getApplicationsForProgram(programId: string) {
     console.error('Ошибка загрузки заявок:', error);
     return [];
   }
-  return data || [];
+  // Получаем имена учеников для всех заявок
+  const studentIds = data.map(app => app.student_id);
+  if (studentIds.length === 0) return data;
+  const { data: users, error: userError } = await supabase
+    .from('users')
+    .select('telegram_id, first_name, last_name')
+    .in('telegram_id', studentIds);
+  if (userError) return data;
+  const userMap: { [key: number]: string } = {};
+  users.forEach(u => {
+    const name = `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.telegram_id.toString();
+    userMap[u.telegram_id] = name;
+  });
+  // Добавляем поле student_name к каждой заявке
+  return data.map(app => ({
+    ...app,
+    student_name: userMap[app.student_id] || app.student_id.toString(),
+  }));
 }
 
 async function createApplication(programId: string, studentId: string) {
@@ -141,7 +159,7 @@ async function getAcceptedStudents(programId: string) {
   if (userError) return [];
   return users.map(u => ({
     id: u.telegram_id.toString(),
-    name: `${u.first_name || ''} ${u.last_name || ''}`.trim() || null,
+    name: `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.telegram_id.toString(),
   }));
 }
 
@@ -302,8 +320,8 @@ function getAllLessonIds(node: any): string[] {
   return result;
 }
 
-// Кастомный рендер узла – добавляем возможность клика для изменения статуса урока
-const renderCustomNode = ({ nodeDatum, toggleNode, onLessonClick }: any) => {
+// Кастомный рендер узла – клик по уроку меняет статус (только для учителя)
+const renderCustomNode = ({ nodeDatum, onLessonClick }: any) => {
   const isLesson = nodeDatum.__isLesson;
   const completed = nodeDatum.__completed;
   const bgColor = isLesson ? (completed ? '#4CAF50' : '#FF9800') : '#2196F3';
@@ -312,9 +330,8 @@ const renderCustomNode = ({ nodeDatum, toggleNode, onLessonClick }: any) => {
   const handleClick = () => {
     if (isLesson && onLessonClick) {
       onLessonClick(nodeDatum.__id);
-    } else {
-      toggleNode();
     }
+    // для папок ничего не делаем (сворачивание отключено)
   };
 
   return (
@@ -345,7 +362,7 @@ const renderCustomNode = ({ nodeDatum, toggleNode, onLessonClick }: any) => {
   );
 };
 
-// Компонент дерева с поддержкой кликов по урокам
+// Компонент дерева с поддержкой кликов по урокам (только для учителя)
 function SkillTreeView({ structure, progress, onToggleLesson }: { 
   structure: any; 
   progress: Record<string, boolean>;
@@ -364,6 +381,7 @@ function SkillTreeView({ structure, progress, onToggleLesson }: {
         draggable={true}
         separation={{ siblings: 1.5, nonSiblings: 1.5 }}
         nodeSize={{ x: 200, y: 100 }}
+        collapsible={false}   // отключаем сворачивание веток
       />
     </div>
   );
@@ -431,6 +449,7 @@ function App() {
   const [applications, setApplications] = useState<any[]>([]);
   const [acceptedStudents, setAcceptedStudents] = useState<any[]>([]);
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
+  const [selectedStudentName, setSelectedStudentName] = useState<string | null>(null);
 
   const [newProgramName, setNewProgramName] = useState('');
   const [newProgramZip, setNewProgramZip] = useState<File | null>(null);
@@ -495,6 +514,7 @@ function App() {
     setView('programs');
     setCurrentProgramId(null);
     setSelectedStudentId(null);
+    setSelectedStudentName(null);
   };
 
   const selectProgram = async (programId: string) => {
@@ -512,6 +532,7 @@ function App() {
       setAcceptedStudents(accepted);
       setView('admin');
       setSelectedStudentId(null);
+      setSelectedStudentName(null);
     } else {
       setView('tree');
     }
@@ -589,14 +610,18 @@ function App() {
     setSelectedStudentId(studentId);
     const prog = await loadProgressForProgram(studentId, currentProgramId!);
     setProgress(prog);
+    // Ищем имя ученика в списке acceptedStudents
+    const student = acceptedStudents.find(s => s.id === studentId);
+    setSelectedStudentName(student ? student.name : null);
   };
 
   const backToAdmin = () => {
     setSelectedStudentId(null);
+    setSelectedStudentName(null);
     loadProgressForProgram(userId, currentProgramId!).then(p => setProgress(p));
   };
 
-  // Функция переключения статуса урока (для учителя при редактировании)
+  // Функция переключения статуса урока (только для учителя)
   const toggleLessonForStudent = async (lessonId: string) => {
     if (!selectedStudentId || !currentProgramId) return;
     const newProgress = { ...progress, [lessonId]: !progress[lessonId] };
@@ -604,27 +629,18 @@ function App() {
     await saveProgressForProgram(selectedStudentId, currentProgramId, newProgress);
   };
 
-  // Функция переключения статуса урока для ученика (если он сам может отмечать)
-  const toggleLessonForSelf = async (lessonId: string) => {
-    if (!currentProgramId) return;
-    const newProgress = { ...progress, [lessonId]: !progress[lessonId] };
-    setProgress(newProgress);
-    await saveProgressForProgram(userId, currentProgramId, newProgress);
-  };
-
   // Удаление ученика из программы (для учителя)
   const handleDeleteStudent = async (studentId: string, studentName: string | null) => {
     if (!confirm(`Вы уверены, что хотите удалить ученика "${studentName || studentId}" из программы?`)) return;
-    // Удаляем все записи прогресса и заявку
     await supabase.from('progress').delete().eq('user_id', Number(studentId)).eq('program_id', currentProgramId!);
     await supabase.from('applications').delete().eq('student_id', Number(studentId)).eq('program_id', currentProgramId!);
-    // Обновляем списки
     const accepted = await getAcceptedStudents(currentProgramId!);
     setAcceptedStudents(accepted);
     const apps = await getApplicationsForProgram(currentProgramId!);
     setApplications(apps);
     if (selectedStudentId === studentId) {
       setSelectedStudentId(null);
+      setSelectedStudentName(null);
       loadProgressForProgram(userId, currentProgramId!).then(p => setProgress(p));
     }
   };
@@ -680,6 +696,7 @@ function App() {
         <div style={{ width: '100vw', height: '100vh', backgroundColor: '#1a1a2e' }}>
           <div style={{ position: 'absolute', top: 10, left: 10, zIndex: 10, display: 'flex', gap: '10px' }}>
             <button onClick={backToAdmin}>⬅ Назад к админке</button>
+            <span style={{ color: '#fff' }}>Редактирование ученика: {selectedStudentName || '...'}</span>
           </div>
           <SkillTreeView 
             structure={structure} 
@@ -706,7 +723,7 @@ function App() {
             <h3>Заявки на вступление</h3>
             {applications.filter(a => a.status === 'pending').map(app => (
               <div key={app.id} style={{ marginBottom: '10px', backgroundColor: '#333', padding: '10px', borderRadius: '8px' }}>
-                <span>Ученик ID: {app.student_id}</span>
+                <span>{app.student_name || app.student_id}</span>
                 <div>
                   <button onClick={() => handleAcceptApplication(app.id)} style={{ marginRight: '10px', backgroundColor: '#4CAF50' }}>✅ Принять</button>
                   <button onClick={() => handleRejectApplication(app.id)} style={{ backgroundColor: '#f44336' }}>❌ Отклонить</button>
@@ -719,15 +736,27 @@ function App() {
             {acceptedStudents.map(student => (
               <div 
                 key={student.id} 
-                style={{ marginBottom: '10px', backgroundColor: '#333', padding: '10px', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}
+                style={{ 
+                  marginBottom: '10px', 
+                  backgroundColor: '#333', 
+                  padding: '10px', 
+                  borderRadius: '8px', 
+                  display: 'flex', 
+                  justifyContent: 'space-between', 
+                  alignItems: 'center', 
+                  cursor: 'pointer',
+                  transition: 'background-color 0.2s',
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#444'}
+                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#333'}
                 onClick={() => handleSelectStudent(student.id)}
               >
-                <span>{student.name || `ID: ${student.id}`}</span>
+                <span>{student.name}</span>
                 <button 
                   onClick={(e) => { e.stopPropagation(); handleDeleteStudent(student.id, student.name); }}
-                  style={{ backgroundColor: '#f44336', border: 'none', color: 'white', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer' }}
+                  style={{ backgroundColor: 'transparent', border: 'none', color: '#f44336', fontSize: '1.2rem', cursor: 'pointer' }}
                 >
-                  🗑️ Удалить
+                  🗑️
                 </button>
               </div>
             ))}
@@ -738,7 +767,7 @@ function App() {
     );
   }
 
-  // Режим ученика – дерево с возможностью отмечать уроки
+  // Режим ученика – дерево БЕЗ возможности отмечать уроки
   if (!isAdmin && view === 'tree' && currentProgramId) {
     return (
       <div style={{ width: '100vw', height: '100vh', backgroundColor: '#1a1a2e' }}>
@@ -750,7 +779,7 @@ function App() {
         <SkillTreeView 
           structure={structure} 
           progress={progress} 
-          onToggleLesson={toggleLessonForSelf}
+          // onToggleLesson не передаём – ученик не может отмечать
         />
       </div>
     );
@@ -785,9 +814,9 @@ function App() {
               <span>{prog.name}</span>
               <button 
                 onClick={(e) => { e.stopPropagation(); handleDeleteProgram(prog.id, prog.name); }}
-                style={{ backgroundColor: '#f44336', border: 'none', color: 'white', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer' }}
+                style={{ backgroundColor: 'transparent', border: 'none', color: '#f44336', fontSize: '1.2rem', cursor: 'pointer' }}
               >
-                🗑️ Удалить
+                🗑️
               </button>
             </div>
           ))}
