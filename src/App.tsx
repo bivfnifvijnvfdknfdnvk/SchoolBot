@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import Tree from 'react-d3-tree';
-import { supabase, setUserId } from './supabaseClient';
+import { supabase } from './supabaseClient';
 import './App.css';
 
 // ========== НАСТРОЙКА ==========
@@ -112,14 +112,13 @@ async function saveUserToDB(userId: string, firstName: string, lastName: string 
 }
 
 async function getAllStudentsFromDB(teacherId: string): Promise<{ id: string; name: string | null }[]> {
-  // Получаем всех пользователей, у которых есть прогресс (активные)
   const { data: progressData, error: progressError } = await supabase
     .from('progress')
     .select('user_id');
 
   if (progressError || !progressData) return [];
 
-  const userIds = progressData.map(p => p.user_id).filter(id => id !== Number(teacherId)); // исключаем учителя
+  const userIds = progressData.map(p => p.user_id).filter(id => id !== Number(teacherId));
   if (userIds.length === 0) return [];
 
   const { data, error } = await supabase
@@ -499,14 +498,14 @@ function App() {
     const init = async () => {
       const { id, firstName, lastName, username } = extractUserInfoFromHash();
       if (id) {
-        // Устанавливаем ID в сессии Supabase (обязательно для RLS)
-        await setUserId(id);
+        // Устанавливаем ID в сессии Supabase (для RLS)
+        await supabase.rpc('set_user_id', { user_id: Number(id) });
         setUserId(id);
 
         // Сохраняем пользователя
         await saveUserToDB(id, firstName || '', lastName || '', username || '');
 
-        // Загружаем прогресс (для отображения дерева, если ученик)
+        // Загружаем прогресс
         let prog = await loadProgressFromDB(id);
         if (Object.keys(prog).length === 0) {
           console.log('🔄 Прогресс пуст, создаём записи для ученика', id);
@@ -526,7 +525,7 @@ function App() {
           const user = tg.initDataUnsafe?.user;
           if (user?.id) {
             const id = user.id.toString();
-            await setUserId(id);
+            await supabase.rpc('set_user_id', { user_id: Number(id) });
             setUserId(id);
             await saveUserToDB(id, user.first_name || '', user.last_name || '', user.username || '');
             let prog = await loadProgressFromDB(id);
@@ -575,15 +574,12 @@ function App() {
 
   // Если учитель и выбран ученик – показываем админку редактирования
   if (isAdmin && selectedStudentId !== null) {
-    // Используем selectedStudentId для загрузки данных, но userId остаётся учителем
     return (
       <div>
         <div style={{ padding: '10px', backgroundColor: '#333', display: 'flex', gap: '10px', alignItems: 'center' }}>
           <button onClick={() => {
             setSelectedStudentId(null);
-            // Восстанавливаем прогресс учителя (или просто сбрасываем)
-            // Можно загрузить прогресс учителя обратно, но для простоты просто сбросим
-            setUserName(''); // можно перезагрузить
+            setUserName('');
           }}>⬅ Назад к списку</button>
           <span style={{ color: '#fff' }}>Редактирование: {userName || `ID: ${selectedStudentId}`}</span>
         </div>
