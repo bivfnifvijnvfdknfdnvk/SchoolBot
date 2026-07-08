@@ -49,9 +49,7 @@ function getAllLessonIds(node: any): string[] {
 
 const ALL_LESSON_IDS = getAllLessonIds(TREE_STRUCTURE);
 
-// ========== ФУНКЦИИ ДЛЯ РАБОТЫ С БАЗОЙ ==========
-
-// Загрузить прогресс пользователя
+// ========== ФУНКЦИИ РАБОТЫ С БАЗОЙ ==========
 async function loadProgressFromDB(userId: string): Promise<Record<string, boolean>> {
   const { data, error } = await supabase
     .from('progress')
@@ -64,14 +62,12 @@ async function loadProgressFromDB(userId: string): Promise<Record<string, boolea
   }
 
   const progress: Record<string, boolean> = {};
-  ALL_LESSON_IDS.forEach(id => { progress[id] = false; });
   data.forEach(row => {
     progress[row.lesson_id] = row.completed;
   });
   return progress;
 }
 
-// Сохранить прогресс пользователя (upsert)
 async function saveProgressToDB(userId: string, progress: Record<string, boolean>) {
   const entries = Object.entries(progress).map(([lesson_id, completed]) => ({
     user_id: Number(userId),
@@ -89,7 +85,6 @@ async function saveProgressToDB(userId: string, progress: Record<string, boolean
   }
 }
 
-// Загрузить имя пользователя
 async function loadUserNameFromDB(userId: string): Promise<string | null> {
   const { data, error } = await supabase
     .from('users')
@@ -101,7 +96,6 @@ async function loadUserNameFromDB(userId: string): Promise<string | null> {
   return `${data.first_name || ''} ${data.last_name || ''}`.trim() || null;
 }
 
-// Сохранить пользователя (если новый)
 async function saveUserToDB(userId: string, firstName: string, lastName: string | null, username: string | null) {
   const { error } = await supabase
     .from('users')
@@ -117,19 +111,15 @@ async function saveUserToDB(userId: string, firstName: string, lastName: string 
   }
 }
 
-// Получить всех учеников (для учителя)
 async function getAllStudentsFromDB(): Promise<{ id: string; name: string | null }[]> {
   // Получаем всех пользователей, у которых есть прогресс (активные)
-  const { data: progressUsers, error: progressError } = await supabase
+  const { data: progressData, error: progressError } = await supabase
     .from('progress')
     .select('user_id');
 
-  if (progressError) {
-    console.error('Ошибка получения списка учеников:', progressError);
-    return [];
-  }
+  if (progressError || !progressData) return [];
 
-  const userIds = progressUsers.map(p => p.user_id);
+  const userIds = progressData.map(p => p.user_id);
   if (userIds.length === 0) return [];
 
   const { data, error } = await supabase
@@ -137,10 +127,7 @@ async function getAllStudentsFromDB(): Promise<{ id: string; name: string | null
     .select('telegram_id, first_name, last_name')
     .in('telegram_id', userIds);
 
-  if (error) {
-    console.error('Ошибка получения данных учеников:', error);
-    return [];
-  }
+  if (error) return [];
 
   return data.map(u => ({
     id: u.telegram_id.toString(),
@@ -148,18 +135,14 @@ async function getAllStudentsFromDB(): Promise<{ id: string; name: string | null
   }));
 }
 
-// ========== РАБОТА С ПАПКАМИ (тоже через БД) ==========
-
+// ========== РАБОТА С ПАПКАМИ ==========
 async function getFoldersFromDB(teacherId: string): Promise<any[]> {
   const { data, error } = await supabase
     .from('folders')
     .select('id, name, folder_students(user_id)')
     .eq('teacher_id', Number(teacherId));
 
-  if (error) {
-    console.error('Ошибка загрузки папок:', error);
-    return [];
-  }
+  if (error) return [];
 
   return data.map(f => ({
     id: f.id,
@@ -175,64 +158,30 @@ async function createFolderInDB(teacherId: string, name: string) {
     .select('id')
     .single();
 
-  if (error) {
-    console.error('Ошибка создания папки:', error);
-    return null;
-  }
+  if (error) return null;
   return data.id;
 }
 
 async function renameFolderInDB(folderId: string, newName: string) {
-  const { error } = await supabase
-    .from('folders')
-    .update({ name: newName })
-    .eq('id', folderId);
-
-  if (error) console.error('Ошибка переименования папки:', error);
+  await supabase.from('folders').update({ name: newName }).eq('id', folderId);
 }
 
 async function deleteFolderFromDB(folderId: string) {
-  const { error } = await supabase
-    .from('folders')
-    .delete()
-    .eq('id', folderId);
-
-  if (error) console.error('Ошибка удаления папки:', error);
+  await supabase.from('folders').delete().eq('id', folderId);
 }
 
 async function moveStudentToFolderDB(studentId: string, folderId: string | null) {
-  // Сначала удаляем все связи этого ученика с папками
-  const { error: delError } = await supabase
-    .from('folder_students')
-    .delete()
-    .eq('user_id', Number(studentId));
-
-  if (delError) {
-    console.error('Ошибка удаления старых связей:', delError);
-    return;
-  }
-
+  await supabase.from('folder_students').delete().eq('user_id', Number(studentId));
   if (folderId) {
-    const { error: insError } = await supabase
-      .from('folder_students')
-      .insert({ folder_id: folderId, user_id: Number(studentId) });
-
-    if (insError) console.error('Ошибка добавления в папку:', insError);
+    await supabase.from('folder_students').insert({ folder_id: folderId, user_id: Number(studentId) });
   }
 }
 
 async function deleteStudentFromDB(studentId: string) {
-  // Удаляем прогресс, пользователя и связи с папками (каскадное удаление)
-  const { error } = await supabase
-    .from('users')
-    .delete()
-    .eq('telegram_id', Number(studentId));
-
-  if (error) console.error('Ошибка удаления ученика:', error);
+  await supabase.from('users').delete().eq('telegram_id', Number(studentId));
 }
 
 // ========== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ==========
-
 function extractUserInfoFromHash(): { id: string | null, firstName: string | null, lastName: string | null, username: string | null } {
   const hash = window.location.hash;
   if (!hash) return { id: null, firstName: null, lastName: null, username: null };
@@ -260,7 +209,6 @@ function extractUserInfoFromHash(): { id: string | null, firstName: string | nul
 }
 
 // ========== КОМПОНЕНТЫ ==========
-
 function buildTreeForDisplay(node: any, progress: Record<string, boolean>): any {
   const isLesson = !node.children || node.children.length === 0;
   if (isLesson) {
@@ -411,9 +359,9 @@ function TeacherDashboard({ onSelectStudent, teacherId }: {
 
   const handleCreateFolder = async () => {
     if (newFolderName.trim() === '') return;
-    await createFolderInDB(teacherId, newFolderName.trim());
+    const id = await createFolderInDB(teacherId, newFolderName.trim());
     setNewFolderName('');
-    await loadData();
+    if (id) await loadData();
   };
 
   const handleRenameFolder = async (folderId: string) => {
@@ -552,13 +500,22 @@ function App() {
       const { id, firstName, lastName, username } = extractUserInfoFromHash();
       if (id) {
         setUserId(id);
-        await setUserId(id);
+        // Сохраняем пользователя
         await saveUserToDB(id, firstName || '', lastName || '', username || '');
-        const prog = await loadProgressFromDB(id);
+        // Загружаем прогресс
+        let prog = await loadProgressFromDB(id);
+        // Если прогресс пустой – создаём записи со всеми false
+        if (Object.keys(prog).length === 0) {
+          const initialProgress: Record<string, boolean> = {};
+          ALL_LESSON_IDS.forEach(lessonId => { initialProgress[lessonId] = false; });
+          await saveProgressToDB(id, initialProgress);
+          prog = initialProgress;
+        }
         setProgress(prog);
         const name = await loadUserNameFromDB(id);
         setUserName(name || `${firstName || ''} ${lastName || ''}`.trim() || id);
       } else {
+        // fallback через Telegram WebApp
         const tg = (window as any).Telegram?.WebApp;
         if (tg) {
           tg.ready();
@@ -566,9 +523,14 @@ function App() {
           if (user?.id) {
             const id = user.id.toString();
             setUserId(id);
-            await setUserId(id);
             await saveUserToDB(id, user.first_name || '', user.last_name || '', user.username || '');
-            const prog = await loadProgressFromDB(id);
+            let prog = await loadProgressFromDB(id);
+            if (Object.keys(prog).length === 0) {
+              const initialProgress: Record<string, boolean> = {};
+              ALL_LESSON_IDS.forEach(lessonId => { initialProgress[lessonId] = false; });
+              await saveProgressToDB(id, initialProgress);
+              prog = initialProgress;
+            }
             setProgress(prog);
             const name = await loadUserNameFromDB(id);
             setUserName(name || `${user.first_name || ''} ${user.last_name || ''}`.trim() || id);
