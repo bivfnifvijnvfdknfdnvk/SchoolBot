@@ -373,13 +373,13 @@ function getAllLessonIds(node: any): string[] {
   return result;
 }
 
-// ========== КАСТОМНЫЙ РЕНДЕР УЗЛА (исправленный) ==========
+// ========== КАСТОМНЫЙ РЕНДЕР УЗЛА (с паттерном для обрезания изображения) ==========
 const renderCustomNode = ({ nodeDatum, onLessonClick, onToggleLesson }: any) => {
   const isLesson = nodeDatum.__isLesson;
   const completed = nodeDatum.__completed;
   const imageUrl = nodeDatum.__imageUrl;
   const content = nodeDatum.__content;
-  const radius = 24; // одинаковый радиус для всех узлов
+  const radius = 24; // одинаковый для всех
 
   const handleClick = () => {
     if (isLesson) {
@@ -391,31 +391,31 @@ const renderCustomNode = ({ nodeDatum, onLessonClick, onToggleLesson }: any) => 
     }
   };
 
-  const clipId = `clip-${nodeDatum.__id || Math.random().toString(36).substring(2, 10)}`;
+  const patternId = `pattern-${nodeDatum.__id || Math.random().toString(36).substring(2, 10)}`;
   const textColor = isLesson && completed ? '#4CAF50' : '#fff';
-
-  // Для изображения уменьшаем размер до 44px, чтобы был небольшой отступ от рамки
-  const imgSize = 44;
-  const imgOffset = -imgSize / 2; // -22
 
   return (
     <g>
       <defs>
-        <clipPath id={clipId}>
-          <circle cx="0" cy="0" r={radius} />
-        </clipPath>
+        {/* Паттерн для заливки изображением */}
+        <pattern id={patternId} patternUnits="objectBoundingBox" width="1" height="1">
+          <image
+            href={imageUrl || ''}
+            x="0"
+            y="0"
+            width="1"
+            height="1"
+            preserveAspectRatio="xMidYMid slice"
+          />
+        </pattern>
       </defs>
 
-      {/* Основное содержимое: картинка или цветной круг */}
+      {/* Круг с изображением (если есть) или цветной круг */}
       {imageUrl ? (
-        <image
-          href={imageUrl}
-          x={imgOffset}
-          y={imgOffset}
-          width={imgSize}
-          height={imgSize}
-          clipPath={`url(#${clipId})`}
-          preserveAspectRatio="xMidYMid slice"
+        <circle
+          r={radius}
+          fill={`url(#${patternId})`}
+          stroke="none"
           onClick={handleClick}
           style={{ cursor: isLesson ? 'pointer' : 'default' }}
         />
@@ -429,7 +429,7 @@ const renderCustomNode = ({ nodeDatum, onLessonClick, onToggleLesson }: any) => 
         />
       )}
 
-      {/* Круглая рамка (белая обводка) для всех узлов */}
+      {/* Круглая белая рамка для всех узлов */}
       <circle
         cx="0"
         cy="0"
@@ -448,7 +448,7 @@ const renderCustomNode = ({ nodeDatum, onLessonClick, onToggleLesson }: any) => 
             cx="0"
             cy="0"
             r={radius}
-            fill="rgba(76, 175, 80, 0.4)"   // прозрачность 0.4
+            fill="rgba(76, 175, 80, 0.4)"
             stroke="none"
             onClick={handleClick}
             style={{ cursor: 'pointer' }}
@@ -457,7 +457,7 @@ const renderCustomNode = ({ nodeDatum, onLessonClick, onToggleLesson }: any) => 
             x="0"
             y="2"
             fontSize={radius * 0.9}
-            fill="rgba(255, 255, 255, 0.8)" // полупрозрачная галочка
+            fill="rgba(255, 255, 255, 0.8)"
             stroke="none"
             textAnchor="middle"
             dominantBaseline="central"
@@ -470,7 +470,7 @@ const renderCustomNode = ({ nodeDatum, onLessonClick, onToggleLesson }: any) => 
         </>
       )}
 
-      {/* Название узла (текст) */}
+      {/* Название узла */}
       <text
         fill={textColor}
         stroke="none"
@@ -515,7 +515,7 @@ function SkillTreeView({ structure, progress, onLessonClick, onToggleLesson }: {
   );
 }
 
-// Список доступных программ для ученика (без изменений)
+// Список доступных программ для ученика
 function StudentProgramList({ userId, onApply, existingProgramIds }: { userId: string; onApply: (programId: string) => void; existingProgramIds: string[] }) {
   const [availablePrograms, setAvailablePrograms] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
