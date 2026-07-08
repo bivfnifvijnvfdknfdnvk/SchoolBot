@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import Tree from 'react-d3-tree';
-import { supabase, setUserId } from './supabaseClient';
+import { supabase } from './supabaseClient';
 import './App.css';
 
 // ========== НАСТРОЙКА ==========
