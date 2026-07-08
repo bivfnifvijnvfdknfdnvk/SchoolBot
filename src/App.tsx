@@ -528,17 +528,15 @@ function App() {
     }
   };
 
-  // При выборе ученика для редактирования
+  // При выборе ученика для редактирования - НЕ МЕНЯЕМ view, остаёмся в 'admin'
   const handleSelectStudent = async (studentId: string) => {
     setSelectedStudentId(studentId);
     const prog = await loadProgressForProgram(studentId, currentProgramId!);
     setProgress(prog);
-    setView('tree'); // переключаем на просмотр дерева (как у ученика)
   };
 
   const backToAdmin = () => {
     setSelectedStudentId(null);
-    setView('admin');
     loadProgressForProgram(userId, currentProgramId!).then(p => setProgress(p));
   };
 
