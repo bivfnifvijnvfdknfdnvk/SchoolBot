@@ -239,7 +239,7 @@ async function getApplicationStatus(studentId: string, programId: string) {
   return data;
 }
 
-// ========== ФУНКЦИЯ ПОСТРОЕНИЯ ДЕРЕВА ИЗ ZIP (АСИНХРОННАЯ) ==========
+// ========== ФУНКЦИЯ ПОСТРОЕНИЯ ДЕРЕВА ИЗ ZIP ==========
 async function buildTreeFromZip(zip: JSZip): Promise<{ name: string; structure: any }> {
   const rootFolders = new Set<string>();
   Object.keys(zip.files).forEach(path => {
@@ -373,7 +373,7 @@ function getAllLessonIds(node: any): string[] {
   return result;
 }
 
-// ========== КАСТОМНЫЙ РЕНДЕР УЗЛА (с паттерном для обрезания изображения) ==========
+// ========== КАСТОМНЫЙ РЕНДЕР УЗЛА (с clipPath для обрезания изображения) ==========
 const renderCustomNode = ({ nodeDatum, onLessonClick, onToggleLesson }: any) => {
   const isLesson = nodeDatum.__isLesson;
   const completed = nodeDatum.__completed;
@@ -391,31 +391,25 @@ const renderCustomNode = ({ nodeDatum, onLessonClick, onToggleLesson }: any) => 
     }
   };
 
-  const patternId = `pattern-${nodeDatum.__id || Math.random().toString(36).substring(2, 10)}`;
+  const clipId = `clip-${nodeDatum.__id || Math.random().toString(36).substring(2, 10)}`;
   const textColor = isLesson && completed ? '#4CAF50' : '#fff';
 
   return (
     <g>
       <defs>
-        {/* Паттерн для заливки изображением */}
-        <pattern id={patternId} patternUnits="objectBoundingBox" width="1" height="1">
-          <image
-            href={imageUrl || ''}
-            x="0"
-            y="0"
-            width="1"
-            height="1"
-            preserveAspectRatio="xMidYMid slice"
-          />
-        </pattern>
+        <clipPath id={clipId}>
+          <circle cx="0" cy="0" r={radius} />
+        </clipPath>
       </defs>
 
       {/* Круг с изображением (если есть) или цветной круг */}
       {imageUrl ? (
-        <circle
-          r={radius}
-          fill={`url(#${patternId})`}
-          stroke="none"
+        <image
+          href={imageUrl}
+          x="-24" y="-24"          // центрируем
+          width="48" height="48"
+          clipPath={`url(#${clipId})`}
+          preserveAspectRatio="xMidYMid slice"
           onClick={handleClick}
           style={{ cursor: isLesson ? 'pointer' : 'default' }}
         />
