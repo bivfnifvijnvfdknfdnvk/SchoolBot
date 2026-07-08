@@ -32,6 +32,7 @@ function extractUserInfoFromHash(): { id: string | null, firstName: string | nul
 }
 
 // ========== ФУНКЦИИ ДЛЯ РАБОТЫ С БАЗОЙ ==========
+
 async function getTeacherPrograms(teacherId: string) {
   const { data, error } = await supabase
     .from('programs')
@@ -177,18 +178,24 @@ async function getApplicationStatus(studentId: string, programId: string) {
   return data;
 }
 
-// ========== ФУНКЦИЯ ПОСТРОЕНИЯ ДЕРЕВА ИЗ ZIP (ИСПРАВЛЕННАЯ) ==========
+// ========== ФУНКЦИЯ ПОСТРОЕНИЯ ДЕРЕВА ИЗ ZIP (без дублирования корня) ==========
 function buildTreeFromZip(zip: JSZip): { name: string; structure: any } {
-  // Определяем имя корневой папки как название программы
-  const allKeys = Object.keys(zip.files);
-  // Находим самую верхнюю папку (первый сегмент пути)
-  const rootFolderName = allKeys.find(path => path.includes('/'))?.split('/')[0] || 'Программа';
-  
-  // Рекурсивная функция построения дерева
-  function buildNode(prefix: string): any {
-    // Все записи внутри текущего префикса (исключая саму папку)
-    const entries = allKeys.filter(key => key.startsWith(prefix) && key !== prefix && !key.endsWith('/'));
-    // Группируем по первому сегменту после префикса
+  // Определяем корневую папку – берём первую папку верхнего уровня
+  const rootFolders = new Set<string>();
+  Object.keys(zip.files).forEach(path => {
+    if (path.includes('/')) {
+      const root = path.split('/')[0];
+      if (root) rootFolders.add(root);
+    }
+  });
+  const rootFolderName = rootFolders.size === 1 ? Array.from(rootFolders)[0] : 'Программа';
+
+  // Рекурсивная функция построения узла
+  function buildNode(prefix: string): any[] {
+    // Все элементы внутри текущего префикса
+    const entries = Object.keys(zip.files).filter(key => key.startsWith(prefix) && key !== prefix && !key.endsWith('/'));
+
+    // Группируем по первому элементу после префикса
     const childrenMap = new Map<string, { isFile: boolean; name: string }>();
     entries.forEach(key => {
       const relative = key.slice(prefix.length);
@@ -203,36 +210,27 @@ function buildTreeFromZip(zip: JSZip): { name: string; structure: any } {
     });
 
     const children: any[] = [];
-    for (const [key, info] of childrenMap) {
+    for (const [name, info] of childrenMap) {
       if (info.isFile) {
         children.push({ id: info.name, name: info.name });
       } else {
-        // Это папка, спускаемся рекурсивно
-        const newPrefix = prefix + key + '/';
-        const subNode = buildNode(newPrefix);
-        if (subNode) {
-          children.push(subNode);
-        }
+        const subPrefix = prefix + name + '/';
+        const subChildren = buildNode(subPrefix);
+        children.push({ id: name, name: name, children: subChildren });
       }
     }
-
-    // Если это корень (пустой префикс), возвращаем структуру с корневым узлом
-    if (prefix === '') {
-      // Также добавляем файлы, которые лежат прямо в корне (без папок)
-      const rootFiles = allKeys.filter(key => !key.includes('/') && !key.endsWith('/'));
-      rootFiles.forEach(fileName => {
-        const nameWithoutExt = fileName.replace(/\.[^/.]+$/, '');
-        children.push({ id: nameWithoutExt, name: nameWithoutExt });
-      });
-      return { id: 'root', name: rootFolderName, children };
-    } else {
-      // Возвращаем узел папки (имя берём из последнего сегмента)
-      const folderName = prefix.replace(/\/$/, '').split('/').pop() || 'folder';
-      return { id: folderName, name: folderName, children };
-    }
+    return children;
   }
 
-  const structure = buildNode('');
+  // Строим дерево, начиная с пустого префикса (корень)
+  const rootChildren = buildNode('');
+  // Проверяем, есть ли одна корневая папка с таким же именем, как rootFolderName, и если да, то используем её напрямую
+  let structure;
+  if (rootChildren.length === 1 && rootChildren[0].name === rootFolderName) {
+    structure = { id: 'root', name: rootFolderName, children: rootChildren[0].children || [] };
+  } else {
+    structure = { id: 'root', name: rootFolderName, children: rootChildren };
+  }
   return { name: rootFolderName, structure };
 }
 
@@ -276,44 +274,30 @@ function getAllLessonIds(node: any): string[] {
   return result;
 }
 
-// ========== ОБНОВЛЁННЫЙ renderCustomNode: вся область кликабельна ==========
-const renderCustomNode = ({ nodeDatum, toggleNode }: any) => {
+// Кастомный рендер узла – без возможности сворачивания (убираем onClick)
+const renderCustomNode = ({ nodeDatum }: any) => {
   const isLesson = nodeDatum.__isLesson;
   const completed = nodeDatum.__completed;
   const bgColor = isLesson ? (completed ? '#4CAF50' : '#FF9800') : '#2196F3';
-  const radius = isLesson ? 22 : 30;
-  const padding = 10;
-  const textWidth = nodeDatum.name.length * 8 + 20;
-  const boxWidth = Math.max(radius * 2 + 20, textWidth);
-  const boxHeight = radius * 2 + 20;
-
+  const radius = isLesson ? 18 : 24;
   return (
-    <g onClick={toggleNode} style={{ cursor: 'pointer' }}>
-      <rect
-        x={-boxWidth / 2}
-        y={-boxHeight / 2}
-        width={boxWidth}
-        height={boxHeight}
-        rx={10}
+    <g>
+      <circle
+        r={radius}
         fill={bgColor}
         stroke="#fff"
         strokeWidth="2"
-      />
-      <circle
-        cx={0}
-        cy={0}
-        r={radius}
-        fill={bgColor}
-        stroke="none"
+        cursor="pointer"
       />
       <text
         fill="#fff"
-        x={0}
-        y={4}
+        stroke="none"
+        strokeWidth="0"
+        x={radius + 10}
+        y="4"
         fontSize={isLesson ? 14 : 16}
         fontFamily="Arial, sans-serif"
-        textAnchor="middle"
-        dominantBaseline="middle"
+        textAnchor="start"
         style={{ fontWeight: isLesson ? 'normal' : 'bold' }}
       >
         {nodeDatum.name}
@@ -336,12 +320,12 @@ function SkillTreeView({ structure, progress }: { structure: any; progress: Reco
         draggable={true}
         separation={{ siblings: 1.5, nonSiblings: 1.5 }}
         nodeSize={{ x: 200, y: 100 }}
-        collapsible={false} // отключаем сворачивание
       />
     </div>
   );
 }
 
+// Список доступных программ для ученика
 function StudentProgramList({ userId, onApply, existingProgramIds }: { userId: string; onApply: (programId: string) => void; existingProgramIds: string[] }) {
   const [availablePrograms, setAvailablePrograms] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -408,6 +392,7 @@ function App() {
   const [newProgramZip, setNewProgramZip] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
 
+  // Загрузка данных пользователя
   useEffect(() => {
     const init = async () => {
       const { id, firstName, lastName, username } = extractUserInfoFromHash();
@@ -465,7 +450,6 @@ function App() {
     }
     setView('programs');
     setCurrentProgramId(null);
-    setSelectedStudentId(null);
   };
 
   const selectProgram = async (programId: string) => {
@@ -488,6 +472,7 @@ function App() {
     }
   };
 
+  // Создание программы из ZIP
   const handleCreateProgramFromZip = async () => {
     if (!newProgramName.trim()) {
       alert('Введите название программы');
@@ -543,17 +528,17 @@ function App() {
     }
   };
 
+  // При выборе ученика для редактирования
   const handleSelectStudent = async (studentId: string) => {
     setSelectedStudentId(studentId);
     const prog = await loadProgressForProgram(studentId, currentProgramId!);
     setProgress(prog);
-    setView('tree');
+    setView('tree'); // переключаем на просмотр дерева (как у ученика)
   };
 
   const backToAdmin = () => {
     setSelectedStudentId(null);
     setView('admin');
-    // перезагружаем прогресс учителя для этой программы (показываем превью)
     loadProgressForProgram(userId, currentProgramId!).then(p => setProgress(p));
   };
 
@@ -563,6 +548,7 @@ function App() {
     return <div style={{ color: '#fff', padding: '20px' }}>Загрузка...</div>;
   }
 
+  // Форма создания программы
   if (isAdmin && view === 'create') {
     return (
       <div style={{ padding: '20px', color: '#fff', backgroundColor: '#1a1a2e', minHeight: '100vh' }}>
@@ -599,9 +585,10 @@ function App() {
     );
   }
 
+  // Панель учителя (админка программы)
   if (isAdmin && view === 'admin' && currentProgramId) {
+    // Если выбран ученик для редактирования – показываем дерево с возможностью вернуться
     if (selectedStudentId) {
-      // Режим редактирования ученика
       return (
         <div style={{ width: '100vw', height: '100vh', backgroundColor: '#1a1a2e' }}>
           <div style={{ position: 'absolute', top: 10, left: 10, zIndex: 10, display: 'flex', gap: '10px' }}>
@@ -640,9 +627,9 @@ function App() {
 
             <h3>Принятые ученики</h3>
             {acceptedStudents.map(student => (
-              <div key={student.id} style={{ marginBottom: '10px', backgroundColor: '#333', padding: '10px', borderRadius: '8px', cursor: 'pointer' }} onClick={() => handleSelectStudent(student.id)}>
+              <div key={student.id} style={{ marginBottom: '10px', backgroundColor: '#333', padding: '10px', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span>{student.name || `ID: ${student.id}`}</span>
-                <span style={{ marginLeft: '10px', color: '#aaa' }}>📝 кликните для редактирования</span>
+                <button onClick={() => handleSelectStudent(student.id)}>📝 Редактировать</button>
               </div>
             ))}
             {acceptedStudents.length === 0 && <p>Нет принятых учеников</p>}
@@ -652,6 +639,7 @@ function App() {
     );
   }
 
+  // Режим ученика – дерево
   if (!isAdmin && view === 'tree' && currentProgramId) {
     return (
       <div style={{ width: '100vw', height: '100vh', backgroundColor: '#1a1a2e' }}>
@@ -665,6 +653,7 @@ function App() {
     );
   }
 
+  // Список программ (главный экран)
   if (view === 'programs') {
     if (isAdmin) {
       return (
@@ -673,9 +662,12 @@ function App() {
           <button onClick={() => setView('create')}>➕ Создать программу (ZIP)</button>
           {programs.length === 0 && <p>У вас пока нет программ. Создайте первую!</p>}
           {programs.map(prog => (
-            <div key={prog.id} style={{ margin: '10px 0', backgroundColor: '#333', padding: '15px', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', cursor: 'pointer' }} onClick={() => selectProgram(prog.id)}>
+            <div 
+              key={prog.id} 
+              style={{ margin: '10px 0', backgroundColor: '#333', padding: '15px', borderRadius: '8px', cursor: 'pointer' }}
+              onClick={() => selectProgram(prog.id)}
+            >
               <span>{prog.name}</span>
-              <span style={{ color: '#aaa' }}>▶</span>
             </div>
           ))}
         </div>
@@ -686,9 +678,12 @@ function App() {
           <h2>Мои программы</h2>
           {programs.length === 0 && <p>Вы ещё не приняты ни в одну программу. Подайте заявку ниже.</p>}
           {programs.map(prog => (
-            <div key={prog.id} style={{ margin: '10px 0', backgroundColor: '#333', padding: '15px', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', cursor: 'pointer' }} onClick={() => selectProgram(prog.id)}>
+            <div 
+              key={prog.id} 
+              style={{ margin: '10px 0', backgroundColor: '#333', padding: '15px', borderRadius: '8px', cursor: 'pointer' }}
+              onClick={() => selectProgram(prog.id)}
+            >
               <span>{prog.name}</span>
-              <span style={{ color: '#aaa' }}>▶</span>
             </div>
           ))}
 
