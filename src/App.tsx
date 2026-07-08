@@ -41,7 +41,6 @@ const TREE_STRUCTURE = {
   ]
 };
 
-// ========== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ==========
 function getAllLessonIds(node: any): string[] {
   if (!node.children) return [node.id];
   let result: string[] = [];
@@ -158,8 +157,6 @@ function deleteFolder(folderId: string) {
   let folders = getFolders();
   const folder = folders.find(f => f.id === folderId);
   if (folder) {
-    // Перемещаем учеников из этой папки в корень (т.е. удаляем их из папки)
-    // Просто удаляем папку, ученики останутся без папки
     folders = folders.filter(f => f.id !== folderId);
     saveFolders(folders);
   }
@@ -178,7 +175,6 @@ function getStudentFolder(userId: string): string | null {
 
 function moveStudentToFolder(userId: string, folderId: string | null) {
   const folders = getFolders();
-  // Удаляем из всех папок
   folders.forEach(f => {
     f.students = f.students.filter(id => id !== userId);
   });
@@ -192,10 +188,8 @@ function moveStudentToFolder(userId: string, folderId: string | null) {
 }
 
 function deleteStudent(userId: string) {
-  // Удаляем прогресс, имя и из папок
   localStorage.removeItem(getProgressKey(userId));
   localStorage.removeItem(getUserNameKey(userId));
-  // Удаляем из папок
   const folders = getFolders();
   folders.forEach(f => {
     f.students = f.students.filter(id => id !== userId);
@@ -203,7 +197,7 @@ function deleteStudent(userId: string) {
   saveFolders(folders);
 }
 
-// ========== ПОСТРОЕНИЕ ДЕРЕВА ДЛЯ ВИЗУАЛИЗАЦИИ ==========
+// ========== ПОСТРОЕНИЕ ДЕРЕВА ==========
 function buildTreeForDisplay(node: any, progress: Record<string, boolean>): any {
   const isLesson = !node.children || node.children.length === 0;
   if (isLesson) {
@@ -329,9 +323,8 @@ function AdminPanel({ userId, progress, setProgress, userName }: {
 }
 
 // ========== ПАНЕЛЬ УПРАВЛЕНИЯ УЧИТЕЛЯ ==========
-function TeacherDashboard({ onSelectStudent, onRefresh }: { 
+function TeacherDashboard({ onSelectStudent }: {
   onSelectStudent: (userId: string) => void;
-  onRefresh: () => void;
 }) {
   const [folders, setFolders] = useState<Folder[]>([]);
   const [students, setStudents] = useState<{ id: string; name: string | null }[]>([]);
@@ -380,14 +373,12 @@ function TeacherDashboard({ onSelectStudent, onRefresh }: {
     loadData();
   };
 
-  // Получаем учеников без папки
   const studentsWithoutFolder = students.filter(s => getStudentFolder(s.id) === null);
 
   return (
     <div style={{ padding: '20px', color: '#fff', backgroundColor: '#1a1a2e', minHeight: '100vh' }}>
       <h2>👨‍🏫 Панель учителя</h2>
 
-      {/* Создание папки */}
       <div style={{ marginBottom: '20px', display: 'flex', gap: '10px' }}>
         <input
           type="text"
@@ -400,7 +391,6 @@ function TeacherDashboard({ onSelectStudent, onRefresh }: {
         <button onClick={loadData} style={{ marginLeft: '10px' }}>🔄 Обновить</button>
       </div>
 
-      {/* Отображение папок */}
       {folders.map(folder => (
         <div key={folder.id} style={{ marginBottom: '20px', backgroundColor: '#2a2a4e', borderRadius: '8px', padding: '10px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
@@ -425,7 +415,6 @@ function TeacherDashboard({ onSelectStudent, onRefresh }: {
             )}
           </div>
 
-          {/* Список учеников в папке */}
           <ul style={{ listStyle: 'none', padding: '0 0 0 20px' }}>
             {folder.students.map(studentId => {
               const student = students.find(s => s.id === studentId);
@@ -453,7 +442,6 @@ function TeacherDashboard({ onSelectStudent, onRefresh }: {
         </div>
       ))}
 
-      {/* Ученики без папки */}
       {studentsWithoutFolder.length > 0 && (
         <div style={{ marginBottom: '20px', backgroundColor: '#2a2a4e', borderRadius: '8px', padding: '10px' }}>
           <h3 style={{ margin: '0 0 8px 0' }}>📂 Без папки</h3>
@@ -557,7 +545,6 @@ function App() {
 
   const isAdmin = ADMIN_IDS.includes(Number(userId));
 
-  // Учитель и не выбран ученик -> панель управления
   if (isAdmin && selectedStudentId === null) {
     return (
       <TeacherDashboard
@@ -565,12 +552,10 @@ function App() {
           setSelectedStudentId(id);
           setUserId(id);
         }}
-        onRefresh={() => {}}
       />
     );
   }
 
-  // Учитель и выбран ученик -> редактирование
   if (isAdmin && selectedStudentId !== null) {
     return (
       <div>
@@ -588,7 +573,6 @@ function App() {
     );
   }
 
-  // Режим ученика
   return (
     <div style={{ width: '100vw', height: '100vh', backgroundColor: '#1a1a2e' }}>
       <div style={{ position: 'absolute', top: 10, left: 10, zIndex: 10 }}>
