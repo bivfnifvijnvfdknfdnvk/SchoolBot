@@ -195,6 +195,22 @@ async function loadProgressForProgram(userId: string, programId: string): Promis
   return progress;
 }
 
+async function saveProgressForProgram(userId: string, programId: string, progress: Record<string, boolean>) {
+  const entries = Object.entries(progress).map(([lesson_id, completed]) => ({
+    user_id: Number(userId),
+    program_id: programId,
+    lesson_id,
+    completed,
+    updated_at: new Date().toISOString(),
+  }));
+  const { error } = await supabase
+    .from('progress')
+    .upsert(entries, { onConflict: 'user_id, program_id, lesson_id' });
+  if (error) {
+    console.error('Ошибка сохранения прогресса:', error);
+  }
+}
+
 async function getStudentPrograms(studentId: string) {
   const { data, error } = await supabase
     .from('applications')
@@ -260,7 +276,6 @@ async function buildTreeFromZip(zip: JSZip): Promise<{ name: string; structure: 
       const imageUrl = imageKey ? `${STORAGE_URL}${imageKey}.png` : null;
 
       if (info.isFile) {
-        // Читаем содержимое файла, если это .txt
         let content = null;
         if (rawName.endsWith('.txt')) {
           const filePath = prefix + rawName;
@@ -320,7 +335,6 @@ function buildTreeForDisplay(node: any, progress: Record<string, boolean>): any 
   const isLesson = !node.children || node.children.length === 0;
   if (isLesson) {
     const completed = progress[node.id] || false;
-    // Убираем эмодзи из названия
     return {
       name: node.name,
       __id: node.id,
@@ -359,17 +373,23 @@ function getAllLessonIds(node: any): string[] {
   return result;
 }
 
-// ========== КАСТОМНЫЙ РЕНДЕР УЗЛА С КРУГЛОЙ РАМКОЙ, ГАЛОЧКОЙ И ЗЕЛЁНЫМ ТЕКСТОМ ==========
-const renderCustomNode = ({ nodeDatum, onLessonClick }: any) => {
+// ========== КАСТОМНЫЙ РЕНДЕР УЗЛА ==========
+const renderCustomNode = ({ nodeDatum, onLessonClick, onToggleLesson }: any) => {
   const isLesson = nodeDatum.__isLesson;
   const completed = nodeDatum.__completed;
   const imageUrl = nodeDatum.__imageUrl;
   const content = nodeDatum.__content;
-  const radius = isLesson ? 18 : 24;
-  
+  const radius = 24; // единый радиус для всех узлов
+
   const handleClick = () => {
-    if (isLesson && onLessonClick) {
-      onLessonClick(content, nodeDatum.name);
+    if (isLesson) {
+      // Если есть onToggleLesson (режим редактирования) – вызываем его
+      if (onToggleLesson) {
+        onToggleLesson(nodeDatum.__id);
+      } else if (onLessonClick) {
+        // Иначе – открываем модалку
+        onLessonClick(content, nodeDatum.name);
+      }
     }
   };
 
@@ -464,10 +484,11 @@ const renderCustomNode = ({ nodeDatum, onLessonClick }: any) => {
 };
 
 // Компонент дерева с поддержкой кликов по урокам
-function SkillTreeView({ structure, progress, onLessonClick }: { 
+function SkillTreeView({ structure, progress, onLessonClick, onToggleLesson }: { 
   structure: any; 
   progress: Record<string, boolean>;
   onLessonClick?: (content: string | null, lessonName: string) => void;
+  onToggleLesson?: (lessonId: string) => void;
 }) {
   const treeData = buildTreeForDisplay(structure, progress);
   return (
@@ -476,7 +497,7 @@ function SkillTreeView({ structure, progress, onLessonClick }: {
         data={treeData}
         orientation="vertical"
         pathFunc="step"
-        renderCustomNodeElement={(props) => renderCustomNode({ ...props, onLessonClick })}
+        renderCustomNodeElement={(props) => renderCustomNode({ ...props, onLessonClick, onToggleLesson })}
         translate={{ x: window.innerWidth / 2, y: 100 }}
         zoomable={true}
         draggable={true}
@@ -783,6 +804,13 @@ function App() {
     loadProgressForProgram(userId, currentProgramId!).then(p => setProgress(p));
   };
 
+  const toggleLessonForStudent = async (lessonId: string) => {
+    if (!selectedStudentId || !currentProgramId) return;
+    const newProgress = { ...progress, [lessonId]: !progress[lessonId] };
+    setProgress(newProgress);
+    await saveProgressForProgram(selectedStudentId, currentProgramId, newProgress);
+  };
+
   const handleDeleteStudent = async (studentId: string, studentName: string | null) => {
     if (!confirm(`Вы уверены, что хотите удалить ученика "${studentName || studentId}" из программы?`)) return;
     await supabase.from('progress').delete().eq('user_id', Number(studentId)).eq('program_id', currentProgramId!);
@@ -855,6 +883,7 @@ function App() {
 
   if (isAdmin && view === 'admin' && currentProgramId) {
     if (selectedStudentId) {
+      // Режим редактирования ученика – клик по уроку переключает прогресс
       return (
         <div style={{ width: '100vw', height: '100vh', backgroundColor: '#1a1a2e' }}>
           <div style={{ position: 'absolute', top: 10, left: 10, zIndex: 10, display: 'flex', gap: '10px' }}>
@@ -864,13 +893,14 @@ function App() {
           <SkillTreeView 
             structure={structure} 
             progress={progress} 
-            onLessonClick={handleLessonClick}
+            onToggleLesson={toggleLessonForStudent}  // передаём функцию переключения
           />
           <LessonModal isOpen={modalOpen} onClose={closeModal} title={modalTitle} content={modalContent} />
         </div>
       );
     }
 
+    // Основная админка (превью) – клик по уроку открывает модалку
     return (
       <div style={{ padding: '20px', color: '#fff', backgroundColor: '#1a1a2e', minHeight: '100vh' }}>
         <button onClick={() => { setView('programs'); setCurrentProgramId(null); }}>⬅ Назад к программам</button>
@@ -882,7 +912,7 @@ function App() {
               <SkillTreeView 
                 structure={structure} 
                 progress={progress} 
-                onLessonClick={handleLessonClick}
+                onLessonClick={handleLessonClick}  // модалка
               />
               <LessonModal isOpen={modalOpen} onClose={closeModal} title={modalTitle} content={modalContent} />
             </div>
@@ -936,6 +966,7 @@ function App() {
   }
 
   if (!isAdmin && view === 'tree' && currentProgramId) {
+    // Режим ученика – клик по уроку открывает модалку
     return (
       <div style={{ width: '100vw', height: '100vh', backgroundColor: '#1a1a2e' }}>
         <div style={{ position: 'absolute', top: 10, left: 10, zIndex: 10, display: 'flex', gap: '10px', alignItems: 'center' }}>
