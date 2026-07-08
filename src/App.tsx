@@ -5,8 +5,8 @@ import JSZip from 'jszip';
 import './App.css';
 
 // ========== КОНСТАНТЫ ==========
-// Замени <project_id> на свой ID проекта Supabase
-const STORAGE_URL = 'https://<project_id>.supabase.co/storage/v1/object/public/icons/';
+// ЗАМЕНИ <project_id> на свой реальный ID из Supabase
+const STORAGE_URL = 'https://wmfjjpsakhmwwyvimqwx.supabase.co/storage/v1/object/public/icons/';
 
 const ADMIN_IDS: number[] = [1394891154]; // ID учителей
 
@@ -43,6 +43,11 @@ function parseNameWithIcon(rawName: string): { displayName: string; imageKey: st
     return { displayName, imageKey };
   }
   return { displayName: rawName, imageKey: null };
+}
+
+// Удаляет расширение файла (если есть)
+function removeExtension(name: string): string {
+  return name.replace(/\.[^/.]+$/, '');
 }
 
 // ========== ФУНКЦИИ ДЛЯ РАБОТЫ С БАЗОЙ ==========
@@ -236,7 +241,7 @@ async function getApplicationStatus(studentId: string, programId: string) {
   return data;
 }
 
-// ========== ФУНКЦИЯ ПОСТРОЕНИЯ ДЕРЕВА ИЗ ZIP С ПОДДЕРЖКОЙ КАРТИНОК ==========
+// ========== ФУНКЦИЯ ПОСТРОЕНИЯ ДЕРЕВА ИЗ ZIP (исправлена) ==========
 function buildTreeFromZip(zip: JSZip): { name: string; structure: any } {
   const rootFolders = new Set<string>();
   Object.keys(zip.files).forEach(path => {
@@ -246,9 +251,8 @@ function buildTreeFromZip(zip: JSZip): { name: string; structure: any } {
     }
   });
   let rootFolderName = rootFolders.size === 1 ? Array.from(rootFolders)[0] : 'Программа';
-  // Обрабатываем имя корневой папки на наличие скобок
   const rootParsed = parseNameWithIcon(rootFolderName);
-  const rootDisplayName = rootParsed.displayName;
+  const rootDisplayName = removeExtension(rootParsed.displayName);
   const rootImageKey = rootParsed.imageKey;
 
   function buildNode(prefix: string): any[] {
@@ -261,7 +265,7 @@ function buildTreeFromZip(zip: JSZip): { name: string; structure: any } {
       const first = parts[0];
       if (!first) return;
       const isFile = parts.length === 1;
-      const nameWithoutExt = isFile ? first.replace(/\.[^/.]+$/, '') : first;
+      const nameWithoutExt = isFile ? removeExtension(first) : first;
       if (!childrenMap.has(first)) {
         childrenMap.set(first, { isFile, name: nameWithoutExt });
       }
@@ -270,13 +274,14 @@ function buildTreeFromZip(zip: JSZip): { name: string; structure: any } {
     const children: any[] = [];
     for (const [rawName, info] of childrenMap) {
       const { displayName, imageKey } = parseNameWithIcon(rawName);
-      const imageUrl = imageKey ? `${STORAGE_URL}${imageKey}.png` : null; // можно расширить на jpg/webp
+      const finalName = info.isFile ? removeExtension(displayName) : displayName;
+      const imageUrl = imageKey ? `${STORAGE_URL}${imageKey}.png` : null;
       if (info.isFile) {
-        children.push({ id: info.name, name: displayName, imageUrl, imageKey });
+        children.push({ id: info.name, name: finalName, imageUrl, imageKey });
       } else {
         const subPrefix = prefix + rawName + '/';
         const subChildren = buildNode(subPrefix);
-        children.push({ id: rawName, name: displayName, children: subChildren, imageUrl, imageKey });
+        children.push({ id: rawName, name: finalName, children: subChildren, imageUrl, imageKey });
       }
     }
     return children;
@@ -301,6 +306,7 @@ function buildTreeFromZip(zip: JSZip): { name: string; structure: any } {
       imageKey: rootImageKey,
     };
   }
+  console.log('Создана структура с картинками:', structure);
   return { name: rootDisplayName, structure };
 }
 
@@ -361,7 +367,6 @@ const renderCustomNode = ({ nodeDatum, onLessonClick }: any) => {
     }
   };
 
-  // Используем clipPath для обрезания картинки по кругу
   const clipId = `clip-${nodeDatum.__id || Math.random().toString(36).substring(2, 10)}`;
 
   return (
@@ -723,7 +728,7 @@ function App() {
           </button>
         </div>
         <div style={{ marginTop: '20px', color: '#aaa' }}>
-          <p>Инструкция: создайте ZIP-архив, внутри которого папки с названиями категорий (например, "Лексика"), внутри каждой папки — файлы-уроки (можно .txt). Структура будет автоматически преобразована в дерево навыков. Для добавления иконок используйте скобки в имени: Лексика (lexicon) — тогда картинка lexicon.png из хранилища подгрузится.</p>
+          <p>Инструкция: создайте ZIP-архив, внутри которого папки с названиями категорий (например, "Лексика"), внутри каждой папки — файлы-уроки (можно .txt). Для иконок добавьте в имя ключ в скобках: "Лексика (lexicon)". Загрузите картинку lexicon.png в бакет icons в Supabase.</p>
         </div>
       </div>
     );
