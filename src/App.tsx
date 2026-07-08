@@ -2,7 +2,13 @@ import React, { useState, useEffect } from 'react';
 import Tree from 'react-d3-tree';
 import './App.css';
 
-// ========== 1. СТАТИЧЕСКАЯ СТРУКТУРА ДЕРЕВА ==========
+// ==========================================
+// 1. ПОЛУЧАЕМ ДАННЫЕ ПОЛЬЗОВАТЕЛЯ ИЗ TELEGRAM
+// ==========================================
+const tg = (window as any).Telegram?.WebApp;
+const realUserId = tg?.initDataUnsafe?.user?.id?.toString() || 'guest';
+
+// ========== 2. СТАТИЧЕСКАЯ СТРУКТУРА ДЕРЕВА ==========
 // Каждый узел имеет id (уникальный) и name (отображаемое название).
 // У категорий есть children — список дочерних узлов.
 // Уроки — конечные узлы без children.
@@ -49,7 +55,7 @@ function getAllLessonIds(node: any): string[] {
 
 const ALL_LESSON_IDS = getAllLessonIds(TREE_STRUCTURE);
 
-// ========== 2. РАБОТА С ПРОГРЕССОМ ==========
+// ========== 3. РАБОТА С ПРОГРЕССОМ ==========
 // Ключ для хранения прогресса в localStorage
 function getProgressKey(userId: string) {
   return `progress_${userId}`;
@@ -79,7 +85,7 @@ function saveProgress(userId: string, progress: Record<string, boolean>) {
   localStorage.setItem(key, JSON.stringify(progress));
 }
 
-// ========== 3. ФУНКЦИЯ ПОСТРОЕНИЯ ДЕРЕВА ДЛЯ ВИЗУАЛИЗАЦИИ ==========
+// ========== 4. ФУНКЦИЯ ПОСТРОЕНИЯ ДЕРЕВА ДЛЯ ВИЗУАЛИЗАЦИИ ==========
 // На основе статической структуры и прогресса строим дерево с процентами и статусами
 function buildTreeForDisplay(node: any, progress: Record<string, boolean>): any {
   const isLesson = !node.children || node.children.length === 0;
@@ -112,7 +118,7 @@ function buildTreeForDisplay(node: any, progress: Record<string, boolean>): any 
   }
 }
 
-// ========== 4. КОМПОНЕНТ ДЛЯ ОТОБРАЖЕНИЯ УЗЛА (react-d3-tree) ==========
+// ========== 5. КОМПОНЕНТ ДЛЯ ОТОБРАЖЕНИЯ УЗЛА (react-d3-tree) ==========
 const renderCustomNode = ({ nodeDatum, toggleNode }: any) => {
   // Проверяем, урок ли это (по наличию __completed в метаданных)
   const isLesson = nodeDatum.__isLesson;
@@ -133,8 +139,8 @@ const renderCustomNode = ({ nodeDatum, toggleNode }: any) => {
       />
       <text
         fill={textColor}
-          stroke="none"
-          strokeWidth="0"
+        stroke="none"
+        strokeWidth="0"
         x={radius + 10}
         y="4"
         fontSize={isLesson ? 14 : 16}
@@ -148,10 +154,10 @@ const renderCustomNode = ({ nodeDatum, toggleNode }: any) => {
   );
 };
 
-// ========== 5. АДМИНКА ==========
-function AdminPanel({ userId, progress, setProgress }: { 
-  userId: string; 
-  progress: Record<string, boolean>; 
+// ========== 6. АДМИНКА ==========
+function AdminPanel({ userId, progress, setProgress }: {
+  userId: string;
+  progress: Record<string, boolean>;
   setProgress: React.Dispatch<React.SetStateAction<Record<string, boolean>>>;
 }) {
   // Получаем список всех уроков с их названиями
@@ -209,25 +215,19 @@ function AdminPanel({ userId, progress, setProgress }: {
   );
 }
 
-// ========== 6. ГЛАВНЫЙ КОМПОНЕНТ ==========
+// ========== 7. ГЛАВНЫЙ КОМПОНЕНТ ==========
 function App() {
-  // Для демонстрации используем два режима: ученик (обычный пользователь) и учитель.
-  // В реальном проекте ID будет приходить из Telegram.
   const [mode, setMode] = useState<'student' | 'teacher'>('student');
-  // ID ученика (для демонстрации можно вводить вручную)
-  const [userId, setUserId] = useState('student1');
-  // Прогресс текущего ученика
+  // ✅ ИСПОЛЬЗУЕМ РЕАЛЬНЫЙ ID ИЗ TELEGRAM
+  const [userId, setUserId] = useState(realUserId);
   const [progress, setProgress] = useState<Record<string, boolean>>(() => loadProgress(userId));
 
-  // При смене userId загружаем его прогресс
   useEffect(() => {
     setProgress(loadProgress(userId));
   }, [userId]);
 
-  // Строим дерево для визуализации
   const treeData = buildTreeForDisplay(TREE_STRUCTURE, progress);
 
-  // Если учитель — показываем админку
   if (mode === 'teacher') {
     return (
       <div>
@@ -246,7 +246,6 @@ function App() {
     );
   }
 
-  // Режим ученика — показываем дерево
   return (
     <div style={{ width: '100vw', height: '100vh', backgroundColor: '#1a1a2e' }}>
       <div style={{ position: 'absolute', top: 10, left: 10, zIndex: 10 }}>
