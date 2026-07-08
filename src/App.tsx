@@ -73,6 +73,18 @@ async function createProgram(name: string, teacherId: string, structure: any) {
   return data.id;
 }
 
+async function deleteProgram(programId: string) {
+  const { error } = await supabase
+    .from('programs')
+    .delete()
+    .eq('id', programId);
+  if (error) {
+    console.error('Ошибка удаления программы:', error);
+    return false;
+  }
+  return true;
+}
+
 async function getApplicationsForProgram(programId: string) {
   const { data, error } = await supabase
     .from('applications')
@@ -148,6 +160,22 @@ async function loadProgressForProgram(userId: string, programId: string): Promis
     progress[row.lesson_id] = row.completed;
   });
   return progress;
+}
+
+async function saveProgressForProgram(userId: string, programId: string, progress: Record<string, boolean>) {
+  const entries = Object.entries(progress).map(([lesson_id, completed]) => ({
+    user_id: Number(userId),
+    program_id: programId,
+    lesson_id,
+    completed,
+    updated_at: new Date().toISOString(),
+  }));
+  const { error } = await supabase
+    .from('progress')
+    .upsert(entries, { onConflict: 'user_id, program_id, lesson_id' });
+  if (error) {
+    console.error('Ошибка сохранения прогресса:', error);
+  }
 }
 
 async function getStudentPrograms(studentId: string) {
@@ -274,12 +302,21 @@ function getAllLessonIds(node: any): string[] {
   return result;
 }
 
-// Кастомный рендер узла – без возможности сворачивания (убираем onClick)
-const renderCustomNode = ({ nodeDatum }: any) => {
+// Кастомный рендер узла – добавляем возможность клика для изменения статуса урока
+const renderCustomNode = ({ nodeDatum, toggleNode, onLessonClick }: any) => {
   const isLesson = nodeDatum.__isLesson;
   const completed = nodeDatum.__completed;
   const bgColor = isLesson ? (completed ? '#4CAF50' : '#FF9800') : '#2196F3';
   const radius = isLesson ? 18 : 24;
+  
+  const handleClick = () => {
+    if (isLesson && onLessonClick) {
+      onLessonClick(nodeDatum.__id);
+    } else {
+      toggleNode();
+    }
+  };
+
   return (
     <g>
       <circle
@@ -287,7 +324,8 @@ const renderCustomNode = ({ nodeDatum }: any) => {
         fill={bgColor}
         stroke="#fff"
         strokeWidth="2"
-        cursor="pointer"
+        onClick={handleClick}
+        style={{ cursor: isLesson ? 'pointer' : 'default' }}
       />
       <text
         fill="#fff"
@@ -299,6 +337,7 @@ const renderCustomNode = ({ nodeDatum }: any) => {
         fontFamily="Arial, sans-serif"
         textAnchor="start"
         style={{ fontWeight: isLesson ? 'normal' : 'bold' }}
+        onClick={handleClick}
       >
         {nodeDatum.name}
       </text>
@@ -306,7 +345,12 @@ const renderCustomNode = ({ nodeDatum }: any) => {
   );
 };
 
-function SkillTreeView({ structure, progress }: { structure: any; progress: Record<string, boolean> }) {
+// Компонент дерева с поддержкой кликов по урокам
+function SkillTreeView({ structure, progress, onToggleLesson }: { 
+  structure: any; 
+  progress: Record<string, boolean>;
+  onToggleLesson?: (lessonId: string) => void;
+}) {
   const treeData = buildTreeForDisplay(structure, progress);
   return (
     <div style={{ width: '100vw', height: '100vh', backgroundColor: '#1a1a2e' }}>
@@ -314,7 +358,7 @@ function SkillTreeView({ structure, progress }: { structure: any; progress: Reco
         data={treeData}
         orientation="vertical"
         pathFunc="step"
-        renderCustomNodeElement={renderCustomNode}
+        renderCustomNodeElement={(props) => renderCustomNode({ ...props, onLessonClick: onToggleLesson })}
         translate={{ x: window.innerWidth / 2, y: 100 }}
         zoomable={true}
         draggable={true}
@@ -450,6 +494,7 @@ function App() {
     }
     setView('programs');
     setCurrentProgramId(null);
+    setSelectedStudentId(null);
   };
 
   const selectProgram = async (programId: string) => {
@@ -504,6 +549,17 @@ function App() {
     setUploading(false);
   };
 
+  const handleDeleteProgram = async (programId: string, programName: string) => {
+    if (!confirm(`Вы уверены, что хотите удалить программу "${programName}"? Это действие необратимо.`)) return;
+    const success = await deleteProgram(programId);
+    if (success) {
+      alert('Программа удалена');
+      loadPrograms();
+    } else {
+      alert('Ошибка удаления');
+    }
+  };
+
   const handleAcceptApplication = async (appId: string) => {
     await updateApplicationStatus(appId, 'accepted');
     const apps = await getApplicationsForProgram(currentProgramId!);
@@ -528,7 +584,7 @@ function App() {
     }
   };
 
-  // При выборе ученика для редактирования - НЕ МЕНЯЕМ view, остаёмся в 'admin'
+  // При выборе ученика для редактирования – НЕ МЕНЯЕМ view, остаёмся в 'admin'
   const handleSelectStudent = async (studentId: string) => {
     setSelectedStudentId(studentId);
     const prog = await loadProgressForProgram(studentId, currentProgramId!);
@@ -538,6 +594,39 @@ function App() {
   const backToAdmin = () => {
     setSelectedStudentId(null);
     loadProgressForProgram(userId, currentProgramId!).then(p => setProgress(p));
+  };
+
+  // Функция переключения статуса урока (для учителя при редактировании)
+  const toggleLessonForStudent = async (lessonId: string) => {
+    if (!selectedStudentId || !currentProgramId) return;
+    const newProgress = { ...progress, [lessonId]: !progress[lessonId] };
+    setProgress(newProgress);
+    await saveProgressForProgram(selectedStudentId, currentProgramId, newProgress);
+  };
+
+  // Функция переключения статуса урока для ученика (если он сам может отмечать)
+  const toggleLessonForSelf = async (lessonId: string) => {
+    if (!currentProgramId) return;
+    const newProgress = { ...progress, [lessonId]: !progress[lessonId] };
+    setProgress(newProgress);
+    await saveProgressForProgram(userId, currentProgramId, newProgress);
+  };
+
+  // Удаление ученика из программы (для учителя)
+  const handleDeleteStudent = async (studentId: string, studentName: string | null) => {
+    if (!confirm(`Вы уверены, что хотите удалить ученика "${studentName || studentId}" из программы?`)) return;
+    // Удаляем все записи прогресса и заявку
+    await supabase.from('progress').delete().eq('user_id', Number(studentId)).eq('program_id', currentProgramId!);
+    await supabase.from('applications').delete().eq('student_id', Number(studentId)).eq('program_id', currentProgramId!);
+    // Обновляем списки
+    const accepted = await getAcceptedStudents(currentProgramId!);
+    setAcceptedStudents(accepted);
+    const apps = await getApplicationsForProgram(currentProgramId!);
+    setApplications(apps);
+    if (selectedStudentId === studentId) {
+      setSelectedStudentId(null);
+      loadProgressForProgram(userId, currentProgramId!).then(p => setProgress(p));
+    }
   };
 
   // ========== ОТРИСОВКА ==========
@@ -591,9 +680,12 @@ function App() {
         <div style={{ width: '100vw', height: '100vh', backgroundColor: '#1a1a2e' }}>
           <div style={{ position: 'absolute', top: 10, left: 10, zIndex: 10, display: 'flex', gap: '10px' }}>
             <button onClick={backToAdmin}>⬅ Назад к админке</button>
-            <span style={{ color: '#fff' }}>Редактирование ученика: {selectedStudentId}</span>
           </div>
-          <SkillTreeView structure={structure} progress={progress} />
+          <SkillTreeView 
+            structure={structure} 
+            progress={progress} 
+            onToggleLesson={toggleLessonForStudent}
+          />
         </div>
       );
     }
@@ -625,9 +717,18 @@ function App() {
 
             <h3>Принятые ученики</h3>
             {acceptedStudents.map(student => (
-              <div key={student.id} style={{ marginBottom: '10px', backgroundColor: '#333', padding: '10px', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div 
+                key={student.id} 
+                style={{ marginBottom: '10px', backgroundColor: '#333', padding: '10px', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}
+                onClick={() => handleSelectStudent(student.id)}
+              >
                 <span>{student.name || `ID: ${student.id}`}</span>
-                <button onClick={() => handleSelectStudent(student.id)}>📝 Редактировать</button>
+                <button 
+                  onClick={(e) => { e.stopPropagation(); handleDeleteStudent(student.id, student.name); }}
+                  style={{ backgroundColor: '#f44336', border: 'none', color: 'white', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer' }}
+                >
+                  🗑️ Удалить
+                </button>
               </div>
             ))}
             {acceptedStudents.length === 0 && <p>Нет принятых учеников</p>}
@@ -637,7 +738,7 @@ function App() {
     );
   }
 
-  // Режим ученика – дерево
+  // Режим ученика – дерево с возможностью отмечать уроки
   if (!isAdmin && view === 'tree' && currentProgramId) {
     return (
       <div style={{ width: '100vw', height: '100vh', backgroundColor: '#1a1a2e' }}>
@@ -646,7 +747,11 @@ function App() {
           <span style={{ color: '#fff' }}>Программа: {programs.find(p => p.id === currentProgramId)?.name || ''}</span>
           <span style={{ color: '#fff' }}>Ученик: {userName || userId}</span>
         </div>
-        <SkillTreeView structure={structure} progress={progress} />
+        <SkillTreeView 
+          structure={structure} 
+          progress={progress} 
+          onToggleLesson={toggleLessonForSelf}
+        />
       </div>
     );
   }
@@ -662,10 +767,28 @@ function App() {
           {programs.map(prog => (
             <div 
               key={prog.id} 
-              style={{ margin: '10px 0', backgroundColor: '#333', padding: '15px', borderRadius: '8px', cursor: 'pointer' }}
+              style={{ 
+                margin: '10px 0', 
+                backgroundColor: '#333', 
+                padding: '15px', 
+                borderRadius: '8px', 
+                display: 'flex', 
+                justifyContent: 'space-between', 
+                alignItems: 'center',
+                cursor: 'pointer',
+                transition: 'background-color 0.2s',
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#444'}
+              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#333'}
               onClick={() => selectProgram(prog.id)}
             >
               <span>{prog.name}</span>
+              <button 
+                onClick={(e) => { e.stopPropagation(); handleDeleteProgram(prog.id, prog.name); }}
+                style={{ backgroundColor: '#f44336', border: 'none', color: 'white', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer' }}
+              >
+                🗑️ Удалить
+              </button>
             </div>
           ))}
         </div>
@@ -678,7 +801,16 @@ function App() {
           {programs.map(prog => (
             <div 
               key={prog.id} 
-              style={{ margin: '10px 0', backgroundColor: '#333', padding: '15px', borderRadius: '8px', cursor: 'pointer' }}
+              style={{ 
+                margin: '10px 0', 
+                backgroundColor: '#333', 
+                padding: '15px', 
+                borderRadius: '8px', 
+                cursor: 'pointer',
+                transition: 'background-color 0.2s',
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#444'}
+              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#333'}
               onClick={() => selectProgram(prog.id)}
             >
               <span>{prog.name}</span>
