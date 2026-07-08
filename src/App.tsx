@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import Tree from 'react-d3-tree';
 import { supabase } from './supabaseClient';
 import './App.css';
@@ -157,7 +157,7 @@ async function loadProgressForProgram(userId: string, programId: string): Promis
   return progress;
 }
 
-// Сохранить прогресс ученика для программы
+// Сохранить прогресс ученика для программы (используется в админке)
 async function saveProgressForProgram(userId: string, programId: string, progress: Record<string, boolean>) {
   const entries = Object.entries(progress).map(([lesson_id, completed]) => ({
     user_id: Number(userId),
@@ -206,7 +206,7 @@ async function getApplicationStatus(studentId: string, programId: string) {
 
 // ========== КОМПОНЕНТЫ ==========
 
-// Рекурсивная функция построения дерева для отображения (та же, что и раньше)
+// Рекурсивная функция построения дерева для отображения
 function buildTreeForDisplay(node: any, progress: Record<string, boolean>): any {
   const isLesson = !node.children || node.children.length === 0;
   if (isLesson) {
@@ -297,31 +297,69 @@ function SkillTreeView({ structure, progress }: { structure: any; progress: Reco
   );
 }
 
+// Компонент для ученика: список программ, на которые можно подать заявку
+function StudentProgramList({ userId, onApply, existingProgramIds }: { userId: string; onApply: (programId: string) => void; existingProgramIds: string[] }) {
+  const [availablePrograms, setAvailablePrograms] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const load = async () => {
+      const all = await getAllPrograms();
+      const filtered = [];
+      for (const prog of all) {
+        if (existingProgramIds.includes(prog.id)) continue;
+        const status = await getApplicationStatus(userId, prog.id);
+        if (status && (status.status === 'pending' || status.status === 'rejected')) {
+          filtered.push({ ...prog, appStatus: status.status, appId: status.id });
+        } else if (!status) {
+          filtered.push({ ...prog, appStatus: null });
+        }
+      }
+      setAvailablePrograms(filtered);
+      setLoading(false);
+    };
+    load();
+  }, [userId, existingProgramIds]);
+
+  if (loading) return <p>Загрузка...</p>;
+
+  if (availablePrograms.length === 0) {
+    return <p>Нет доступных программ для подачи заявки.</p>;
+  }
+
+  return (
+    <div>
+      {availablePrograms.map(prog => (
+        <div key={prog.id} style={{ margin: '10px 0', backgroundColor: '#333', padding: '15px', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span>{prog.name}</span>
+          {prog.appStatus === 'pending' && <span style={{ color: '#ffa500' }}>⏳ Заявка отправлена</span>}
+          {prog.appStatus === 'rejected' && <span style={{ color: '#ff4444' }}>❌ Отклонена</span>}
+          {!prog.appStatus && <button onClick={() => onApply(prog.id)}>📩 Подать заявку</button>}
+          {prog.appStatus === 'pending' && <span>ожидайте</span>}
+          {prog.appStatus === 'rejected' && <button onClick={() => onApply(prog.id)}>📩 Подать заново</button>}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // ========== ОСНОВНОЙ КОМПОНЕНТ ==========
 function App() {
   const [userId, setUserId] = useState('guest');
   const [userName, setUserName] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
 
-  // Состояния для программ
-  const [programs, setPrograms] = useState<any[]>([]); // список программ (для текущего пользователя)
+  const [programs, setPrograms] = useState<any[]>([]);
   const [currentProgramId, setCurrentProgramId] = useState<string | null>(null);
   const [view, setView] = useState<'programs' | 'create' | 'tree' | 'admin'>('programs');
 
-  // Для ученика: статус заявки на выбранную программу
-  const [applicationStatus, setApplicationStatus] = useState<string | null>(null);
-  const [applicationId, setApplicationId] = useState<string | null>(null);
-
-  // Прогресс для текущей программы
   const [progress, setProgress] = useState<Record<string, boolean>>({});
   const [structure, setStructure] = useState<any>(null);
 
-  // Для админки: список заявок и учеников
   const [applications, setApplications] = useState<any[]>([]);
   const [acceptedStudents, setAcceptedStudents] = useState<any[]>([]);
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
 
-  // Для создания программы
   const [newProgramName, setNewProgramName] = useState('');
   const [newProgramJson, setNewProgramJson] = useState('');
 
@@ -333,7 +371,6 @@ function App() {
         setUserId(id);
         const admin = ADMIN_IDS.includes(Number(id));
         setIsAdmin(admin);
-        // Сохраняем пользователя в БД (если ещё нет)
         await supabase
           .from('users')
           .upsert({
@@ -344,7 +381,6 @@ function App() {
           }, { onConflict: 'telegram_id' });
         setUserName(`${firstName || ''} ${lastName || ''}`.trim() || id);
       } else {
-        // fallback через WebApp
         const tg = (window as any).Telegram?.WebApp;
         if (tg) {
           tg.ready();
@@ -381,28 +417,22 @@ function App() {
       const progs = await getTeacherPrograms(userId);
       setPrograms(progs);
     } else {
-      // Ученик: загружаем программы, в которые он принят
       const progs = await getStudentPrograms(userId);
       setPrograms(progs);
     }
-    // Если есть программы и не выбран конкретная, показываем список
     setView('programs');
     setCurrentProgramId(null);
   };
 
-  // Загрузка данных программы при выборе
   const selectProgram = async (programId: string) => {
     setCurrentProgramId(programId);
-    // Находим программу в списке
     const prog = programs.find(p => p.id === programId);
     if (prog) {
       setStructure(prog.structure);
-      // Загружаем прогресс для этого пользователя и программы
       const progData = await loadProgressForProgram(userId, programId);
       setProgress(progData);
     }
     if (isAdmin) {
-      // Учитель: загружаем заявки и учеников
       const apps = await getApplicationsForProgram(programId);
       setApplications(apps);
       const accepted = await getAcceptedStudents(programId);
@@ -410,15 +440,6 @@ function App() {
       setView('admin');
       setSelectedStudentId(null);
     } else {
-      // Ученик: проверяем статус заявки
-      const status = await getApplicationStatus(userId, programId);
-      if (status) {
-        setApplicationStatus(status.status);
-        setApplicationId(status.id);
-      } else {
-        setApplicationStatus(null);
-        setApplicationId(null);
-      }
       setView('tree');
     }
   };
@@ -448,7 +469,6 @@ function App() {
 
   const handleAcceptApplication = async (appId: string) => {
     await updateApplicationStatus(appId, 'accepted');
-    // Обновляем список заявок и учеников
     const apps = await getApplicationsForProgram(currentProgramId!);
     setApplications(apps);
     const accepted = await getAcceptedStudents(currentProgramId!);
@@ -461,48 +481,37 @@ function App() {
     setApplications(apps);
   };
 
-  // Функция для ученика: подать заявку
   const handleApply = async (programId: string) => {
     const success = await createApplication(programId, userId);
     if (success) {
       alert('Заявка отправлена!');
-      // Обновляем статус
-      const status = await getApplicationStatus(userId, programId);
-      if (status) {
-        setApplicationStatus(status.status);
-        setApplicationId(status.id);
-      }
+      // Обновим список доступных программ (вызовется повторно через useEffect в StudentProgramList)
+      // Просто перезагрузим программы
+      loadPrograms();
     } else {
       alert('Ошибка отправки заявки');
     }
   };
 
-  // Редактирование прогресса ученика (для учителя)
   const handleSelectStudent = async (studentId: string) => {
     setSelectedStudentId(studentId);
     const prog = await loadProgressForProgram(studentId, currentProgramId!);
     setProgress(prog);
-    // Показываем дерево для этого ученика
-    setView('tree'); // но с возможностью вернуться в админку
+    setView('tree');
   };
 
-  // Возврат в админку из просмотра дерева ученика
   const backToAdmin = () => {
     setSelectedStudentId(null);
-    // Перезагружаем прогресс учителя (или можно сбросить)
     setView('admin');
-    // Загружаем прогресс учителя (или текущий)
     loadProgressForProgram(userId, currentProgramId!).then(p => setProgress(p));
   };
 
   // ========== ОТРИСОВКА ==========
 
-  // Если пользователь не определён
   if (userId === 'guest') {
     return <div style={{ color: '#fff', padding: '20px' }}>Загрузка...</div>;
   }
 
-  // Если учитель и view == 'create' – форма создания программы
   if (isAdmin && view === 'create') {
     return (
       <div style={{ padding: '20px', color: '#fff', backgroundColor: '#1a1a2e', minHeight: '100vh' }}>
@@ -534,9 +543,7 @@ function App() {
     );
   }
 
-  // Если учитель и view == 'admin' – панель управления программой
   if (isAdmin && view === 'admin' && currentProgramId) {
-    // Если выбран ученик для редактирования, показываем дерево
     if (selectedStudentId) {
       return (
         <div style={{ width: '100vw', height: '100vh', backgroundColor: '#1a1a2e' }}>
@@ -549,7 +556,6 @@ function App() {
       );
     }
 
-    // Основная админка
     return (
       <div style={{ padding: '20px', color: '#fff', backgroundColor: '#1a1a2e', minHeight: '100vh' }}>
         <button onClick={() => { setView('programs'); setCurrentProgramId(null); }}>⬅ Назад к программам</button>
@@ -588,7 +594,6 @@ function App() {
     );
   }
 
-  // Если ученик и view == 'tree' – дерево навыков
   if (!isAdmin && view === 'tree' && currentProgramId) {
     return (
       <div style={{ width: '100vw', height: '100vh', backgroundColor: '#1a1a2e' }}>
@@ -602,10 +607,8 @@ function App() {
     );
   }
 
-  // Список программ (основной экран для всех)
   if (view === 'programs') {
     if (isAdmin) {
-      // Учитель видит свои программы и кнопку создать
       return (
         <div style={{ padding: '20px', color: '#fff', backgroundColor: '#1a1a2e', minHeight: '100vh' }}>
           <h2>Мои программы</h2>
@@ -620,7 +623,6 @@ function App() {
         </div>
       );
     } else {
-      // Ученик: список его программ + возможность подать заявку на новую
       return (
         <div style={{ padding: '20px', color: '#fff', backgroundColor: '#1a1a2e', minHeight: '100vh' }}>
           <h2>Мои программы</h2>
@@ -641,57 +643,6 @@ function App() {
   }
 
   return <div style={{ color: '#fff', padding: '20px' }}>Неизвестный экран</div>;
-}
-
-// Компонент для ученика: список программ, на которые можно подать заявку
-function StudentProgramList({ userId, onApply, existingProgramIds }: { userId: string; onApply: (programId: string) => void; existingProgramIds: string[] }) {
-  const [availablePrograms, setAvailablePrograms] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const load = async () => {
-      const all = await getAllPrograms();
-      // Исключаем программы, в которые ученик уже принят или уже подавал заявку
-      // Для простоты покажем все, кроме тех, что уже есть в existingProgramIds (принятые)
-      // Но нужно также исключить те, где есть pending/rejected заявка.
-      // Для этого проверим статус заявки для каждой программы.
-      const filtered = [];
-      for (const prog of all) {
-        if (existingProgramIds.includes(prog.id)) continue; // уже принят
-        const status = await getApplicationStatus(userId, prog.id);
-        if (status && (status.status === 'pending' || status.status === 'rejected')) {
-          // Можно показать, но с пометкой
-          filtered.push({ ...prog, appStatus: status.status, appId: status.id });
-        } else if (!status) {
-          filtered.push({ ...prog, appStatus: null });
-        }
-      }
-      setAvailablePrograms(filtered);
-      setLoading(false);
-    };
-    load();
-  }, [userId, existingProgramIds]);
-
-  if (loading) return <p>Загрузка...</p>;
-
-  if (availablePrograms.length === 0) {
-    return <p>Нет доступных программ для подачи заявки.</p>;
-  }
-
-  return (
-    <div>
-      {availablePrograms.map(prog => (
-        <div key={prog.id} style={{ margin: '10px 0', backgroundColor: '#333', padding: '15px', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <span>{prog.name}</span>
-          {prog.appStatus === 'pending' && <span style={{ color: '#ffa500' }}>⏳ Заявка отправлена</span>}
-          {prog.appStatus === 'rejected' && <span style={{ color: '#ff4444' }}>❌ Отклонена</span>}
-          {!prog.appStatus && <button onClick={() => onApply(prog.id)}>📩 Подать заявку</button>}
-          {prog.appStatus === 'pending' && <span>ожидайте</span>}
-          {prog.appStatus === 'rejected' && <button onClick={() => onApply(prog.id)}>📩 Подать заново</button>}
-        </div>
-      ))}
-    </div>
-  );
 }
 
 export default App;
