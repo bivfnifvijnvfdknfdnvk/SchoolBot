@@ -50,6 +50,10 @@ function getProgressKey(userId: string) {
   return `progress_${userId}`;
 }
 
+function getUserNameKey(userId: string) {
+  return `userName_${userId}`;
+}
+
 function loadProgress(userId: string): Record<string, boolean> {
   const key = getProgressKey(userId);
   const stored = localStorage.getItem(key);
@@ -69,6 +73,16 @@ function loadProgress(userId: string): Record<string, boolean> {
 function saveProgress(userId: string, progress: Record<string, boolean>) {
   const key = getProgressKey(userId);
   localStorage.setItem(key, JSON.stringify(progress));
+}
+
+function loadUserName(userId: string): string | null {
+  const key = getUserNameKey(userId);
+  return localStorage.getItem(key) || null;
+}
+
+function saveUserName(userId: string, name: string) {
+  const key = getUserNameKey(userId);
+  localStorage.setItem(key, name);
 }
 
 // ========== ПОСТРОЕНИЕ ДЕРЕВА ==========
@@ -135,10 +149,11 @@ const renderCustomNode = ({ nodeDatum, toggleNode }: any) => {
 };
 
 // ========== АДМИНКА ==========
-function AdminPanel({ userId, progress, setProgress }: {
+function AdminPanel({ userId, progress, setProgress, userName }: {
   userId: string;
   progress: Record<string, boolean>;
   setProgress: React.Dispatch<React.SetStateAction<Record<string, boolean>>>;
+  userName: string | null;
 }) {
   const allLessons = ALL_LESSON_IDS.map(id => {
     function findLesson(node: any): string | null {
@@ -168,9 +183,11 @@ function AdminPanel({ userId, progress, setProgress }: {
     saveProgress(userId, newProgress);
   };
 
+  const displayName = userName || `ID: ${userId}`;
+
   return (
     <div style={{ padding: '20px', color: '#fff', backgroundColor: '#1a1a2e', minHeight: '100vh' }}>
-      <h2>Админ-панель для ученика {userId}</h2>
+      <h2>Админ-панель для ученика {displayName}</h2>
       <div style={{ marginBottom: '10px' }}>
         <button onClick={() => handleSelectAll(true)} style={{ marginRight: '10px' }}>✅ Все пройдены</button>
         <button onClick={() => handleSelectAll(false)}>⬜ Все непройдены</button>
@@ -193,25 +210,29 @@ function AdminPanel({ userId, progress, setProgress }: {
   );
 }
 
-// ========== ФУНКЦИЯ ДЛЯ ИЗВЛЕЧЕНИЯ ID ИЗ URL ==========
-function extractUserIdFromHash(): string | null {
+// ========== ФУНКЦИЯ ДЛЯ ИЗВЛЕЧЕНИЯ ID И ИМЕНИ ИЗ URL ==========
+function extractUserInfoFromHash(): { id: string | null, firstName: string | null, lastName: string | null } {
   const hash = window.location.hash;
-  if (!hash) return null;
-  // Извлекаем tgWebAppData
+  if (!hash) return { id: null, firstName: null, lastName: null };
+  
   const params = new URLSearchParams(hash.substring(1));
   const tgData = params.get('tgWebAppData');
-  if (!tgData) return null;
-  // Декодируем
+  if (!tgData) return { id: null, firstName: null, lastName: null };
+  
   const decoded = decodeURIComponent(tgData);
-  // Разбираем как параметры
   const dataParams = new URLSearchParams(decoded);
   const userStr = dataParams.get('user');
-  if (!userStr) return null;
+  if (!userStr) return { id: null, firstName: null, lastName: null };
+  
   try {
     const user = JSON.parse(userStr);
-    return user.id ? user.id.toString() : null;
+    return {
+      id: user.id ? user.id.toString() : null,
+      firstName: user.first_name || null,
+      lastName: user.last_name || null,
+    };
   } catch {
-    return null;
+    return { id: null, firstName: null, lastName: null };
   }
 }
 
@@ -219,31 +240,49 @@ function extractUserIdFromHash(): string | null {
 function App() {
   const [mode, setMode] = useState<'student' | 'teacher'>('student');
   const [userId, setUserId] = useState('guest');
+  const [userName, setUserName] = useState<string | null>(null);
   const [progress, setProgress] = useState<Record<string, boolean>>(() => loadProgress(userId));
 
   useEffect(() => {
-    // Пытаемся получить ID из URL
-    const idFromUrl = extractUserIdFromHash();
-    if (idFromUrl) {
-      setUserId(idFromUrl);
-      setProgress(loadProgress(idFromUrl));
+    // Пытаемся получить ID и имя из URL
+    const { id, firstName, lastName } = extractUserInfoFromHash();
+    if (id) {
+      setUserId(id);
+      // Загружаем прогресс
+      setProgress(loadProgress(id));
+      // Формируем имя
+      let name = firstName || '';
+      if (lastName) name += ' ' + lastName;
+      const finalName = name.trim() || id;
+      setUserName(finalName);
+      // Сохраняем имя в localStorage
+      saveUserName(id, finalName);
       return;
     }
 
-    // Запасной вариант: через Telegram WebApp (если скрипт всё же загрузится)
+    // Запасной вариант: через Telegram WebApp
     const tg = (window as any).Telegram?.WebApp;
     if (tg) {
       tg.ready();
-      const id = tg.initDataUnsafe?.user?.id?.toString();
-      if (id) {
+      const user = tg.initDataUnsafe?.user;
+      if (user?.id) {
+        const id = user.id.toString();
         setUserId(id);
         setProgress(loadProgress(id));
+        let name = user.first_name || '';
+        if (user.last_name) name += ' ' + user.last_name;
+        const finalName = name.trim() || id;
+        setUserName(finalName);
+        saveUserName(id, finalName);
       }
     }
   }, []);
 
+  // При смене userId (в админке) загружаем прогресс и имя
   useEffect(() => {
     setProgress(loadProgress(userId));
+    const savedName = loadUserName(userId);
+    setUserName(savedName);
   }, [userId]);
 
   const treeData = buildTreeForDisplay(TREE_STRUCTURE, progress);
@@ -261,7 +300,12 @@ function App() {
             style={{ padding: '5px' }}
           />
         </div>
-        <AdminPanel userId={userId} progress={progress} setProgress={setProgress} />
+        <AdminPanel 
+          userId={userId} 
+          progress={progress} 
+          setProgress={setProgress} 
+          userName={userName}
+        />
       </div>
     );
   }
@@ -270,7 +314,9 @@ function App() {
     <div style={{ width: '100vw', height: '100vh', backgroundColor: '#1a1a2e' }}>
       <div style={{ position: 'absolute', top: 10, left: 10, zIndex: 10 }}>
         <button onClick={() => setMode('teacher')}>Вход для учителя</button>
-        <span style={{ color: '#fff', marginLeft: '10px' }}>Ученик: {userId}</span>
+        <span style={{ color: '#fff', marginLeft: '10px' }}>
+          Ученик: {userName || userId}
+        </span>
       </div>
       <Tree
         data={treeData}
