@@ -5,9 +5,8 @@ import JSZip from 'jszip';
 import './App.css';
 
 // ========== КОНСТАНТЫ ==========
-// ЗАМЕНИ <project_id> на свой реальный ID из Supabase
+// Твой Project ID уже вставлен
 const STORAGE_URL = 'https://wmfjjpsakhmwwyvimqwx.supabase.co/storage/v1/object/public/icons/';
-
 const ADMIN_IDS: number[] = [1394891154]; // ID учителей
 
 // ========== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ==========
@@ -273,15 +272,32 @@ function buildTreeFromZip(zip: JSZip): { name: string; structure: any } {
 
     const children: any[] = [];
     for (const [rawName, info] of childrenMap) {
+      // 1. Парсим имя, чтобы получить отображаемое имя и ключ картинки
       const { displayName, imageKey } = parseNameWithIcon(rawName);
+      // 2. Удаляем расширение у отображаемого имени (для файлов)
       const finalName = info.isFile ? removeExtension(displayName) : displayName;
+      // 3. Формируем URL картинки, если есть ключ
       const imageUrl = imageKey ? `${STORAGE_URL}${imageKey}.png` : null;
+
       if (info.isFile) {
-        children.push({ id: info.name, name: finalName, imageUrl, imageKey });
+        // Урок
+        children.push({
+          id: info.name,
+          name: finalName,
+          imageUrl: imageUrl,
+          imageKey: imageKey,
+        });
       } else {
+        // Папка (категория)
         const subPrefix = prefix + rawName + '/';
         const subChildren = buildNode(subPrefix);
-        children.push({ id: rawName, name: finalName, children: subChildren, imageUrl, imageKey });
+        children.push({
+          id: rawName,
+          name: finalName,
+          children: subChildren,
+          imageUrl: imageUrl,
+          imageKey: imageKey,
+        });
       }
     }
     return children;
@@ -290,23 +306,23 @@ function buildTreeFromZip(zip: JSZip): { name: string; structure: any } {
   const rootChildren = buildNode('');
   let structure;
   if (rootChildren.length === 1 && rootChildren[0].name === rootDisplayName) {
-    structure = { 
-      id: 'root', 
-      name: rootDisplayName, 
+    structure = {
+      id: 'root',
+      name: rootDisplayName,
       children: rootChildren[0].children || [],
       imageUrl: rootImageKey ? `${STORAGE_URL}${rootImageKey}.png` : null,
       imageKey: rootImageKey,
     };
   } else {
-    structure = { 
-      id: 'root', 
-      name: rootDisplayName, 
+    structure = {
+      id: 'root',
+      name: rootDisplayName,
       children: rootChildren,
       imageUrl: rootImageKey ? `${STORAGE_URL}${rootImageKey}.png` : null,
       imageKey: rootImageKey,
     };
   }
-  console.log('Создана структура с картинками:', structure);
+  console.log('✅ Создана структура с картинками:', structure);
   return { name: rootDisplayName, structure };
 }
 
