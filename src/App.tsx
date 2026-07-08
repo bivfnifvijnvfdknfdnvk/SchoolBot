@@ -276,6 +276,7 @@ async function buildTreeFromZip(zip: JSZip): Promise<{ name: string; structure: 
       const imageUrl = imageKey ? `${STORAGE_URL}${imageKey}.png` : null;
 
       if (info.isFile) {
+        // Читаем содержимое файла, если это .txt
         let content = null;
         if (rawName.endsWith('.txt')) {
           const filePath = prefix + rawName;
@@ -379,15 +380,16 @@ const renderCustomNode = ({ nodeDatum, onLessonClick, onToggleLesson }: any) => 
   const completed = nodeDatum.__completed;
   const imageUrl = nodeDatum.__imageUrl;
   const content = nodeDatum.__content;
-  const radius = 24; // единый радиус для всех узлов
-
+  // Уроки и папки имеют одинаковый радиус 24
+  const radius = 24;
+  
   const handleClick = () => {
     if (isLesson) {
-      // Если есть onToggleLesson (режим редактирования) – вызываем его
+      // Если передан onToggleLesson – переключаем прогресс (для режима редактирования)
       if (onToggleLesson) {
         onToggleLesson(nodeDatum.__id);
       } else if (onLessonClick) {
-        // Иначе – открываем модалку
+        // Иначе открываем модалку (для превью и ученика)
         onLessonClick(content, nodeDatum.name);
       }
     }
@@ -438,30 +440,31 @@ const renderCustomNode = ({ nodeDatum, onLessonClick, onToggleLesson }: any) => 
 
       {/* Полупрозрачный зелёный круг с галочкой для пройденных уроков */}
       {isLesson && completed && (
-        <circle
-          cx="0"
-          cy="0"
-          r={radius}
-          fill="rgba(76, 175, 80, 0.7)"
-          stroke="none"
-          onClick={handleClick}
-          style={{ cursor: 'pointer' }}
-        />
-      )}
-      {isLesson && completed && (
-        <text
-          x="0"
-          y="0"
-          fontSize={radius * 0.9}
-          fill="#fff"
-          textAnchor="middle"
-          dominantBaseline="central"
-          fontWeight="bold"
-          onClick={handleClick}
-          style={{ cursor: 'pointer' }}
-        >
-          ✓
-        </text>
+        <>
+          <circle
+            cx="0"
+            cy="0"
+            r={radius}
+            fill="rgba(76, 175, 80, 0.5)" // более прозрачный
+            stroke="none"
+            onClick={handleClick}
+            style={{ cursor: 'pointer' }}
+          />
+          <text
+            x="0"
+            y="2"
+            fontSize={radius * 0.9}
+            fill="#fff"
+            stroke="none"
+            textAnchor="middle"
+            dominantBaseline="central"
+            fontWeight="bold"
+            onClick={handleClick}
+            style={{ cursor: 'pointer' }}
+          >
+            ✓
+          </text>
+        </>
       )}
 
       {/* Название узла (текст) */}
@@ -804,6 +807,7 @@ function App() {
     loadProgressForProgram(userId, currentProgramId!).then(p => setProgress(p));
   };
 
+  // Переключение прогресса для выбранного ученика (в режиме редактирования)
   const toggleLessonForStudent = async (lessonId: string) => {
     if (!selectedStudentId || !currentProgramId) return;
     const newProgress = { ...progress, [lessonId]: !progress[lessonId] };
@@ -826,7 +830,7 @@ function App() {
     }
   };
 
-  // Обработчик клика по уроку – открывает модальное окно
+  // Обработчик клика по уроку – открывает модальное окно (для ученика и превью)
   const handleLessonClick = (content: string | null, lessonName: string) => {
     setModalTitle(lessonName);
     setModalContent(content);
@@ -883,7 +887,7 @@ function App() {
 
   if (isAdmin && view === 'admin' && currentProgramId) {
     if (selectedStudentId) {
-      // Режим редактирования ученика – клик по уроку переключает прогресс
+      // Режим редактирования ученика – клик переключает прогресс
       return (
         <div style={{ width: '100vw', height: '100vh', backgroundColor: '#1a1a2e' }}>
           <div style={{ position: 'absolute', top: 10, left: 10, zIndex: 10, display: 'flex', gap: '10px' }}>
@@ -893,14 +897,14 @@ function App() {
           <SkillTreeView 
             structure={structure} 
             progress={progress} 
-            onToggleLesson={toggleLessonForStudent}  // передаём функцию переключения
+            onToggleLesson={toggleLessonForStudent}  // <-- передаём переключение
           />
           <LessonModal isOpen={modalOpen} onClose={closeModal} title={modalTitle} content={modalContent} />
         </div>
       );
     }
 
-    // Основная админка (превью) – клик по уроку открывает модалку
+    // Основная админка – превью с модалкой
     return (
       <div style={{ padding: '20px', color: '#fff', backgroundColor: '#1a1a2e', minHeight: '100vh' }}>
         <button onClick={() => { setView('programs'); setCurrentProgramId(null); }}>⬅ Назад к программам</button>
@@ -912,7 +916,7 @@ function App() {
               <SkillTreeView 
                 structure={structure} 
                 progress={progress} 
-                onLessonClick={handleLessonClick}  // модалка
+                onLessonClick={handleLessonClick}  // <-- модалка
               />
               <LessonModal isOpen={modalOpen} onClose={closeModal} title={modalTitle} content={modalContent} />
             </div>
@@ -966,7 +970,7 @@ function App() {
   }
 
   if (!isAdmin && view === 'tree' && currentProgramId) {
-    // Режим ученика – клик по уроку открывает модалку
+    // Режим ученика – клик открывает модалку
     return (
       <div style={{ width: '100vw', height: '100vh', backgroundColor: '#1a1a2e' }}>
         <div style={{ position: 'absolute', top: 10, left: 10, zIndex: 10, display: 'flex', gap: '10px', alignItems: 'center' }}>
