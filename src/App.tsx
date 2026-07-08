@@ -5,8 +5,8 @@ import './App.css';
 // ========== НАСТРОЙКА ==========
 // Список Telegram ID учителей (замените на свои)
 const ADMIN_IDS: number[] = [
-  1394891154, // сюда вставьте свой ID (и ID других учителей)
-  // можно добавить ещё через запятую
+  1394891154, // ваш ID
+  // можно добавить других через запятую
 ];
 
 // ========== СТРУКТУРА ДЕРЕВА ==========
@@ -41,6 +41,7 @@ const TREE_STRUCTURE = {
   ]
 };
 
+// ========== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ==========
 function getAllLessonIds(node: any): string[] {
   if (!node.children) return [node.id];
   let result: string[] = [];
@@ -92,7 +93,6 @@ function saveUserName(userId: string, name: string) {
   localStorage.setItem(key, name);
 }
 
-// Получить список всех учеников (ID и имена) из localStorage
 function getAllStudents(): { id: string; name: string | null }[] {
   const students: { id: string; name: string | null }[] = [];
   for (let i = 0; i < localStorage.length; i++) {
@@ -104,6 +104,103 @@ function getAllStudents(): { id: string; name: string | null }[] {
     }
   }
   return students;
+}
+
+// ========== РАБОТА С ПАПКАМИ ==========
+const FOLDERS_KEY = 'folders_data';
+
+interface Folder {
+  id: string;
+  name: string;
+  students: string[]; // userId
+}
+
+function getFolders(): Folder[] {
+  const stored = localStorage.getItem(FOLDERS_KEY);
+  if (stored) {
+    try {
+      return JSON.parse(stored);
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
+function saveFolders(folders: Folder[]) {
+  localStorage.setItem(FOLDERS_KEY, JSON.stringify(folders));
+}
+
+function createFolder(name: string): Folder {
+  const id = Date.now().toString();
+  return { id, name, students: [] };
+}
+
+function addFolder(name: string) {
+  const folders = getFolders();
+  const newFolder = createFolder(name);
+  folders.push(newFolder);
+  saveFolders(folders);
+  return folders;
+}
+
+function renameFolder(folderId: string, newName: string) {
+  const folders = getFolders();
+  const folder = folders.find(f => f.id === folderId);
+  if (folder) {
+    folder.name = newName;
+    saveFolders(folders);
+  }
+  return folders;
+}
+
+function deleteFolder(folderId: string) {
+  let folders = getFolders();
+  const folder = folders.find(f => f.id === folderId);
+  if (folder) {
+    // Перемещаем учеников из этой папки в корень (т.е. удаляем их из папки)
+    // Просто удаляем папку, ученики останутся без папки
+    folders = folders.filter(f => f.id !== folderId);
+    saveFolders(folders);
+  }
+  return folders;
+}
+
+function getStudentFolder(userId: string): string | null {
+  const folders = getFolders();
+  for (const folder of folders) {
+    if (folder.students.includes(userId)) {
+      return folder.id;
+    }
+  }
+  return null;
+}
+
+function moveStudentToFolder(userId: string, folderId: string | null) {
+  const folders = getFolders();
+  // Удаляем из всех папок
+  folders.forEach(f => {
+    f.students = f.students.filter(id => id !== userId);
+  });
+  if (folderId) {
+    const target = folders.find(f => f.id === folderId);
+    if (target && !target.students.includes(userId)) {
+      target.students.push(userId);
+    }
+  }
+  saveFolders(folders);
+}
+
+function deleteStudent(userId: string) {
+  // Удаляем прогресс, имя и из папок
+  localStorage.removeItem(getProgressKey(userId));
+  localStorage.removeItem(getUserNameKey(userId));
+  // Удаляем из папок
+  const folders = getFolders();
+  folders.forEach(f => {
+    f.students = f.students.filter(id => id !== userId);
+  });
+  saveFolders(folders);
 }
 
 // ========== ПОСТРОЕНИЕ ДЕРЕВА ДЛЯ ВИЗУАЛИЗАЦИИ ==========
@@ -232,40 +329,158 @@ function AdminPanel({ userId, progress, setProgress, userName }: {
 }
 
 // ========== ПАНЕЛЬ УПРАВЛЕНИЯ УЧИТЕЛЯ ==========
-function TeacherDashboard({ onSelectStudent }: { onSelectStudent: (userId: string) => void }) {
+function TeacherDashboard({ onSelectStudent, onRefresh }: { 
+  onSelectStudent: (userId: string) => void;
+  onRefresh: () => void;
+}) {
+  const [folders, setFolders] = useState<Folder[]>([]);
   const [students, setStudents] = useState<{ id: string; name: string | null }[]>([]);
+  const [newFolderName, setNewFolderName] = useState('');
+  const [editingFolderId, setEditingFolderId] = useState<string | null>(null);
+  const [editingName, setEditingName] = useState('');
 
-  // Обновляем список учеников при каждом рендере (или можно через useEffect)
-  useEffect(() => {
+  const loadData = () => {
+    setFolders(getFolders());
     setStudents(getAllStudents());
+  };
+
+  useEffect(() => {
+    loadData();
   }, []);
+
+  const handleCreateFolder = () => {
+    if (newFolderName.trim() === '') return;
+    addFolder(newFolderName.trim());
+    setNewFolderName('');
+    loadData();
+  };
+
+  const handleRenameFolder = (folderId: string) => {
+    if (editingName.trim() === '') return;
+    renameFolder(folderId, editingName.trim());
+    setEditingFolderId(null);
+    setEditingName('');
+    loadData();
+  };
+
+  const handleDeleteFolder = (folderId: string) => {
+    if (!confirm('Удалить папку? Все ученики из неё останутся, но без папки.')) return;
+    deleteFolder(folderId);
+    loadData();
+  };
+
+  const handleMoveStudent = (userId: string, folderId: string | null) => {
+    moveStudentToFolder(userId, folderId);
+    loadData();
+  };
+
+  const handleDeleteStudent = (userId: string, userName: string | null) => {
+    if (!confirm(`Точно удалить ученика ${userName || userId}? Прогресс будет потерян.`)) return;
+    deleteStudent(userId);
+    loadData();
+  };
+
+  // Получаем учеников без папки
+  const studentsWithoutFolder = students.filter(s => getStudentFolder(s.id) === null);
 
   return (
     <div style={{ padding: '20px', color: '#fff', backgroundColor: '#1a1a2e', minHeight: '100vh' }}>
       <h2>👨‍🏫 Панель учителя</h2>
-      <p>Выберите ученика для редактирования:</p>
-      <ul style={{ listStyle: 'none', padding: 0 }}>
-        {students.length === 0 && <li>Нет учеников. Попросите их открыть бота.</li>}
-        {students.map(student => (
-          <li key={student.id} style={{ margin: '8px 0' }}>
-            <button
-              onClick={() => onSelectStudent(student.id)}
-              style={{
-                padding: '10px 15px',
-                backgroundColor: '#333',
-                color: '#fff',
-                border: 'none',
-                borderRadius: '8px',
-                cursor: 'pointer',
-                width: '100%',
-                textAlign: 'left'
-              }}
-            >
-              {student.name || `ID: ${student.id}`}
-            </button>
-          </li>
-        ))}
-      </ul>
+
+      {/* Создание папки */}
+      <div style={{ marginBottom: '20px', display: 'flex', gap: '10px' }}>
+        <input
+          type="text"
+          placeholder="Название новой папки"
+          value={newFolderName}
+          onChange={(e) => setNewFolderName(e.target.value)}
+          style={{ padding: '8px', flex: 1 }}
+        />
+        <button onClick={handleCreateFolder}>Создать папку</button>
+        <button onClick={loadData} style={{ marginLeft: '10px' }}>🔄 Обновить</button>
+      </div>
+
+      {/* Отображение папок */}
+      {folders.map(folder => (
+        <div key={folder.id} style={{ marginBottom: '20px', backgroundColor: '#2a2a4e', borderRadius: '8px', padding: '10px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
+            {editingFolderId === folder.id ? (
+              <>
+                <input
+                  type="text"
+                  value={editingName}
+                  onChange={(e) => setEditingName(e.target.value)}
+                  style={{ padding: '4px', flex: 1 }}
+                />
+                <button onClick={() => handleRenameFolder(folder.id)}>Сохранить</button>
+                <button onClick={() => { setEditingFolderId(null); setEditingName(''); }}>Отмена</button>
+              </>
+            ) : (
+              <>
+                <span style={{ fontWeight: 'bold', fontSize: '18px' }}>📁 {folder.name}</span>
+                <button onClick={() => { setEditingFolderId(folder.id); setEditingName(folder.name); }}>✏️</button>
+                <button onClick={() => handleDeleteFolder(folder.id)} style={{ color: '#ff6b6b' }}>🗑️</button>
+                <span style={{ marginLeft: 'auto', color: '#aaa' }}>({folder.students.length} учеников)</span>
+              </>
+            )}
+          </div>
+
+          {/* Список учеников в папке */}
+          <ul style={{ listStyle: 'none', padding: '0 0 0 20px' }}>
+            {folder.students.map(studentId => {
+              const student = students.find(s => s.id === studentId);
+              if (!student) return null;
+              return (
+                <li key={student.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', margin: '6px 0' }}>
+                  <button onClick={() => onSelectStudent(student.id)} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', textAlign: 'left', flex: 1 }}>
+                    {student.name || `ID: ${student.id}`}
+                  </button>
+                  <select
+                    value={folder.id}
+                    onChange={(e) => handleMoveStudent(student.id, e.target.value === 'null' ? null : e.target.value)}
+                    style={{ padding: '2px' }}
+                  >
+                    {folders.map(f => (
+                      <option key={f.id} value={f.id}>{f.name}</option>
+                    ))}
+                    <option value="null">Без папки</option>
+                  </select>
+                  <button onClick={() => handleDeleteStudent(student.id, student.name)} style={{ color: '#ff6b6b' }}>🗑️</button>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      ))}
+
+      {/* Ученики без папки */}
+      {studentsWithoutFolder.length > 0 && (
+        <div style={{ marginBottom: '20px', backgroundColor: '#2a2a4e', borderRadius: '8px', padding: '10px' }}>
+          <h3 style={{ margin: '0 0 8px 0' }}>📂 Без папки</h3>
+          <ul style={{ listStyle: 'none', padding: '0 0 0 20px' }}>
+            {studentsWithoutFolder.map(student => (
+              <li key={student.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', margin: '6px 0' }}>
+                <button onClick={() => onSelectStudent(student.id)} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', textAlign: 'left', flex: 1 }}>
+                  {student.name || `ID: ${student.id}`}
+                </button>
+                <select
+                  value="null"
+                  onChange={(e) => handleMoveStudent(student.id, e.target.value === 'null' ? null : e.target.value)}
+                  style={{ padding: '2px' }}
+                >
+                  {folders.map(f => (
+                    <option key={f.id} value={f.id}>{f.name}</option>
+                  ))}
+                  <option value="null">Без папки</option>
+                </select>
+                <button onClick={() => handleDeleteStudent(student.id, student.name)} style={{ color: '#ff6b6b' }}>🗑️</button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {students.length === 0 && <p>Нет учеников. Попросите их открыть бота.</p>}
     </div>
   );
 }
@@ -301,10 +516,8 @@ function App() {
   const [userId, setUserId] = useState('guest');
   const [userName, setUserName] = useState<string | null>(null);
   const [progress, setProgress] = useState<Record<string, boolean>>(() => loadProgress(userId));
-  // Состояние для учителя: выбранный ученик (если null — показываем список)
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
 
-  // Получаем данные пользователя при загрузке
   useEffect(() => {
     const { id, firstName, lastName } = extractUserInfoFromHash();
     if (id) {
@@ -316,7 +529,6 @@ function App() {
       setUserName(finalName);
       saveUserName(id, finalName);
     } else {
-      // Запасной вариант через Telegram WebApp
       const tg = (window as any).Telegram?.WebApp;
       if (tg) {
         tg.ready();
@@ -335,7 +547,6 @@ function App() {
     }
   }, []);
 
-  // При смене ID (например, учитель выбрал ученика) обновляем прогресс и имя
   useEffect(() => {
     if (userId) {
       setProgress(loadProgress(userId));
@@ -344,22 +555,22 @@ function App() {
     }
   }, [userId]);
 
-  // Проверяем, является ли текущий пользователь учителем
   const isAdmin = ADMIN_IDS.includes(Number(userId));
 
-  // Если учитель и не выбран конкретный ученик — показываем панель управления
+  // Учитель и не выбран ученик -> панель управления
   if (isAdmin && selectedStudentId === null) {
     return (
       <TeacherDashboard
         onSelectStudent={(id) => {
           setSelectedStudentId(id);
-          setUserId(id); // загружаем данные выбранного ученика
+          setUserId(id);
         }}
+        onRefresh={() => {}}
       />
     );
   }
 
-  // Если учитель и выбран ученик — показываем админку для редактирования
+  // Учитель и выбран ученик -> редактирование
   if (isAdmin && selectedStudentId !== null) {
     return (
       <div>
@@ -377,7 +588,7 @@ function App() {
     );
   }
 
-  // ========== РЕЖИМ УЧЕНИКА ==========
+  // Режим ученика
   return (
     <div style={{ width: '100vw', height: '100vh', backgroundColor: '#1a1a2e' }}>
       <div style={{ position: 'absolute', top: 10, left: 10, zIndex: 10 }}>
