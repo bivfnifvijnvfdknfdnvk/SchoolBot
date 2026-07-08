@@ -5,7 +5,6 @@ import JSZip from 'jszip';
 import './App.css';
 
 // ========== КОНСТАНТЫ ==========
-// Твой Project ID уже вставлен
 const STORAGE_URL = 'https://wmfjjpsakhmwwyvimqwx.supabase.co/storage/v1/object/public/icons/';
 const ADMIN_IDS: number[] = [1394891154]; // ID учителей
 
@@ -240,8 +239,8 @@ async function getApplicationStatus(studentId: string, programId: string) {
   return data;
 }
 
-// ========== ФУНКЦИЯ ПОСТРОЕНИЯ ДЕРЕВА ИЗ ZIP (исправлена) ==========
-function buildTreeFromZip(zip: JSZip): { name: string; structure: any } {
+// ========== ФУНКЦИЯ ПОСТРОЕНИЯ ДЕРЕВА ИЗ ZIP (АСИНХРОННАЯ) ==========
+async function buildTreeFromZip(zip: JSZip): Promise<{ name: string; structure: any }> {
   const rootFolders = new Set<string>();
   Object.keys(zip.files).forEach(path => {
     if (path.includes('/')) {
@@ -254,56 +253,61 @@ function buildTreeFromZip(zip: JSZip): { name: string; structure: any } {
   const rootDisplayName = removeExtension(rootParsed.displayName);
   const rootImageKey = rootParsed.imageKey;
 
-  function buildNode(prefix: string): any[] {
+  async function buildNode(prefix: string): Promise<any[]> {
     const entries = Object.keys(zip.files).filter(key => key.startsWith(prefix) && key !== prefix && !key.endsWith('/'));
 
     const childrenMap = new Map<string, { isFile: boolean; name: string }>();
-    entries.forEach(key => {
+    for (const key of entries) {
       const relative = key.slice(prefix.length);
       const parts = relative.split('/');
       const first = parts[0];
-      if (!first) return;
+      if (!first) continue;
       const isFile = parts.length === 1;
       const nameWithoutExt = isFile ? removeExtension(first) : first;
       if (!childrenMap.has(first)) {
         childrenMap.set(first, { isFile, name: nameWithoutExt });
       }
-    });
+    }
 
     const children: any[] = [];
     for (const [rawName, info] of childrenMap) {
-      // 1. Парсим имя, чтобы получить отображаемое имя и ключ картинки
       const { displayName, imageKey } = parseNameWithIcon(rawName);
-      // 2. Удаляем расширение у отображаемого имени (для файлов)
       const finalName = info.isFile ? removeExtension(displayName) : displayName;
-      // 3. Формируем URL картинки, если есть ключ
       const imageUrl = imageKey ? `${STORAGE_URL}${imageKey}.png` : null;
 
       if (info.isFile) {
-        // Урок
+        // Читаем содержимое файла, если это .txt
+        let content = null;
+        if (rawName.endsWith('.txt')) {
+          const filePath = prefix + rawName;
+          const file = zip.file(filePath);
+          if (file) {
+            content = await file.async('text');
+          }
+        }
         children.push({
           id: info.name,
           name: finalName,
-          imageUrl: imageUrl,
-          imageKey: imageKey,
+          imageUrl,
+          imageKey,
+          content,
         });
       } else {
-        // Папка (категория)
         const subPrefix = prefix + rawName + '/';
-        const subChildren = buildNode(subPrefix);
+        const subChildren = await buildNode(subPrefix);
         children.push({
           id: rawName,
           name: finalName,
           children: subChildren,
-          imageUrl: imageUrl,
-          imageKey: imageKey,
+          imageUrl,
+          imageKey,
         });
       }
     }
     return children;
   }
 
-  const rootChildren = buildNode('');
+  const rootChildren = await buildNode('');
   let structure;
   if (rootChildren.length === 1 && rootChildren[0].name === rootDisplayName) {
     structure = {
@@ -322,7 +326,7 @@ function buildTreeFromZip(zip: JSZip): { name: string; structure: any } {
       imageKey: rootImageKey,
     };
   }
-  console.log('✅ Создана структура с картинками:', structure);
+  console.log('✅ Создана структура с картинками и контентом:', structure);
   return { name: rootDisplayName, structure };
 }
 
@@ -340,6 +344,7 @@ function buildTreeForDisplay(node: any, progress: Record<string, boolean>): any 
       __completed: completed,
       __imageUrl: node.imageUrl || null,
       __imageKey: node.imageKey || null,
+      __content: node.content || null,
     };
   } else {
     const lessonIds = getAllLessonIds(node);
@@ -370,16 +375,18 @@ function getAllLessonIds(node: any): string[] {
   return result;
 }
 
-// Кастомный рендер узла с поддержкой изображений
+// Кастомный рендер узла с поддержкой изображений и клика
 const renderCustomNode = ({ nodeDatum, onLessonClick }: any) => {
   const isLesson = nodeDatum.__isLesson;
   const completed = nodeDatum.__completed;
   const imageUrl = nodeDatum.__imageUrl;
+  const content = nodeDatum.__content;
   const radius = isLesson ? 18 : 24;
   
   const handleClick = () => {
     if (isLesson && onLessonClick) {
-      onLessonClick(nodeDatum.__id);
+      // Передаём id и content (может быть null)
+      onLessonClick(nodeDatum.__id, content, nodeDatum.name);
     }
   };
 
@@ -429,11 +436,11 @@ const renderCustomNode = ({ nodeDatum, onLessonClick }: any) => {
   );
 };
 
-// Компонент дерева с поддержкой кликов по урокам (только для учителя)
-function SkillTreeView({ structure, progress, onToggleLesson }: { 
+// Компонент дерева с поддержкой кликов по урокам
+function SkillTreeView({ structure, progress, onLessonClick }: { 
   structure: any; 
   progress: Record<string, boolean>;
-  onToggleLesson?: (lessonId: string) => void;
+  onLessonClick?: (lessonId: string, content: string | null, lessonName: string) => void;
 }) {
   const treeData = buildTreeForDisplay(structure, progress);
   return (
@@ -442,7 +449,7 @@ function SkillTreeView({ structure, progress, onToggleLesson }: {
         data={treeData}
         orientation="vertical"
         pathFunc="step"
-        renderCustomNodeElement={(props) => renderCustomNode({ ...props, onLessonClick: onToggleLesson })}
+        renderCustomNodeElement={(props) => renderCustomNode({ ...props, onLessonClick })}
         translate={{ x: window.innerWidth / 2, y: 100 }}
         zoomable={true}
         draggable={true}
@@ -500,6 +507,64 @@ function StudentProgramList({ userId, onApply, existingProgramIds }: { userId: s
   );
 }
 
+// ========== МОДАЛЬНОЕ ОКНО ==========
+function LessonModal({ isOpen, onClose, title, content }: { isOpen: boolean; onClose: () => void; title: string; content: string | null }) {
+  if (!isOpen) return null;
+
+  return (
+    <div
+      style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        width: '100vw',
+        height: '100vh',
+        backgroundColor: 'rgba(0,0,0,0.6)',
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        zIndex: 999,
+        cursor: 'pointer',
+      }}
+      onClick={onClose}
+    >
+      <div
+        style={{
+          backgroundColor: '#2a2a4e',
+          padding: '30px',
+          borderRadius: '12px',
+          maxWidth: '80%',
+          maxHeight: '80%',
+          overflow: 'auto',
+          cursor: 'default',
+          color: '#fff',
+          boxShadow: '0 8px 32px rgba(0,0,0,0.7)',
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h2 style={{ marginBottom: '16px', borderBottom: '1px solid #555', paddingBottom: '8px' }}>{title}</h2>
+        <div style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', lineHeight: '1.6' }}>
+          {content || 'Нет содержимого'}
+        </div>
+        <button
+          onClick={onClose}
+          style={{
+            marginTop: '20px',
+            padding: '8px 20px',
+            backgroundColor: '#4CAF50',
+            border: 'none',
+            borderRadius: '6px',
+            color: '#fff',
+            cursor: 'pointer',
+          }}
+        >
+          Закрыть
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ========== ОСНОВНОЙ КОМПОНЕНТ ==========
 function App() {
   const [userId, setUserId] = useState('guest');
@@ -521,6 +586,11 @@ function App() {
   const [newProgramName, setNewProgramName] = useState('');
   const [newProgramZip, setNewProgramZip] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
+
+  // Состояние для модального окна
+  const [modalOpen, setModalOpen] = useState(false);
+  const [modalTitle, setModalTitle] = useState('');
+  const [modalContent, setModalContent] = useState<string | null>(null);
 
   // Загрузка данных пользователя
   useEffect(() => {
@@ -618,7 +688,7 @@ function App() {
     setUploading(true);
     try {
       const zip = await JSZip.loadAsync(await newProgramZip.arrayBuffer());
-      const { name, structure } = buildTreeFromZip(zip);
+      const { name, structure } = await buildTreeFromZip(zip);
       const programName = newProgramName.trim() || name;
       const id = await createProgram(programName, userId, structure);
       if (id) {
@@ -708,6 +778,19 @@ function App() {
     }
   };
 
+  // Обработчик клика по уроку – открывает модальное окно
+  const handleLessonClick = (lessonId: string, content: string | null, lessonName: string) => {
+    setModalTitle(lessonName);
+    setModalContent(content);
+    setModalOpen(true);
+  };
+
+  const closeModal = () => {
+    setModalOpen(false);
+    setModalTitle('');
+    setModalContent(null);
+  };
+
   // ========== ОТРИСОВКА ==========
 
   if (userId === 'guest') {
@@ -744,7 +827,7 @@ function App() {
           </button>
         </div>
         <div style={{ marginTop: '20px', color: '#aaa' }}>
-          <p>Инструкция: создайте ZIP-архив, внутри которого папки с названиями категорий (например, "Лексика"), внутри каждой папки — файлы-уроки (можно .txt). Для иконок добавьте в имя ключ в скобках: "Лексика (lexicon)". Загрузите картинку lexicon.png в бакет icons в Supabase.</p>
+          <p>Инструкция: создайте ZIP-архив, внутри которого папки с названиями категорий (например, "Лексика"), внутри каждой папки — файлы-уроки (.txt). Для иконок добавьте в имя ключ в скобках: "Лексика (lexicon)". Загрузите картинку lexicon.png в бакет icons. При клике на урок откроется его содержимое.</p>
         </div>
       </div>
     );
@@ -761,8 +844,9 @@ function App() {
           <SkillTreeView 
             structure={structure} 
             progress={progress} 
-            onToggleLesson={toggleLessonForStudent}
+            onLessonClick={handleLessonClick}
           />
+          <LessonModal isOpen={modalOpen} onClose={closeModal} title={modalTitle} content={modalContent} />
         </div>
       );
     }
@@ -775,7 +859,12 @@ function App() {
           <div style={{ flex: 1, minWidth: '300px' }}>
             <h3>Дерево навыков (превью)</h3>
             <div style={{ height: '400px', overflow: 'auto', border: '1px solid #555', borderRadius: '8px', padding: '10px' }}>
-              <SkillTreeView structure={structure} progress={progress} />
+              <SkillTreeView 
+                structure={structure} 
+                progress={progress} 
+                onLessonClick={handleLessonClick}
+              />
+              <LessonModal isOpen={modalOpen} onClose={closeModal} title={modalTitle} content={modalContent} />
             </div>
           </div>
           <div style={{ flex: 1, minWidth: '300px' }}>
@@ -837,7 +926,9 @@ function App() {
         <SkillTreeView 
           structure={structure} 
           progress={progress} 
+          onLessonClick={handleLessonClick}
         />
+        <LessonModal isOpen={modalOpen} onClose={closeModal} title={modalTitle} content={modalContent} />
       </div>
     );
   }
