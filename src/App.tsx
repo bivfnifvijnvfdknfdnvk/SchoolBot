@@ -195,22 +195,6 @@ async function loadProgressForProgram(userId: string, programId: string): Promis
   return progress;
 }
 
-async function saveProgressForProgram(userId: string, programId: string, progress: Record<string, boolean>) {
-  const entries = Object.entries(progress).map(([lesson_id, completed]) => ({
-    user_id: Number(userId),
-    program_id: programId,
-    lesson_id,
-    completed,
-    updated_at: new Date().toISOString(),
-  }));
-  const { error } = await supabase
-    .from('progress')
-    .upsert(entries, { onConflict: 'user_id, program_id, lesson_id' });
-  if (error) {
-    console.error('Ошибка сохранения прогресса:', error);
-  }
-}
-
 async function getStudentPrograms(studentId: string) {
   const { data, error } = await supabase
     .from('applications')
@@ -385,8 +369,8 @@ const renderCustomNode = ({ nodeDatum, onLessonClick }: any) => {
   
   const handleClick = () => {
     if (isLesson && onLessonClick) {
-      // Передаём id и content (может быть null)
-      onLessonClick(nodeDatum.__id, content, nodeDatum.name);
+      // Передаём content и название
+      onLessonClick(content, nodeDatum.name);
     }
   };
 
@@ -440,7 +424,7 @@ const renderCustomNode = ({ nodeDatum, onLessonClick }: any) => {
 function SkillTreeView({ structure, progress, onLessonClick }: { 
   structure: any; 
   progress: Record<string, boolean>;
-  onLessonClick?: (lessonId: string, content: string | null, lessonName: string) => void;
+  onLessonClick?: (content: string | null, lessonName: string) => void;
 }) {
   const treeData = buildTreeForDisplay(structure, progress);
   return (
@@ -756,13 +740,6 @@ function App() {
     loadProgressForProgram(userId, currentProgramId!).then(p => setProgress(p));
   };
 
-  const toggleLessonForStudent = async (lessonId: string) => {
-    if (!selectedStudentId || !currentProgramId) return;
-    const newProgress = { ...progress, [lessonId]: !progress[lessonId] };
-    setProgress(newProgress);
-    await saveProgressForProgram(selectedStudentId, currentProgramId, newProgress);
-  };
-
   const handleDeleteStudent = async (studentId: string, studentName: string | null) => {
     if (!confirm(`Вы уверены, что хотите удалить ученика "${studentName || studentId}" из программы?`)) return;
     await supabase.from('progress').delete().eq('user_id', Number(studentId)).eq('program_id', currentProgramId!);
@@ -779,7 +756,7 @@ function App() {
   };
 
   // Обработчик клика по уроку – открывает модальное окно
-  const handleLessonClick = (lessonId: string, content: string | null, lessonName: string) => {
+  const handleLessonClick = (content: string | null, lessonName: string) => {
     setModalTitle(lessonName);
     setModalContent(content);
     setModalOpen(true);
