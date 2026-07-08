@@ -189,77 +189,59 @@ function buildTreeFromZip(zip: JSZip): { name: string; structure: any } {
   // Корневая папка ZIP может называться как угодно, возьмём имя первой папки
   const rootFolderName = Object.keys(zip.files).find(path => path.includes('/'))?.split('/')[0] || 'Программа';
   
-  // Строим дерево рекурсивно
-  function buildNode(path: string, zip: JSZip): any {
-    const parts = path.split('/').filter(p => p);
-    if (parts.length === 0) return null;
-    const currentName = parts[0];
-    const rest = parts.slice(1);
-    // Проверяем, есть ли вложенные папки или файлы
-    const children: any[] = [];
-    // Получаем все записи в текущей папке
-    const prefix = path + (path.endsWith('/') ? '' : '/');
-    const entries = Object.keys(zip.files).filter(key => key.startsWith(prefix) && key !== prefix);
+  // Рекурсивная функция построения узла по пути
+  function buildNode(path: string): any {
+    // Получаем префикс для поиска вложенных элементов
+    const prefix = path ? path + '/' : '';
+    // Все записи внутри этой папки (исключая саму папку)
+    const entries = Object.keys(zip.files).filter(key => key.startsWith(prefix) && key !== prefix && !key.endsWith('/'));
+
     // Группируем по первому элементу после префикса
-    const subPaths = new Set<string>();
+    const childrenMap = new Map<string, { isFile: boolean; name: string }>();
     entries.forEach(key => {
-      const relative = key.replace(prefix, '');
-      const firstPart = relative.split('/')[0];
-      if (firstPart) subPaths.add(firstPart);
-    });
-    // Для каждого элемента строим узел
-    subPaths.forEach(sub => {
-      const fullPath = prefix + sub;
-      const item = zip.files[fullPath];
-      if (item && !item.dir) {
-        // это файл -> урок
-        const nameWithoutExt = sub.replace(/\.[^/.]+$/, '');
-        children.push({ id: nameWithoutExt, name: nameWithoutExt });
-      } else if (item && item.dir) {
-        // это папка -> категория
-        const childNode = buildNode(fullPath, zip);
-        if (childNode) children.push(childNode);
-      } else {
-        // возможно, это файл внутри подпапки, но мы уже обработаем рекурсивно
-        const childNode = buildNode(fullPath, zip);
-        if (childNode) children.push(childNode);
+      const relative = key.slice(prefix.length);
+      const parts = relative.split('/');
+      const first = parts[0];
+      if (!first) return;
+      const isFile = parts.length === 1;
+      const nameWithoutExt = isFile ? first.replace(/\.[^/.]+$/, '') : first;
+      if (!childrenMap.has(first)) {
+        childrenMap.set(first, { isFile, name: nameWithoutExt });
       }
     });
-    // Если это корень, возвращаем объект с именем программы и детьми
-    if (path === '') {
-      const rootChildren = [];
-      // все первые папки/файлы в корне
-      const rootEntries = Object.keys(zip.files)
-        .filter(key => !key.includes('/') && !key.endsWith('/'))
-        .map(key => ({ name: key, isFile: true }));
-      // обрабатываем корневые файлы
-      rootEntries.forEach(file => {
-        const nameWithoutExt = file.name.replace(/\.[^/.]+$/, '');
-        rootChildren.push({ id: nameWithoutExt, name: nameWithoutExt });
-      });
-      // обрабатываем корневые папки
-      const folders = new Set<string>();
-      Object.keys(zip.files).forEach(key => {
-        if (key.includes('/')) {
-          const first = key.split('/')[0];
-          if (first) folders.add(first);
+
+    // Строим дочерние узлы
+    const children: any[] = [];
+    for (const [key, info] of childrenMap) {
+      if (info.isFile) {
+        children.push({ id: info.name, name: info.name });
+      } else {
+        // Это папка, спускаемся рекурсивно
+        const subNode = buildNode(path ? path + '/' + key : key);
+        if (subNode) {
+          children.push(subNode);
         }
+      }
+    }
+
+    // Если это корень, возвращаем структуру с именем программы
+    if (path === '') {
+      // Дополнительно обрабатываем файлы, лежащие прямо в корне (без папок)
+      const rootEntries = Object.keys(zip.files).filter(key => !key.includes('/') && !key.endsWith('/'));
+      rootEntries.forEach(fileName => {
+        const nameWithoutExt = fileName.replace(/\.[^/.]+$/, '');
+        children.push({ id: nameWithoutExt, name: nameWithoutExt });
       });
-      folders.forEach(folder => {
-        const child = buildNode(folder, zip);
-        if (child) rootChildren.push(child);
-      });
-      return { name: rootFolderName, structure: { id: 'root', name: rootFolderName, children: rootChildren } };
+      return { id: 'root', name: rootFolderName, children };
     } else {
-      // это папка: создаём узел с именем и дочерними элементами
-      // Имя папки - последний элемент пути
-      const folderName = parts[parts.length - 1];
-      return { id: folderName, name: folderName, children: children };
+      // Возвращаем узел папки
+      const folderName = path.split('/').pop() || 'folder';
+      return { id: folderName, name: folderName, children };
     }
   }
 
-  const tree = buildNode('', zip);
-  return { name: rootFolderName, structure: tree.structure };
+  const structure = buildNode('');
+  return { name: rootFolderName, structure };
 }
 
 // ========== КОМПОНЕНТЫ ==========
