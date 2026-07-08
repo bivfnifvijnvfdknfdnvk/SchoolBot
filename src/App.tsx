@@ -199,21 +199,44 @@ function App() {
   const [userId, setUserId] = useState('guest');
   const [progress, setProgress] = useState<Record<string, boolean>>(() => loadProgress(userId));
 
-  // --- ПОЛУЧАЕМ РЕАЛЬНЫЙ ID ИЗ TELEGRAM ---
   useEffect(() => {
+    // Пытаемся извлечь ID из URL (Telegram передаёт его в hash)
+    const hash = window.location.hash;
+    if (hash) {
+      const params = new URLSearchParams(hash.substring(1)); // убираем #
+      const userData = params.get('tgWebAppData');
+      if (userData) {
+        try {
+          // Ищем часть "user": {"id":12345,...}
+          const userMatch = userData.match(/user%3D%7B(.*?)%7D/);
+          if (userMatch) {
+            const userJson = decodeURIComponent(userMatch[1]);
+            const user = JSON.parse('{' + userJson + '}');
+            if (user.id) {
+              const id = user.id.toString();
+              setUserId(id);
+              setProgress(loadProgress(id));
+              return;
+            }
+          }
+        } catch (e) {
+          console.warn('Не удалось распарсить user из URL', e);
+        }
+      }
+    }
+
+    // Запасной вариант: пробуем через Telegram WebApp (если вдруг загрузится)
     const tg = (window as any).Telegram?.WebApp;
     if (tg) {
-      tg.ready(); // сообщаем Telegram, что приложение загружено
+      tg.ready();
       const id = tg.initDataUnsafe?.user?.id?.toString();
       if (id) {
         setUserId(id);
-        // После получения ID, загружаем прогресс для этого пользователя
         setProgress(loadProgress(id));
       }
     }
   }, []);
 
-  // При смене userId (вручную через админку) обновляем прогресс
   useEffect(() => {
     setProgress(loadProgress(userId));
   }, [userId]);
