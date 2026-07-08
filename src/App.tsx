@@ -1,13 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import Tree from 'react-d3-tree';
+import { supabase, setUserId } from './supabaseClient';
 import './App.css';
 
 // ========== НАСТРОЙКА ==========
-// Список Telegram ID учителей (замените на свои)
-const ADMIN_IDS: number[] = [
-  1394891154, // ваш ID
-  // можно добавить других через запятую
-];
+const ADMIN_IDS: number[] = [1394891154]; // замени на свои ID учителей
 
 // ========== СТРУКТУРА ДЕРЕВА ==========
 const TREE_STRUCTURE = {
@@ -52,152 +49,218 @@ function getAllLessonIds(node: any): string[] {
 
 const ALL_LESSON_IDS = getAllLessonIds(TREE_STRUCTURE);
 
-// ========== РАБОТА С ПРОГРЕССОМ И ИМЕНАМИ ==========
-function getProgressKey(userId: string) {
-  return `progress_${userId}`;
-}
+// ========== ФУНКЦИИ ДЛЯ РАБОТЫ С БАЗОЙ ==========
 
-function getUserNameKey(userId: string) {
-  return `userName_${userId}`;
-}
+// Загрузить прогресс пользователя
+async function loadProgressFromDB(userId: string): Promise<Record<string, boolean>> {
+  const { data, error } = await supabase
+    .from('progress')
+    .select('lesson_id, completed')
+    .eq('user_id', Number(userId));
 
-function loadProgress(userId: string): Record<string, boolean> {
-  const key = getProgressKey(userId);
-  const stored = localStorage.getItem(key);
-  if (stored) {
-    try {
-      return JSON.parse(stored);
-    } catch (e) {
-      return {};
-    }
+  if (error) {
+    console.error('Ошибка загрузки прогресса:', error);
+    return {};
   }
-  const initial: Record<string, boolean> = {};
-  ALL_LESSON_IDS.forEach(id => { initial[id] = false; });
-  localStorage.setItem(key, JSON.stringify(initial));
-  return initial;
-}
 
-function saveProgress(userId: string, progress: Record<string, boolean>) {
-  const key = getProgressKey(userId);
-  localStorage.setItem(key, JSON.stringify(progress));
-}
-
-function loadUserName(userId: string): string | null {
-  const key = getUserNameKey(userId);
-  return localStorage.getItem(key) || null;
-}
-
-function saveUserName(userId: string, name: string) {
-  const key = getUserNameKey(userId);
-  localStorage.setItem(key, name);
-}
-
-function getAllStudents(): { id: string; name: string | null }[] {
-  const students: { id: string; name: string | null }[] = [];
-  for (let i = 0; i < localStorage.length; i++) {
-    const key = localStorage.key(i);
-    if (key && key.startsWith('progress_')) {
-      const id = key.replace('progress_', '');
-      const name = loadUserName(id);
-      students.push({ id, name });
-    }
-  }
-  return students;
-}
-
-// ========== РАБОТА С ПАПКАМИ ==========
-const FOLDERS_KEY = 'folders_data';
-
-interface Folder {
-  id: string;
-  name: string;
-  students: string[]; // userId
-}
-
-function getFolders(): Folder[] {
-  const stored = localStorage.getItem(FOLDERS_KEY);
-  if (stored) {
-    try {
-      return JSON.parse(stored);
-    } catch {
-      return [];
-    }
-  }
-  return [];
-}
-
-function saveFolders(folders: Folder[]) {
-  localStorage.setItem(FOLDERS_KEY, JSON.stringify(folders));
-}
-
-function createFolder(name: string): Folder {
-  const id = Date.now().toString();
-  return { id, name, students: [] };
-}
-
-function addFolder(name: string) {
-  const folders = getFolders();
-  const newFolder = createFolder(name);
-  folders.push(newFolder);
-  saveFolders(folders);
-  return folders;
-}
-
-function renameFolder(folderId: string, newName: string) {
-  const folders = getFolders();
-  const folder = folders.find(f => f.id === folderId);
-  if (folder) {
-    folder.name = newName;
-    saveFolders(folders);
-  }
-  return folders;
-}
-
-function deleteFolder(folderId: string) {
-  let folders = getFolders();
-  const folder = folders.find(f => f.id === folderId);
-  if (folder) {
-    folders = folders.filter(f => f.id !== folderId);
-    saveFolders(folders);
-  }
-  return folders;
-}
-
-function getStudentFolder(userId: string): string | null {
-  const folders = getFolders();
-  for (const folder of folders) {
-    if (folder.students.includes(userId)) {
-      return folder.id;
-    }
-  }
-  return null;
-}
-
-function moveStudentToFolder(userId: string, folderId: string | null) {
-  const folders = getFolders();
-  folders.forEach(f => {
-    f.students = f.students.filter(id => id !== userId);
+  const progress: Record<string, boolean> = {};
+  ALL_LESSON_IDS.forEach(id => { progress[id] = false; });
+  data.forEach(row => {
+    progress[row.lesson_id] = row.completed;
   });
+  return progress;
+}
+
+// Сохранить прогресс пользователя (upsert)
+async function saveProgressToDB(userId: string, progress: Record<string, boolean>) {
+  const entries = Object.entries(progress).map(([lesson_id, completed]) => ({
+    user_id: Number(userId),
+    lesson_id,
+    completed,
+    updated_at: new Date().toISOString(),
+  }));
+
+  const { error } = await supabase
+    .from('progress')
+    .upsert(entries, { onConflict: 'user_id, lesson_id' });
+
+  if (error) {
+    console.error('Ошибка сохранения прогресса:', error);
+  }
+}
+
+// Загрузить имя пользователя
+async function loadUserNameFromDB(userId: string): Promise<string | null> {
+  const { data, error } = await supabase
+    .from('users')
+    .select('first_name, last_name')
+    .eq('telegram_id', Number(userId))
+    .single();
+
+  if (error || !data) return null;
+  return `${data.first_name || ''} ${data.last_name || ''}`.trim() || null;
+}
+
+// Сохранить пользователя (если новый)
+async function saveUserToDB(userId: string, firstName: string, lastName: string | null, username: string | null) {
+  const { error } = await supabase
+    .from('users')
+    .upsert({
+      telegram_id: Number(userId),
+      first_name: firstName,
+      last_name: lastName,
+      username: username,
+    }, { onConflict: 'telegram_id' });
+
+  if (error) {
+    console.error('Ошибка сохранения пользователя:', error);
+  }
+}
+
+// Получить всех учеников (для учителя)
+async function getAllStudentsFromDB(): Promise<{ id: string; name: string | null }[]> {
+  // Получаем всех пользователей, у которых есть прогресс (активные)
+  const { data: progressUsers, error: progressError } = await supabase
+    .from('progress')
+    .select('user_id');
+
+  if (progressError) {
+    console.error('Ошибка получения списка учеников:', progressError);
+    return [];
+  }
+
+  const userIds = progressUsers.map(p => p.user_id);
+  if (userIds.length === 0) return [];
+
+  const { data, error } = await supabase
+    .from('users')
+    .select('telegram_id, first_name, last_name')
+    .in('telegram_id', userIds);
+
+  if (error) {
+    console.error('Ошибка получения данных учеников:', error);
+    return [];
+  }
+
+  return data.map(u => ({
+    id: u.telegram_id.toString(),
+    name: `${u.first_name || ''} ${u.last_name || ''}`.trim() || null,
+  }));
+}
+
+// ========== РАБОТА С ПАПКАМИ (тоже через БД) ==========
+
+async function getFoldersFromDB(teacherId: string): Promise<any[]> {
+  const { data, error } = await supabase
+    .from('folders')
+    .select('id, name, folder_students(user_id)')
+    .eq('teacher_id', Number(teacherId));
+
+  if (error) {
+    console.error('Ошибка загрузки папок:', error);
+    return [];
+  }
+
+  return data.map(f => ({
+    id: f.id,
+    name: f.name,
+    students: f.folder_students?.map((fs: any) => fs.user_id.toString()) || [],
+  }));
+}
+
+async function createFolderInDB(teacherId: string, name: string) {
+  const { data, error } = await supabase
+    .from('folders')
+    .insert({ name, teacher_id: Number(teacherId) })
+    .select('id')
+    .single();
+
+  if (error) {
+    console.error('Ошибка создания папки:', error);
+    return null;
+  }
+  return data.id;
+}
+
+async function renameFolderInDB(folderId: string, newName: string) {
+  const { error } = await supabase
+    .from('folders')
+    .update({ name: newName })
+    .eq('id', folderId);
+
+  if (error) console.error('Ошибка переименования папки:', error);
+}
+
+async function deleteFolderFromDB(folderId: string) {
+  const { error } = await supabase
+    .from('folders')
+    .delete()
+    .eq('id', folderId);
+
+  if (error) console.error('Ошибка удаления папки:', error);
+}
+
+async function moveStudentToFolderDB(studentId: string, folderId: string | null) {
+  // Сначала удаляем все связи этого ученика с папками
+  const { error: delError } = await supabase
+    .from('folder_students')
+    .delete()
+    .eq('user_id', Number(studentId));
+
+  if (delError) {
+    console.error('Ошибка удаления старых связей:', delError);
+    return;
+  }
+
   if (folderId) {
-    const target = folders.find(f => f.id === folderId);
-    if (target && !target.students.includes(userId)) {
-      target.students.push(userId);
-    }
+    const { error: insError } = await supabase
+      .from('folder_students')
+      .insert({ folder_id: folderId, user_id: Number(studentId) });
+
+    if (insError) console.error('Ошибка добавления в папку:', insError);
   }
-  saveFolders(folders);
 }
 
-function deleteStudent(userId: string) {
-  localStorage.removeItem(getProgressKey(userId));
-  localStorage.removeItem(getUserNameKey(userId));
-  const folders = getFolders();
-  folders.forEach(f => {
-    f.students = f.students.filter(id => id !== userId);
-  });
-  saveFolders(folders);
+async function deleteStudentFromDB(studentId: string) {
+  // Удаляем прогресс, пользователя и связи с папками (каскадное удаление)
+  const { error } = await supabase
+    .from('users')
+    .delete()
+    .eq('telegram_id', Number(studentId));
+
+  if (error) console.error('Ошибка удаления ученика:', error);
 }
 
-// ========== ПОСТРОЕНИЕ ДЕРЕВА ==========
+// ========== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ==========
+
+function extractUserInfoFromHash(): { id: string | null, firstName: string | null, lastName: string | null, username: string | null } {
+  const hash = window.location.hash;
+  if (!hash) return { id: null, firstName: null, lastName: null, username: null };
+  
+  const params = new URLSearchParams(hash.substring(1));
+  const tgData = params.get('tgWebAppData');
+  if (!tgData) return { id: null, firstName: null, lastName: null, username: null };
+  
+  const decoded = decodeURIComponent(tgData);
+  const dataParams = new URLSearchParams(decoded);
+  const userStr = dataParams.get('user');
+  if (!userStr) return { id: null, firstName: null, lastName: null, username: null };
+  
+  try {
+    const user = JSON.parse(userStr);
+    return {
+      id: user.id ? user.id.toString() : null,
+      firstName: user.first_name || null,
+      lastName: user.last_name || null,
+      username: user.username || null,
+    };
+  } catch {
+    return { id: null, firstName: null, lastName: null, username: null };
+  }
+}
+
+// ========== КОМПОНЕНТЫ ==========
+
 function buildTreeForDisplay(node: any, progress: Record<string, boolean>): any {
   const isLesson = !node.children || node.children.length === 0;
   if (isLesson) {
@@ -227,7 +290,6 @@ function buildTreeForDisplay(node: any, progress: Record<string, boolean>): any 
   }
 }
 
-// ========== КОМПОНЕНТ ДЛЯ УЗЛА ==========
 const renderCustomNode = ({ nodeDatum, toggleNode }: any) => {
   const isLesson = nodeDatum.__isLesson;
   const completed = nodeDatum.__completed;
@@ -260,12 +322,13 @@ const renderCustomNode = ({ nodeDatum, toggleNode }: any) => {
   );
 };
 
-// ========== АДМИНКА ДЛЯ РЕДАКТИРОВАНИЯ ОДНОГО УЧЕНИКА ==========
-function AdminPanel({ userId, progress, setProgress, userName }: {
+// Админка редактирования
+function AdminPanel({ userId, progress, setProgress, userName, onProgressChanged }: {
   userId: string;
   progress: Record<string, boolean>;
   setProgress: React.Dispatch<React.SetStateAction<Record<string, boolean>>>;
   userName: string | null;
+  onProgressChanged: () => void;
 }) {
   const allLessons = ALL_LESSON_IDS.map(id => {
     function findLesson(node: any): string | null {
@@ -282,17 +345,19 @@ function AdminPanel({ userId, progress, setProgress, userName }: {
     return { id, name };
   });
 
-  const handleToggle = (lessonId: string) => {
+  const handleToggle = async (lessonId: string) => {
     const newProgress = { ...progress, [lessonId]: !progress[lessonId] };
     setProgress(newProgress);
-    saveProgress(userId, newProgress);
+    await saveProgressToDB(userId, newProgress);
+    onProgressChanged();
   };
 
-  const handleSelectAll = (value: boolean) => {
+  const handleSelectAll = async (value: boolean) => {
     const newProgress: Record<string, boolean> = {};
     ALL_LESSON_IDS.forEach(id => { newProgress[id] = value; });
     setProgress(newProgress);
-    saveProgress(userId, newProgress);
+    await saveProgressToDB(userId, newProgress);
+    onProgressChanged();
   };
 
   const displayName = userName || `ID: ${userId}`;
@@ -322,58 +387,61 @@ function AdminPanel({ userId, progress, setProgress, userName }: {
   );
 }
 
-// ========== ПАНЕЛЬ УПРАВЛЕНИЯ УЧИТЕЛЯ ==========
-function TeacherDashboard({ onSelectStudent }: {
+// Панель учителя
+function TeacherDashboard({ onSelectStudent, teacherId }: {
   onSelectStudent: (userId: string) => void;
+  teacherId: string;
 }) {
-  const [folders, setFolders] = useState<Folder[]>([]);
+  const [folders, setFolders] = useState<any[]>([]);
   const [students, setStudents] = useState<{ id: string; name: string | null }[]>([]);
   const [newFolderName, setNewFolderName] = useState('');
   const [editingFolderId, setEditingFolderId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState('');
 
-  const loadData = () => {
-    setFolders(getFolders());
-    setStudents(getAllStudents());
+  const loadData = async () => {
+    const folderData = await getFoldersFromDB(teacherId);
+    setFolders(folderData);
+    const studentData = await getAllStudentsFromDB();
+    setStudents(studentData);
   };
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [teacherId]);
 
-  const handleCreateFolder = () => {
+  const handleCreateFolder = async () => {
     if (newFolderName.trim() === '') return;
-    addFolder(newFolderName.trim());
+    await createFolderInDB(teacherId, newFolderName.trim());
     setNewFolderName('');
-    loadData();
+    await loadData();
   };
 
-  const handleRenameFolder = (folderId: string) => {
+  const handleRenameFolder = async (folderId: string) => {
     if (editingName.trim() === '') return;
-    renameFolder(folderId, editingName.trim());
+    await renameFolderInDB(folderId, editingName.trim());
     setEditingFolderId(null);
     setEditingName('');
-    loadData();
+    await loadData();
   };
 
-  const handleDeleteFolder = (folderId: string) => {
-    if (!confirm('Удалить папку? Все ученики из неё останутся, но без папки.')) return;
-    deleteFolder(folderId);
-    loadData();
+  const handleDeleteFolder = async (folderId: string) => {
+    if (!confirm('Удалить папку?')) return;
+    await deleteFolderFromDB(folderId);
+    await loadData();
   };
 
-  const handleMoveStudent = (userId: string, folderId: string | null) => {
-    moveStudentToFolder(userId, folderId);
-    loadData();
+  const handleMoveStudent = async (studentId: string, folderId: string | null) => {
+    await moveStudentToFolderDB(studentId, folderId);
+    await loadData();
   };
 
-  const handleDeleteStudent = (userId: string, userName: string | null) => {
-    if (!confirm(`Точно удалить ученика ${userName || userId}? Прогресс будет потерян.`)) return;
-    deleteStudent(userId);
-    loadData();
+  const handleDeleteStudent = async (studentId: string, userName: string | null) => {
+    if (!confirm(`Точно удалить ученика ${userName || studentId}?`)) return;
+    await deleteStudentFromDB(studentId);
+    await loadData();
   };
 
-  const studentsWithoutFolder = students.filter(s => getStudentFolder(s.id) === null);
+  const studentsWithoutFolder = students.filter(s => !folders.some(f => f.students.includes(s.id)));
 
   return (
     <div style={{ padding: '20px', color: '#fff', backgroundColor: '#1a1a2e', minHeight: '100vh' }}>
@@ -416,7 +484,7 @@ function TeacherDashboard({ onSelectStudent }: {
           </div>
 
           <ul style={{ listStyle: 'none', padding: '0 0 0 20px' }}>
-            {folder.students.map(studentId => {
+            {folder.students.map((studentId: string) => {
               const student = students.find(s => s.id === studentId);
               if (!student) return null;
               return (
@@ -467,93 +535,74 @@ function TeacherDashboard({ onSelectStudent }: {
           </ul>
         </div>
       )}
-
-      {students.length === 0 && <p>Нет учеников. Попросите их открыть бота.</p>}
     </div>
   );
-}
-
-// ========== ФУНКЦИЯ ДЛЯ ИЗВЛЕЧЕНИЯ ID И ИМЕНИ ИЗ URL ==========
-function extractUserInfoFromHash(): { id: string | null, firstName: string | null, lastName: string | null } {
-  const hash = window.location.hash;
-  if (!hash) return { id: null, firstName: null, lastName: null };
-  
-  const params = new URLSearchParams(hash.substring(1));
-  const tgData = params.get('tgWebAppData');
-  if (!tgData) return { id: null, firstName: null, lastName: null };
-  
-  const decoded = decodeURIComponent(tgData);
-  const dataParams = new URLSearchParams(decoded);
-  const userStr = dataParams.get('user');
-  if (!userStr) return { id: null, firstName: null, lastName: null };
-  
-  try {
-    const user = JSON.parse(userStr);
-    return {
-      id: user.id ? user.id.toString() : null,
-      firstName: user.first_name || null,
-      lastName: user.last_name || null,
-    };
-  } catch {
-    return { id: null, firstName: null, lastName: null };
-  }
 }
 
 // ========== ГЛАВНЫЙ КОМПОНЕНТ ==========
 function App() {
   const [userId, setUserId] = useState('guest');
   const [userName, setUserName] = useState<string | null>(null);
-  const [progress, setProgress] = useState<Record<string, boolean>>(() => loadProgress(userId));
+  const [progress, setProgress] = useState<Record<string, boolean>>({});
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const { id, firstName, lastName } = extractUserInfoFromHash();
-    if (id) {
-      setUserId(id);
-      setProgress(loadProgress(id));
-      let name = firstName || '';
-      if (lastName) name += ' ' + lastName;
-      const finalName = name.trim() || id;
-      setUserName(finalName);
-      saveUserName(id, finalName);
-    } else {
-      const tg = (window as any).Telegram?.WebApp;
-      if (tg) {
-        tg.ready();
-        const user = tg.initDataUnsafe?.user;
-        if (user?.id) {
-          const id = user.id.toString();
-          setUserId(id);
-          setProgress(loadProgress(id));
-          let name = user.first_name || '';
-          if (user.last_name) name += ' ' + user.last_name;
-          const finalName = name.trim() || id;
-          setUserName(finalName);
-          saveUserName(id, finalName);
+    const init = async () => {
+      const { id, firstName, lastName, username } = extractUserInfoFromHash();
+      if (id) {
+        setUserId(id);
+        await setUserId(id);
+        await saveUserToDB(id, firstName || '', lastName || '', username || '');
+        const prog = await loadProgressFromDB(id);
+        setProgress(prog);
+        const name = await loadUserNameFromDB(id);
+        setUserName(name || `${firstName || ''} ${lastName || ''}`.trim() || id);
+      } else {
+        const tg = (window as any).Telegram?.WebApp;
+        if (tg) {
+          tg.ready();
+          const user = tg.initDataUnsafe?.user;
+          if (user?.id) {
+            const id = user.id.toString();
+            setUserId(id);
+            await setUserId(id);
+            await saveUserToDB(id, user.first_name || '', user.last_name || '', user.username || '');
+            const prog = await loadProgressFromDB(id);
+            setProgress(prog);
+            const name = await loadUserNameFromDB(id);
+            setUserName(name || `${user.first_name || ''} ${user.last_name || ''}`.trim() || id);
+          }
         }
       }
-    }
+      setLoading(false);
+    };
+    init();
   }, []);
 
   useEffect(() => {
-    if (userId) {
-      setProgress(loadProgress(userId));
-      const savedName = loadUserName(userId);
-      setUserName(savedName);
+    if (userId && userId !== 'guest') {
+      const load = async () => {
+        const prog = await loadProgressFromDB(userId);
+        setProgress(prog);
+        const name = await loadUserNameFromDB(userId);
+        setUserName(name);
+      };
+      load();
     }
   }, [userId]);
 
   const isAdmin = ADMIN_IDS.includes(Number(userId));
 
+  if (loading) {
+    return <div style={{ color: '#fff', padding: '20px' }}>Загрузка...</div>;
+  }
+
   if (isAdmin && selectedStudentId === null) {
-    return (
-      <TeacherDashboard
-        onSelectStudent={(id) => {
-          setSelectedStudentId(id);
-          setUserId(id);
-        }}
-      />
-    );
+    return <TeacherDashboard teacherId={userId} onSelectStudent={(id) => {
+      setSelectedStudentId(id);
+      setUserId(id);
+    }} />;
   }
 
   if (isAdmin && selectedStudentId !== null) {
@@ -568,6 +617,10 @@ function App() {
           progress={progress}
           setProgress={setProgress}
           userName={userName}
+          onProgressChanged={async () => {
+            const prog = await loadProgressFromDB(userId);
+            setProgress(prog);
+          }}
         />
       </div>
     );
