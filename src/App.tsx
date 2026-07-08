@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import Tree from 'react-d3-tree';
-import { supabase } from './supabaseClient';
+import { supabase, setUserId } from './supabaseClient';
 import './App.css';
 
 // ========== НАСТРОЙКА ==========
@@ -49,7 +49,7 @@ function getAllLessonIds(node: any): string[] {
 
 const ALL_LESSON_IDS = getAllLessonIds(TREE_STRUCTURE);
 
-// ========== ФУНКЦИИ РАБОТЫ С БАЗОЙ ==========
+// ========== ФУНКЦИИ ДЛЯ РАБОТЫ С БАЗОЙ ==========
 async function loadProgressFromDB(userId: string): Promise<Record<string, boolean>> {
   const { data, error } = await supabase
     .from('progress')
@@ -111,7 +111,7 @@ async function saveUserToDB(userId: string, firstName: string, lastName: string 
   }
 }
 
-async function getAllStudentsFromDB(): Promise<{ id: string; name: string | null }[]> {
+async function getAllStudentsFromDB(teacherId: string): Promise<{ id: string; name: string | null }[]> {
   // Получаем всех пользователей, у которых есть прогресс (активные)
   const { data: progressData, error: progressError } = await supabase
     .from('progress')
@@ -119,7 +119,7 @@ async function getAllStudentsFromDB(): Promise<{ id: string; name: string | null
 
   if (progressError || !progressData) return [];
 
-  const userIds = progressData.map(p => p.user_id);
+  const userIds = progressData.map(p => p.user_id).filter(id => id !== Number(teacherId)); // исключаем учителя
   if (userIds.length === 0) return [];
 
   const { data, error } = await supabase
@@ -271,8 +271,8 @@ const renderCustomNode = ({ nodeDatum, toggleNode }: any) => {
 };
 
 // Админка редактирования
-function AdminPanel({ userId, progress, setProgress, userName, onProgressChanged }: {
-  userId: string;
+function AdminPanel({ studentId, progress, setProgress, userName, onProgressChanged }: {
+  studentId: string;
   progress: Record<string, boolean>;
   setProgress: React.Dispatch<React.SetStateAction<Record<string, boolean>>>;
   userName: string | null;
@@ -296,7 +296,7 @@ function AdminPanel({ userId, progress, setProgress, userName, onProgressChanged
   const handleToggle = async (lessonId: string) => {
     const newProgress = { ...progress, [lessonId]: !progress[lessonId] };
     setProgress(newProgress);
-    await saveProgressToDB(userId, newProgress);
+    await saveProgressToDB(studentId, newProgress);
     onProgressChanged();
   };
 
@@ -304,11 +304,11 @@ function AdminPanel({ userId, progress, setProgress, userName, onProgressChanged
     const newProgress: Record<string, boolean> = {};
     ALL_LESSON_IDS.forEach(id => { newProgress[id] = value; });
     setProgress(newProgress);
-    await saveProgressToDB(userId, newProgress);
+    await saveProgressToDB(studentId, newProgress);
     onProgressChanged();
   };
 
-  const displayName = userName || `ID: ${userId}`;
+  const displayName = userName || `ID: ${studentId}`;
 
   return (
     <div style={{ padding: '20px', color: '#fff', backgroundColor: '#1a1a2e', minHeight: '100vh' }}>
@@ -349,7 +349,7 @@ function TeacherDashboard({ onSelectStudent, teacherId }: {
   const loadData = async () => {
     const folderData = await getFoldersFromDB(teacherId);
     setFolders(folderData);
-    const studentData = await getAllStudentsFromDB();
+    const studentData = await getAllStudentsFromDB(teacherId);
     setStudents(studentData);
   };
 
@@ -499,13 +499,17 @@ function App() {
     const init = async () => {
       const { id, firstName, lastName, username } = extractUserInfoFromHash();
       if (id) {
+        // Устанавливаем ID в сессии Supabase (обязательно для RLS)
+        await setUserId(id);
         setUserId(id);
+
         // Сохраняем пользователя
         await saveUserToDB(id, firstName || '', lastName || '', username || '');
-        // Загружаем прогресс
+
+        // Загружаем прогресс (для отображения дерева, если ученик)
         let prog = await loadProgressFromDB(id);
-        // Если прогресс пустой – создаём записи со всеми false
         if (Object.keys(prog).length === 0) {
+          console.log('🔄 Прогресс пуст, создаём записи для ученика', id);
           const initialProgress: Record<string, boolean> = {};
           ALL_LESSON_IDS.forEach(lessonId => { initialProgress[lessonId] = false; });
           await saveProgressToDB(id, initialProgress);
@@ -522,6 +526,7 @@ function App() {
           const user = tg.initDataUnsafe?.user;
           if (user?.id) {
             const id = user.id.toString();
+            await setUserId(id);
             setUserId(id);
             await saveUserToDB(id, user.first_name || '', user.last_name || '', user.username || '');
             let prog = await loadProgressFromDB(id);
@@ -542,17 +547,18 @@ function App() {
     init();
   }, []);
 
+  // При выборе ученика (из панели учителя) загружаем его прогресс
   useEffect(() => {
-    if (userId && userId !== 'guest') {
-      const load = async () => {
-        const prog = await loadProgressFromDB(userId);
+    if (selectedStudentId) {
+      const loadStudentData = async () => {
+        const prog = await loadProgressFromDB(selectedStudentId);
         setProgress(prog);
-        const name = await loadUserNameFromDB(userId);
+        const name = await loadUserNameFromDB(selectedStudentId);
         setUserName(name);
       };
-      load();
+      loadStudentData();
     }
-  }, [userId]);
+  }, [selectedStudentId]);
 
   const isAdmin = ADMIN_IDS.includes(Number(userId));
 
@@ -560,27 +566,34 @@ function App() {
     return <div style={{ color: '#fff', padding: '20px' }}>Загрузка...</div>;
   }
 
+  // Если учитель и не выбран ученик – показываем панель управления
   if (isAdmin && selectedStudentId === null) {
     return <TeacherDashboard teacherId={userId} onSelectStudent={(id) => {
       setSelectedStudentId(id);
-      setUserId(id);
     }} />;
   }
 
+  // Если учитель и выбран ученик – показываем админку редактирования
   if (isAdmin && selectedStudentId !== null) {
+    // Используем selectedStudentId для загрузки данных, но userId остаётся учителем
     return (
       <div>
         <div style={{ padding: '10px', backgroundColor: '#333', display: 'flex', gap: '10px', alignItems: 'center' }}>
-          <button onClick={() => setSelectedStudentId(null)}>⬅ Назад к списку</button>
-          <span style={{ color: '#fff' }}>Редактирование: {userName || `ID: ${userId}`}</span>
+          <button onClick={() => {
+            setSelectedStudentId(null);
+            // Восстанавливаем прогресс учителя (или просто сбрасываем)
+            // Можно загрузить прогресс учителя обратно, но для простоты просто сбросим
+            setUserName(''); // можно перезагрузить
+          }}>⬅ Назад к списку</button>
+          <span style={{ color: '#fff' }}>Редактирование: {userName || `ID: ${selectedStudentId}`}</span>
         </div>
         <AdminPanel
-          userId={userId}
+          studentId={selectedStudentId}
           progress={progress}
           setProgress={setProgress}
           userName={userName}
           onProgressChanged={async () => {
-            const prog = await loadProgressFromDB(userId);
+            const prog = await loadProgressFromDB(selectedStudentId);
             setProgress(prog);
           }}
         />
@@ -588,6 +601,7 @@ function App() {
     );
   }
 
+  // Режим ученика (или учитель, который не админ)
   return (
     <div style={{ width: '100vw', height: '100vh', backgroundColor: '#1a1a2e' }}>
       <div style={{ position: 'absolute', top: 10, left: 10, zIndex: 10 }}>
