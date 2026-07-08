@@ -2,16 +2,7 @@ import React, { useState, useEffect } from 'react';
 import Tree from 'react-d3-tree';
 import './App.css';
 
-// ==========================================
-// 1. ПОЛУЧАЕМ ДАННЫЕ ПОЛЬЗОВАТЕЛЯ ИЗ TELEGRAM
-// ==========================================
-const tg = (window as any).Telegram?.WebApp;
-const realUserId = tg?.initDataUnsafe?.user?.id?.toString() || 'guest';
-
-// ========== 2. СТАТИЧЕСКАЯ СТРУКТУРА ДЕРЕВА ==========
-// Каждый узел имеет id (уникальный) и name (отображаемое название).
-// У категорий есть children — список дочерних узлов.
-// Уроки — конечные узлы без children.
+// ========== 1. СТАТИЧЕСКАЯ СТРУКТУРА ДЕРЕВА ==========
 const TREE_STRUCTURE = {
   id: 'root',
   name: 'Уровень А2',
@@ -43,7 +34,6 @@ const TREE_STRUCTURE = {
   ]
 };
 
-// Функция для получения всех id уроков (листьев) из структуры
 function getAllLessonIds(node: any): string[] {
   if (!node.children) return [node.id];
   let result: string[] = [];
@@ -55,13 +45,11 @@ function getAllLessonIds(node: any): string[] {
 
 const ALL_LESSON_IDS = getAllLessonIds(TREE_STRUCTURE);
 
-// ========== 3. РАБОТА С ПРОГРЕССОМ ==========
-// Ключ для хранения прогресса в localStorage
+// ========== 2. РАБОТА С ПРОГРЕССОМ ==========
 function getProgressKey(userId: string) {
   return `progress_${userId}`;
 }
 
-// Загрузить прогресс для пользователя
 function loadProgress(userId: string): Record<string, boolean> {
   const key = getProgressKey(userId);
   const stored = localStorage.getItem(key);
@@ -72,21 +60,18 @@ function loadProgress(userId: string): Record<string, boolean> {
       return {};
     }
   }
-  // Если прогресса нет, создаём новый со всеми false
   const initial: Record<string, boolean> = {};
   ALL_LESSON_IDS.forEach(id => { initial[id] = false; });
   localStorage.setItem(key, JSON.stringify(initial));
   return initial;
 }
 
-// Сохранить прогресс
 function saveProgress(userId: string, progress: Record<string, boolean>) {
   const key = getProgressKey(userId);
   localStorage.setItem(key, JSON.stringify(progress));
 }
 
-// ========== 4. ФУНКЦИЯ ПОСТРОЕНИЯ ДЕРЕВА ДЛЯ ВИЗУАЛИЗАЦИИ ==========
-// На основе статической структуры и прогресса строим дерево с процентами и статусами
+// ========== 3. ПОСТРОЕНИЕ ДЕРЕВА ДЛЯ ВИЗУАЛИЗАЦИИ ==========
 function buildTreeForDisplay(node: any, progress: Record<string, boolean>): any {
   const isLesson = !node.children || node.children.length === 0;
   if (isLesson) {
@@ -94,14 +79,12 @@ function buildTreeForDisplay(node: any, progress: Record<string, boolean>): any 
     const statusEmoji = completed ? '✅' : '⬜';
     return {
       name: `${node.name} ${statusEmoji}`,
-      // Добавляем мета-информацию для админки
       __id: node.id,
       __isLesson: true,
       __completed: completed,
     };
   } else {
-    // Категория: считаем процент пройденных уроков внутри
-    const lessonNodes = getAllLessonIds(node); // все id дочерних уроков
+    const lessonNodes = getAllLessonIds(node);
     const total = lessonNodes.length;
     let completedCount = 0;
     lessonNodes.forEach(id => {
@@ -118,15 +101,12 @@ function buildTreeForDisplay(node: any, progress: Record<string, boolean>): any 
   }
 }
 
-// ========== 5. КОМПОНЕНТ ДЛЯ ОТОБРАЖЕНИЯ УЗЛА (react-d3-tree) ==========
+// ========== 4. КОМПОНЕНТ ДЛЯ ОТОБРАЖЕНИЯ УЗЛА ==========
 const renderCustomNode = ({ nodeDatum, toggleNode }: any) => {
-  // Проверяем, урок ли это (по наличию __completed в метаданных)
   const isLesson = nodeDatum.__isLesson;
   const completed = nodeDatum.__completed;
   const bgColor = isLesson ? (completed ? '#4CAF50' : '#FF9800') : '#2196F3';
-  const textColor = '#fff';
   const radius = isLesson ? 18 : 24;
-
   return (
     <g>
       <circle
@@ -138,7 +118,7 @@ const renderCustomNode = ({ nodeDatum, toggleNode }: any) => {
         cursor="pointer"
       />
       <text
-        fill={textColor}
+        fill="#fff"
         stroke="none"
         strokeWidth="0"
         x={radius + 10}
@@ -154,15 +134,13 @@ const renderCustomNode = ({ nodeDatum, toggleNode }: any) => {
   );
 };
 
-// ========== 6. АДМИНКА ==========
+// ========== 5. АДМИНКА ==========
 function AdminPanel({ userId, progress, setProgress }: {
   userId: string;
   progress: Record<string, boolean>;
   setProgress: React.Dispatch<React.SetStateAction<Record<string, boolean>>>;
 }) {
-  // Получаем список всех уроков с их названиями
   const allLessons = ALL_LESSON_IDS.map(id => {
-    // Найдём название урока в статической структуре
     function findLesson(node: any): string | null {
       if (node.id === id) return node.name;
       if (node.children) {
@@ -215,13 +193,27 @@ function AdminPanel({ userId, progress, setProgress }: {
   );
 }
 
-// ========== 7. ГЛАВНЫЙ КОМПОНЕНТ ==========
+// ========== 6. ГЛАВНЫЙ КОМПОНЕНТ ==========
 function App() {
   const [mode, setMode] = useState<'student' | 'teacher'>('student');
-  // ✅ ИСПОЛЬЗУЕМ РЕАЛЬНЫЙ ID ИЗ TELEGRAM
-  const [userId, setUserId] = useState(realUserId);
+  const [userId, setUserId] = useState('guest');
   const [progress, setProgress] = useState<Record<string, boolean>>(() => loadProgress(userId));
 
+  // --- ПОЛУЧАЕМ РЕАЛЬНЫЙ ID ИЗ TELEGRAM ---
+  useEffect(() => {
+    const tg = (window as any).Telegram?.WebApp;
+    if (tg) {
+      tg.ready(); // сообщаем Telegram, что приложение загружено
+      const id = tg.initDataUnsafe?.user?.id?.toString();
+      if (id) {
+        setUserId(id);
+        // После получения ID, загружаем прогресс для этого пользователя
+        setProgress(loadProgress(id));
+      }
+    }
+  }, []);
+
+  // При смене userId (вручную через админку) обновляем прогресс
   useEffect(() => {
     setProgress(loadProgress(userId));
   }, [userId]);
