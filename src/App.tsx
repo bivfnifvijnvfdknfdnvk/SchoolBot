@@ -2,6 +2,13 @@ import React, { useState, useEffect } from 'react';
 import Tree from 'react-d3-tree';
 import './App.css';
 
+// ========== НАСТРОЙКА ==========
+// Список Telegram ID учителей (замените на свои)
+const ADMIN_IDS: number[] = [
+  1394891154, // сюда вставьте свой ID (и ID других учителей)
+  // можно добавить ещё через запятую
+];
+
 // ========== СТРУКТУРА ДЕРЕВА ==========
 const TREE_STRUCTURE = {
   id: 'root',
@@ -45,7 +52,7 @@ function getAllLessonIds(node: any): string[] {
 
 const ALL_LESSON_IDS = getAllLessonIds(TREE_STRUCTURE);
 
-// ========== РАБОТА С ПРОГРЕССОМ ==========
+// ========== РАБОТА С ПРОГРЕССОМ И ИМЕНАМИ ==========
 function getProgressKey(userId: string) {
   return `progress_${userId}`;
 }
@@ -85,7 +92,21 @@ function saveUserName(userId: string, name: string) {
   localStorage.setItem(key, name);
 }
 
-// ========== ПОСТРОЕНИЕ ДЕРЕВА ==========
+// Получить список всех учеников (ID и имена) из localStorage
+function getAllStudents(): { id: string; name: string | null }[] {
+  const students: { id: string; name: string | null }[] = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (key && key.startsWith('progress_')) {
+      const id = key.replace('progress_', '');
+      const name = loadUserName(id);
+      students.push({ id, name });
+    }
+  }
+  return students;
+}
+
+// ========== ПОСТРОЕНИЕ ДЕРЕВА ДЛЯ ВИЗУАЛИЗАЦИИ ==========
 function buildTreeForDisplay(node: any, progress: Record<string, boolean>): any {
   const isLesson = !node.children || node.children.length === 0;
   if (isLesson) {
@@ -148,7 +169,7 @@ const renderCustomNode = ({ nodeDatum, toggleNode }: any) => {
   );
 };
 
-// ========== АДМИНКА ==========
+// ========== АДМИНКА ДЛЯ РЕДАКТИРОВАНИЯ ОДНОГО УЧЕНИКА ==========
 function AdminPanel({ userId, progress, setProgress, userName }: {
   userId: string;
   progress: Record<string, boolean>;
@@ -187,7 +208,7 @@ function AdminPanel({ userId, progress, setProgress, userName }: {
 
   return (
     <div style={{ padding: '20px', color: '#fff', backgroundColor: '#1a1a2e', minHeight: '100vh' }}>
-      <h2>Админ-панель для ученика {displayName}</h2>
+      <h2>Редактирование прогресса: {displayName}</h2>
       <div style={{ marginBottom: '10px' }}>
         <button onClick={() => handleSelectAll(true)} style={{ marginRight: '10px' }}>✅ Все пройдены</button>
         <button onClick={() => handleSelectAll(false)}>⬜ Все непройдены</button>
@@ -203,6 +224,45 @@ function AdminPanel({ userId, progress, setProgress, userName }: {
               />
               {lesson.name}
             </label>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+// ========== ПАНЕЛЬ УПРАВЛЕНИЯ УЧИТЕЛЯ ==========
+function TeacherDashboard({ onSelectStudent }: { onSelectStudent: (userId: string) => void }) {
+  const [students, setStudents] = useState<{ id: string; name: string | null }[]>([]);
+
+  // Обновляем список учеников при каждом рендере (или можно через useEffect)
+  useEffect(() => {
+    setStudents(getAllStudents());
+  }, []);
+
+  return (
+    <div style={{ padding: '20px', color: '#fff', backgroundColor: '#1a1a2e', minHeight: '100vh' }}>
+      <h2>👨‍🏫 Панель учителя</h2>
+      <p>Выберите ученика для редактирования:</p>
+      <ul style={{ listStyle: 'none', padding: 0 }}>
+        {students.length === 0 && <li>Нет учеников. Попросите их открыть бота.</li>}
+        {students.map(student => (
+          <li key={student.id} style={{ margin: '8px 0' }}>
+            <button
+              onClick={() => onSelectStudent(student.id)}
+              style={{
+                padding: '10px 15px',
+                backgroundColor: '#333',
+                color: '#fff',
+                border: 'none',
+                borderRadius: '8px',
+                cursor: 'pointer',
+                width: '100%',
+                textAlign: 'left'
+              }}
+            >
+              {student.name || `ID: ${student.id}`}
+            </button>
           </li>
         ))}
       </ul>
@@ -238,88 +298,93 @@ function extractUserInfoFromHash(): { id: string | null, firstName: string | nul
 
 // ========== ГЛАВНЫЙ КОМПОНЕНТ ==========
 function App() {
-  const [mode, setMode] = useState<'student' | 'teacher'>('student');
   const [userId, setUserId] = useState('guest');
   const [userName, setUserName] = useState<string | null>(null);
   const [progress, setProgress] = useState<Record<string, boolean>>(() => loadProgress(userId));
+  // Состояние для учителя: выбранный ученик (если null — показываем список)
+  const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
 
+  // Получаем данные пользователя при загрузке
   useEffect(() => {
-    // Пытаемся получить ID и имя из URL
     const { id, firstName, lastName } = extractUserInfoFromHash();
     if (id) {
       setUserId(id);
-      // Загружаем прогресс
       setProgress(loadProgress(id));
-      // Формируем имя
       let name = firstName || '';
       if (lastName) name += ' ' + lastName;
       const finalName = name.trim() || id;
       setUserName(finalName);
-      // Сохраняем имя в localStorage
       saveUserName(id, finalName);
-      return;
-    }
-
-    // Запасной вариант: через Telegram WebApp
-    const tg = (window as any).Telegram?.WebApp;
-    if (tg) {
-      tg.ready();
-      const user = tg.initDataUnsafe?.user;
-      if (user?.id) {
-        const id = user.id.toString();
-        setUserId(id);
-        setProgress(loadProgress(id));
-        let name = user.first_name || '';
-        if (user.last_name) name += ' ' + user.last_name;
-        const finalName = name.trim() || id;
-        setUserName(finalName);
-        saveUserName(id, finalName);
+    } else {
+      // Запасной вариант через Telegram WebApp
+      const tg = (window as any).Telegram?.WebApp;
+      if (tg) {
+        tg.ready();
+        const user = tg.initDataUnsafe?.user;
+        if (user?.id) {
+          const id = user.id.toString();
+          setUserId(id);
+          setProgress(loadProgress(id));
+          let name = user.first_name || '';
+          if (user.last_name) name += ' ' + user.last_name;
+          const finalName = name.trim() || id;
+          setUserName(finalName);
+          saveUserName(id, finalName);
+        }
       }
     }
   }, []);
 
-  // При смене userId (в админке) загружаем прогресс и имя
+  // При смене ID (например, учитель выбрал ученика) обновляем прогресс и имя
   useEffect(() => {
-    setProgress(loadProgress(userId));
-    const savedName = loadUserName(userId);
-    setUserName(savedName);
+    if (userId) {
+      setProgress(loadProgress(userId));
+      const savedName = loadUserName(userId);
+      setUserName(savedName);
+    }
   }, [userId]);
 
-  const treeData = buildTreeForDisplay(TREE_STRUCTURE, progress);
+  // Проверяем, является ли текущий пользователь учителем
+  const isAdmin = ADMIN_IDS.includes(Number(userId));
 
-  if (mode === 'teacher') {
+  // Если учитель и не выбран конкретный ученик — показываем панель управления
+  if (isAdmin && selectedStudentId === null) {
+    return (
+      <TeacherDashboard
+        onSelectStudent={(id) => {
+          setSelectedStudentId(id);
+          setUserId(id); // загружаем данные выбранного ученика
+        }}
+      />
+    );
+  }
+
+  // Если учитель и выбран ученик — показываем админку для редактирования
+  if (isAdmin && selectedStudentId !== null) {
     return (
       <div>
         <div style={{ padding: '10px', backgroundColor: '#333', display: 'flex', gap: '10px', alignItems: 'center' }}>
-          <button onClick={() => setMode('student')}>Режим ученика</button>
-          <span style={{ color: '#fff' }}>ID ученика: </span>
-          <input
-            type="text"
-            value={userId}
-            onChange={(e) => setUserId(e.target.value)}
-            style={{ padding: '5px' }}
-          />
+          <button onClick={() => setSelectedStudentId(null)}>⬅ Назад к списку</button>
+          <span style={{ color: '#fff' }}>Редактирование: {userName || `ID: ${userId}`}</span>
         </div>
-        <AdminPanel 
-          userId={userId} 
-          progress={progress} 
-          setProgress={setProgress} 
+        <AdminPanel
+          userId={userId}
+          progress={progress}
+          setProgress={setProgress}
           userName={userName}
         />
       </div>
     );
   }
 
+  // ========== РЕЖИМ УЧЕНИКА ==========
   return (
     <div style={{ width: '100vw', height: '100vh', backgroundColor: '#1a1a2e' }}>
       <div style={{ position: 'absolute', top: 10, left: 10, zIndex: 10 }}>
-        <button onClick={() => setMode('teacher')}>Вход для учителя</button>
-        <span style={{ color: '#fff', marginLeft: '10px' }}>
-          Ученик: {userName || userId}
-        </span>
+        <span style={{ color: '#fff' }}>Ученик: {userName || userId}</span>
       </div>
       <Tree
-        data={treeData}
+        data={buildTreeForDisplay(TREE_STRUCTURE, progress)}
         orientation="vertical"
         pathFunc="step"
         renderCustomNodeElement={renderCustomNode}
