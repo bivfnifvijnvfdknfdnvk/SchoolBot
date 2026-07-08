@@ -320,9 +320,9 @@ function buildTreeForDisplay(node: any, progress: Record<string, boolean>): any 
   const isLesson = !node.children || node.children.length === 0;
   if (isLesson) {
     const completed = progress[node.id] || false;
-    const statusEmoji = completed ? '✅' : '⬜';
+    // Убираем эмодзи из названия
     return {
-      name: `${node.name} ${statusEmoji}`,
+      name: node.name,
       __id: node.id,
       __isLesson: true,
       __completed: completed,
@@ -359,7 +359,7 @@ function getAllLessonIds(node: any): string[] {
   return result;
 }
 
-// Кастомный рендер узла с поддержкой изображений и клика
+// ========== КАСТОМНЫЙ РЕНДЕР УЗЛА С КРУГЛОЙ РАМКОЙ, ГАЛОЧКОЙ И ЗЕЛЁНЫМ ТЕКСТОМ ==========
 const renderCustomNode = ({ nodeDatum, onLessonClick }: any) => {
   const isLesson = nodeDatum.__isLesson;
   const completed = nodeDatum.__completed;
@@ -369,12 +369,12 @@ const renderCustomNode = ({ nodeDatum, onLessonClick }: any) => {
   
   const handleClick = () => {
     if (isLesson && onLessonClick) {
-      // Передаём content и название
       onLessonClick(content, nodeDatum.name);
     }
   };
 
   const clipId = `clip-${nodeDatum.__id || Math.random().toString(36).substring(2, 10)}`;
+  const textColor = isLesson && completed ? '#4CAF50' : '#fff';
 
   return (
     <g>
@@ -383,6 +383,8 @@ const renderCustomNode = ({ nodeDatum, onLessonClick }: any) => {
           <circle cx="0" cy="0" r={radius} />
         </clipPath>
       </defs>
+
+      {/* Основное содержимое: картинка или цветной круг */}
       {imageUrl ? (
         <image
           href={imageUrl}
@@ -396,14 +398,55 @@ const renderCustomNode = ({ nodeDatum, onLessonClick }: any) => {
         <circle
           r={radius}
           fill={isLesson ? (completed ? '#4CAF50' : '#FF9800') : '#2196F3'}
-          stroke="#fff"
-          strokeWidth="2"
+          stroke="none"
           onClick={handleClick}
           style={{ cursor: isLesson ? 'pointer' : 'default' }}
         />
       )}
+
+      {/* Круглая рамка (белая обводка) для всех узлов */}
+      <circle
+        cx="0"
+        cy="0"
+        r={radius}
+        fill="none"
+        stroke="#fff"
+        strokeWidth="2"
+        onClick={handleClick}
+        style={{ pointerEvents: 'none' }}
+      />
+
+      {/* Полупрозрачный зелёный круг с галочкой для пройденных уроков */}
+      {isLesson && completed && (
+        <circle
+          cx="0"
+          cy="0"
+          r={radius}
+          fill="rgba(76, 175, 80, 0.7)"
+          stroke="none"
+          onClick={handleClick}
+          style={{ cursor: 'pointer' }}
+        />
+      )}
+      {isLesson && completed && (
+        <text
+          x="0"
+          y="0"
+          fontSize={radius * 0.9}
+          fill="#fff"
+          textAnchor="middle"
+          dominantBaseline="central"
+          fontWeight="bold"
+          onClick={handleClick}
+          style={{ cursor: 'pointer' }}
+        >
+          ✓
+        </text>
+      )}
+
+      {/* Название узла (текст) */}
       <text
-        fill="#fff"
+        fill={textColor}
         stroke="none"
         strokeWidth="0"
         x={radius + 10}
