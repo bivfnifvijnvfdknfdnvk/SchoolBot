@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import Tree from 'react-d3-tree';
 import './App.css';
 
-// ========== 1. СТАТИЧЕСКАЯ СТРУКТУРА ДЕРЕВА ==========
+// ========== СТРУКТУРА ДЕРЕВА ==========
 const TREE_STRUCTURE = {
   id: 'root',
   name: 'Уровень А2',
@@ -45,7 +45,7 @@ function getAllLessonIds(node: any): string[] {
 
 const ALL_LESSON_IDS = getAllLessonIds(TREE_STRUCTURE);
 
-// ========== 2. РАБОТА С ПРОГРЕССОМ ==========
+// ========== РАБОТА С ПРОГРЕССОМ ==========
 function getProgressKey(userId: string) {
   return `progress_${userId}`;
 }
@@ -71,7 +71,7 @@ function saveProgress(userId: string, progress: Record<string, boolean>) {
   localStorage.setItem(key, JSON.stringify(progress));
 }
 
-// ========== 3. ПОСТРОЕНИЕ ДЕРЕВА ДЛЯ ВИЗУАЛИЗАЦИИ ==========
+// ========== ПОСТРОЕНИЕ ДЕРЕВА ==========
 function buildTreeForDisplay(node: any, progress: Record<string, boolean>): any {
   const isLesson = !node.children || node.children.length === 0;
   if (isLesson) {
@@ -101,7 +101,7 @@ function buildTreeForDisplay(node: any, progress: Record<string, boolean>): any 
   }
 }
 
-// ========== 4. КОМПОНЕНТ ДЛЯ ОТОБРАЖЕНИЯ УЗЛА ==========
+// ========== КОМПОНЕНТ ДЛЯ УЗЛА ==========
 const renderCustomNode = ({ nodeDatum, toggleNode }: any) => {
   const isLesson = nodeDatum.__isLesson;
   const completed = nodeDatum.__completed;
@@ -134,7 +134,7 @@ const renderCustomNode = ({ nodeDatum, toggleNode }: any) => {
   );
 };
 
-// ========== 5. АДМИНКА ==========
+// ========== АДМИНКА ==========
 function AdminPanel({ userId, progress, setProgress }: {
   userId: string;
   progress: Record<string, boolean>;
@@ -193,39 +193,44 @@ function AdminPanel({ userId, progress, setProgress }: {
   );
 }
 
-// ========== 6. ГЛАВНЫЙ КОМПОНЕНТ ==========
+// ========== ФУНКЦИЯ ДЛЯ ИЗВЛЕЧЕНИЯ ID ИЗ URL ==========
+function extractUserIdFromHash(): string | null {
+  const hash = window.location.hash;
+  if (!hash) return null;
+  // Извлекаем tgWebAppData
+  const params = new URLSearchParams(hash.substring(1));
+  const tgData = params.get('tgWebAppData');
+  if (!tgData) return null;
+  // Декодируем
+  const decoded = decodeURIComponent(tgData);
+  // Разбираем как параметры
+  const dataParams = new URLSearchParams(decoded);
+  const userStr = dataParams.get('user');
+  if (!userStr) return null;
+  try {
+    const user = JSON.parse(userStr);
+    return user.id ? user.id.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
+// ========== ГЛАВНЫЙ КОМПОНЕНТ ==========
 function App() {
   const [mode, setMode] = useState<'student' | 'teacher'>('student');
   const [userId, setUserId] = useState('guest');
   const [progress, setProgress] = useState<Record<string, boolean>>(() => loadProgress(userId));
 
   useEffect(() => {
-    // Пытаемся извлечь ID из URL (Telegram передаёт его в hash)
-    const hash = window.location.hash;
-    if (hash) {
-      const params = new URLSearchParams(hash.substring(1)); // убираем #
-      const userData = params.get('tgWebAppData');
-      if (userData) {
-        try {
-          // Ищем часть "user": {"id":12345,...}
-          const userMatch = userData.match(/user%3D%7B(.*?)%7D/);
-          if (userMatch) {
-            const userJson = decodeURIComponent(userMatch[1]);
-            const user = JSON.parse('{' + userJson + '}');
-            if (user.id) {
-              const id = user.id.toString();
-              setUserId(id);
-              setProgress(loadProgress(id));
-              return;
-            }
-          }
-        } catch (e) {
-          console.warn('Не удалось распарсить user из URL', e);
-        }
-      }
+    // Пытаемся получить ID из URL
+    const idFromUrl = extractUserIdFromHash();
+    if (idFromUrl) {
+      setUserId(idFromUrl);
+      setProgress(loadProgress(idFromUrl));
+      return;
     }
 
-    // Запасной вариант: пробуем через Telegram WebApp (если вдруг загрузится)
+    // Запасной вариант: через Telegram WebApp (если скрипт всё же загрузится)
     const tg = (window as any).Telegram?.WebApp;
     if (tg) {
       tg.ready();
