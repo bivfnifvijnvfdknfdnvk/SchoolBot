@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import Tree from 'react-d3-tree';
 import { supabase } from './supabaseClient';
+import JSZip from 'jszip';
 import './App.css';
 
 // ========== НАСТРОЙКА ==========
@@ -31,8 +32,8 @@ function extractUserInfoFromHash(): { id: string | null, firstName: string | nul
 }
 
 // ========== ФУНКЦИИ ДЛЯ РАБОТЫ С БАЗОЙ ==========
+// (они остаются такими же, как в предыдущей версии)
 
-// Получить все программы учителя
 async function getTeacherPrograms(teacherId: string) {
   const { data, error } = await supabase
     .from('programs')
@@ -45,7 +46,6 @@ async function getTeacherPrograms(teacherId: string) {
   return data || [];
 }
 
-// Получить все программы (для ученика)
 async function getAllPrograms() {
   const { data, error } = await supabase
     .from('programs')
@@ -57,7 +57,6 @@ async function getAllPrograms() {
   return data || [];
 }
 
-// Создать программу
 async function createProgram(name: string, teacherId: string, structure: any) {
   const { data, error } = await supabase
     .from('programs')
@@ -75,7 +74,6 @@ async function createProgram(name: string, teacherId: string, structure: any) {
   return data.id;
 }
 
-// Получить заявки для программы
 async function getApplicationsForProgram(programId: string) {
   const { data, error } = await supabase
     .from('applications')
@@ -88,7 +86,6 @@ async function getApplicationsForProgram(programId: string) {
   return data || [];
 }
 
-// Создать заявку
 async function createApplication(programId: string, studentId: string) {
   const { error } = await supabase
     .from('applications')
@@ -104,7 +101,6 @@ async function createApplication(programId: string, studentId: string) {
   return true;
 }
 
-// Обновить статус заявки (принять/отклонить)
 async function updateApplicationStatus(applicationId: string, status: string) {
   const { error } = await supabase
     .from('applications')
@@ -117,7 +113,6 @@ async function updateApplicationStatus(applicationId: string, status: string) {
   return true;
 }
 
-// Получить список учеников, принятых в программу
 async function getAcceptedStudents(programId: string) {
   const { data, error } = await supabase
     .from('applications')
@@ -139,7 +134,6 @@ async function getAcceptedStudents(programId: string) {
   }));
 }
 
-// Загрузить прогресс ученика для конкретной программы
 async function loadProgressForProgram(userId: string, programId: string): Promise<Record<string, boolean>> {
   const { data, error } = await supabase
     .from('progress')
@@ -157,7 +151,11 @@ async function loadProgressForProgram(userId: string, programId: string): Promis
   return progress;
 }
 
-// Получить программы ученика (в которых он принят)
+// Функция для сохранения прогресса (пока не используется, но оставлена на будущее)
+// async function saveProgressForProgram(userId: string, programId: string, progress: Record<string, boolean>) {
+//   ...
+// }
+
 async function getStudentPrograms(studentId: string) {
   const { data, error } = await supabase
     .from('applications')
@@ -175,7 +173,6 @@ async function getStudentPrograms(studentId: string) {
   return programs || [];
 }
 
-// Проверить, подавал ли ученик заявку на программу
 async function getApplicationStatus(studentId: string, programId: string) {
   const { data, error } = await supabase
     .from('applications')
@@ -187,9 +184,86 @@ async function getApplicationStatus(studentId: string, programId: string) {
   return data;
 }
 
+// ========== ФУНКЦИЯ ПОСТРОЕНИЯ ДЕРЕВА ИЗ ZIP ==========
+function buildTreeFromZip(zip: JSZip): { name: string; structure: any } {
+  // Корневая папка ZIP может называться как угодно, возьмём имя первой папки
+  const rootFolderName = Object.keys(zip.files).find(path => path.includes('/'))?.split('/')[0] || 'Программа';
+  
+  // Строим дерево рекурсивно
+  function buildNode(path: string, zip: JSZip): any {
+    const parts = path.split('/').filter(p => p);
+    if (parts.length === 0) return null;
+    const currentName = parts[0];
+    const rest = parts.slice(1);
+    // Проверяем, есть ли вложенные папки или файлы
+    const children: any[] = [];
+    // Получаем все записи в текущей папке
+    const prefix = path + (path.endsWith('/') ? '' : '/');
+    const entries = Object.keys(zip.files).filter(key => key.startsWith(prefix) && key !== prefix);
+    // Группируем по первому элементу после префикса
+    const subPaths = new Set<string>();
+    entries.forEach(key => {
+      const relative = key.replace(prefix, '');
+      const firstPart = relative.split('/')[0];
+      if (firstPart) subPaths.add(firstPart);
+    });
+    // Для каждого элемента строим узел
+    subPaths.forEach(sub => {
+      const fullPath = prefix + sub;
+      const item = zip.files[fullPath];
+      if (item && !item.dir) {
+        // это файл -> урок
+        const nameWithoutExt = sub.replace(/\.[^/.]+$/, '');
+        children.push({ id: nameWithoutExt, name: nameWithoutExt });
+      } else if (item && item.dir) {
+        // это папка -> категория
+        const childNode = buildNode(fullPath, zip);
+        if (childNode) children.push(childNode);
+      } else {
+        // возможно, это файл внутри подпапки, но мы уже обработаем рекурсивно
+        const childNode = buildNode(fullPath, zip);
+        if (childNode) children.push(childNode);
+      }
+    });
+    // Если это корень, возвращаем объект с именем программы и детьми
+    if (path === '') {
+      const rootChildren = [];
+      // все первые папки/файлы в корне
+      const rootEntries = Object.keys(zip.files)
+        .filter(key => !key.includes('/') && !key.endsWith('/'))
+        .map(key => ({ name: key, isFile: true }));
+      // обрабатываем корневые файлы
+      rootEntries.forEach(file => {
+        const nameWithoutExt = file.name.replace(/\.[^/.]+$/, '');
+        rootChildren.push({ id: nameWithoutExt, name: nameWithoutExt });
+      });
+      // обрабатываем корневые папки
+      const folders = new Set<string>();
+      Object.keys(zip.files).forEach(key => {
+        if (key.includes('/')) {
+          const first = key.split('/')[0];
+          if (first) folders.add(first);
+        }
+      });
+      folders.forEach(folder => {
+        const child = buildNode(folder, zip);
+        if (child) rootChildren.push(child);
+      });
+      return { name: rootFolderName, structure: { id: 'root', name: rootFolderName, children: rootChildren } };
+    } else {
+      // это папка: создаём узел с именем и дочерними элементами
+      // Имя папки - последний элемент пути
+      const folderName = parts[parts.length - 1];
+      return { id: folderName, name: folderName, children: children };
+    }
+  }
+
+  const tree = buildNode('', zip);
+  return { name: rootFolderName, structure: tree.structure };
+}
+
 // ========== КОМПОНЕНТЫ ==========
 
-// Рекурсивная функция построения дерева для отображения
 function buildTreeForDisplay(node: any, progress: Record<string, boolean>): any {
   const isLesson = !node.children || node.children.length === 0;
   if (isLesson) {
@@ -260,7 +334,6 @@ const renderCustomNode = ({ nodeDatum, toggleNode }: any) => {
   );
 };
 
-// Компонент дерева навыков (универсальный)
 function SkillTreeView({ structure, progress }: { structure: any; progress: Record<string, boolean> }) {
   const treeData = buildTreeForDisplay(structure, progress);
   return (
@@ -280,7 +353,6 @@ function SkillTreeView({ structure, progress }: { structure: any; progress: Reco
   );
 }
 
-// Компонент для ученика: список программ, на которые можно подать заявку
 function StudentProgramList({ userId, onApply, existingProgramIds }: { userId: string; onApply: (programId: string) => void; existingProgramIds: string[] }) {
   const [availablePrograms, setAvailablePrograms] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -344,7 +416,8 @@ function App() {
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
 
   const [newProgramName, setNewProgramName] = useState('');
-  const [newProgramJson, setNewProgramJson] = useState('');
+  const [newProgramZip, setNewProgramZip] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
 
   // Загрузка данных пользователя
   useEffect(() => {
@@ -389,7 +462,6 @@ function App() {
     init();
   }, []);
 
-  // Загрузка программ при смене userId или роли
   useEffect(() => {
     if (userId === 'guest') return;
     loadPrograms();
@@ -427,27 +499,37 @@ function App() {
     }
   };
 
-  // Функции для учителя
-  const handleCreateProgram = async () => {
-    if (!newProgramName.trim() || !newProgramJson.trim()) {
-      alert('Введите название и JSON структуру');
+  // Функция для создания программы из ZIP
+  const handleCreateProgramFromZip = async () => {
+    if (!newProgramName.trim()) {
+      alert('Введите название программы');
       return;
     }
+    if (!newProgramZip) {
+      alert('Выберите ZIP-архив');
+      return;
+    }
+    setUploading(true);
     try {
-      const structure = JSON.parse(newProgramJson);
-      const id = await createProgram(newProgramName, userId, structure);
+      const zip = await JSZip.loadAsync(await newProgramZip.arrayBuffer());
+      const { name, structure } = buildTreeFromZip(zip);
+      // Если имя программы не задано явно, берём из ZIP
+      const programName = newProgramName.trim() || name;
+      const id = await createProgram(programName, userId, structure);
       if (id) {
-        alert('Программа создана!');
+        alert('Программа успешно создана!');
         setView('programs');
         setNewProgramName('');
-        setNewProgramJson('');
+        setNewProgramZip(null);
         loadPrograms();
       } else {
-        alert('Ошибка создания');
+        alert('Ошибка создания программы');
       }
-    } catch (e) {
-      alert('Неверный JSON формат');
+    } catch (error) {
+      console.error(error);
+      alert('Ошибка при распаковке ZIP. Убедитесь, что файл корректен.');
     }
+    setUploading(false);
   };
 
   const handleAcceptApplication = async (appId: string) => {
@@ -468,8 +550,6 @@ function App() {
     const success = await createApplication(programId, userId);
     if (success) {
       alert('Заявка отправлена!');
-      // Обновим список доступных программ (вызовется повторно через useEffect в StudentProgramList)
-      // Просто перезагрузим программы
       loadPrograms();
     } else {
       alert('Ошибка отправки заявки');
@@ -499,28 +579,33 @@ function App() {
     return (
       <div style={{ padding: '20px', color: '#fff', backgroundColor: '#1a1a2e', minHeight: '100vh' }}>
         <button onClick={() => setView('programs')}>⬅ Назад</button>
-        <h2>Создать программу</h2>
+        <h2>Создать программу из ZIP</h2>
         <div>
-          <label>Название:</label><br />
+          <label>Название программы (опционально, если не указано, будет взято из имени ZIP):</label><br />
           <input
             type="text"
             value={newProgramName}
             onChange={(e) => setNewProgramName(e.target.value)}
+            placeholder="Введите название"
             style={{ width: '100%', padding: '8px', marginBottom: '10px' }}
           />
         </div>
         <div>
-          <label>Структура (JSON):</label><br />
-          <textarea
-            rows={10}
-            value={newProgramJson}
-            onChange={(e) => setNewProgramJson(e.target.value)}
-            style={{ width: '100%', padding: '8px', fontFamily: 'monospace' }}
-            placeholder='{"id":"root","name":"Уровень А2","children":[...]}'
+          <label>Выберите ZIP-архив с папками и файлами:</label><br />
+          <input
+            type="file"
+            accept=".zip"
+            onChange={(e) => setNewProgramZip(e.target.files ? e.target.files[0] : null)}
+            style={{ marginBottom: '10px' }}
           />
         </div>
         <div>
-          <button onClick={handleCreateProgram}>Сохранить программу</button>
+          <button onClick={handleCreateProgramFromZip} disabled={uploading}>
+            {uploading ? 'Загрузка...' : 'Создать программу'}
+          </button>
+        </div>
+        <div style={{ marginTop: '20px', color: '#aaa' }}>
+          <p>Инструкция: создайте ZIP-архив, внутри которого папки с названиями категорий (например, "Лексика"), внутри каждой папки — файлы-уроки (можно .txt). Структура будет автоматически преобразована в дерево навыков.</p>
         </div>
       </div>
     );
@@ -595,7 +680,7 @@ function App() {
       return (
         <div style={{ padding: '20px', color: '#fff', backgroundColor: '#1a1a2e', minHeight: '100vh' }}>
           <h2>Мои программы</h2>
-          <button onClick={() => setView('create')}>➕ Создать программу</button>
+          <button onClick={() => setView('create')}>➕ Создать программу (ZIP)</button>
           {programs.length === 0 && <p>У вас пока нет программ. Создайте первую!</p>}
           {programs.map(prog => (
             <div key={prog.id} style={{ margin: '10px 0', backgroundColor: '#333', padding: '15px', borderRadius: '8px', display: 'flex', justifyContent: 'space-between' }}>
