@@ -4,196 +4,19 @@ import { supabase } from './supabaseClient';
 import './App.css';
 
 // ========== НАСТРОЙКА ==========
-const ADMIN_IDS: number[] = [1394891154]; // замени на свои ID учителей
-
-// ========== СТРУКТУРА ДЕРЕВА ==========
-const TREE_STRUCTURE = {
-  id: 'root',
-  name: 'Уровень А2',
-  children: [
-    {
-      id: 'lexica',
-      name: 'Лексика',
-      children: [
-        { id: 'l1', name: 'Урок 1' },
-        { id: 'l2', name: 'Урок 2' },
-        { id: 'l3', name: 'Урок 3' },
-      ]
-    },
-    {
-      id: 'grammar',
-      name: 'Грамматика',
-      children: [
-        { id: 'g1', name: 'Урок 1' },
-        { id: 'g2', name: 'Урок 2' },
-      ]
-    },
-    {
-      id: 'speaking',
-      name: 'Говорение',
-      children: [
-        { id: 's1', name: 'Урок 1' },
-      ]
-    }
-  ]
-};
-
-function getAllLessonIds(node: any): string[] {
-  if (!node.children) return [node.id];
-  let result: string[] = [];
-  node.children.forEach((child: any) => {
-    result = result.concat(getAllLessonIds(child));
-  });
-  return result;
-}
-
-const ALL_LESSON_IDS = getAllLessonIds(TREE_STRUCTURE);
-
-// ========== ФУНКЦИИ ДЛЯ РАБОТЫ С БАЗОЙ ==========
-async function loadProgressFromDB(userId: string): Promise<Record<string, boolean>> {
-  const { data, error } = await supabase
-    .from('progress')
-    .select('lesson_id, completed')
-    .eq('user_id', Number(userId));
-
-  if (error) {
-    console.error('Ошибка загрузки прогресса:', error);
-    return {};
-  }
-
-  const progress: Record<string, boolean> = {};
-  data.forEach(row => {
-    progress[row.lesson_id] = row.completed;
-  });
-  return progress;
-}
-
-async function saveProgressToDB(userId: string, progress: Record<string, boolean>) {
-  const entries = Object.entries(progress).map(([lesson_id, completed]) => ({
-    user_id: Number(userId),
-    lesson_id,
-    completed,
-    updated_at: new Date().toISOString(),
-  }));
-
-  const { error } = await supabase
-    .from('progress')
-    .upsert(entries, { onConflict: 'user_id, lesson_id' });
-
-  if (error) {
-    console.error('Ошибка сохранения прогресса:', error);
-  }
-}
-
-async function loadUserNameFromDB(userId: string): Promise<string | null> {
-  const { data, error } = await supabase
-    .from('users')
-    .select('first_name, last_name')
-    .eq('telegram_id', Number(userId))
-    .single();
-
-  if (error || !data) return null;
-  return `${data.first_name || ''} ${data.last_name || ''}`.trim() || null;
-}
-
-async function saveUserToDB(userId: string, firstName: string, lastName: string | null, username: string | null) {
-  const { error } = await supabase
-    .from('users')
-    .upsert({
-      telegram_id: Number(userId),
-      first_name: firstName,
-      last_name: lastName,
-      username: username,
-    }, { onConflict: 'telegram_id' });
-
-  if (error) {
-    console.error('Ошибка сохранения пользователя:', error);
-  }
-}
-
-async function getAllStudentsFromDB(teacherId: string): Promise<{ id: string; name: string | null }[]> {
-  const { data: progressData, error: progressError } = await supabase
-    .from('progress')
-    .select('user_id');
-
-  if (progressError || !progressData) return [];
-
-  const userIds = progressData.map(p => p.user_id).filter(id => id !== Number(teacherId));
-  if (userIds.length === 0) return [];
-
-  const { data, error } = await supabase
-    .from('users')
-    .select('telegram_id, first_name, last_name')
-    .in('telegram_id', userIds);
-
-  if (error) return [];
-
-  return data.map(u => ({
-    id: u.telegram_id.toString(),
-    name: `${u.first_name || ''} ${u.last_name || ''}`.trim() || null,
-  }));
-}
-
-// ========== РАБОТА С ПАПКАМИ ==========
-async function getFoldersFromDB(teacherId: string): Promise<any[]> {
-  const { data, error } = await supabase
-    .from('folders')
-    .select('id, name, folder_students(user_id)')
-    .eq('teacher_id', Number(teacherId));
-
-  if (error) return [];
-
-  return data.map(f => ({
-    id: f.id,
-    name: f.name,
-    students: f.folder_students?.map((fs: any) => fs.user_id.toString()) || [],
-  }));
-}
-
-async function createFolderInDB(teacherId: string, name: string) {
-  const { data, error } = await supabase
-    .from('folders')
-    .insert({ name, teacher_id: Number(teacherId) })
-    .select('id')
-    .single();
-
-  if (error) return null;
-  return data.id;
-}
-
-async function renameFolderInDB(folderId: string, newName: string) {
-  await supabase.from('folders').update({ name: newName }).eq('id', folderId);
-}
-
-async function deleteFolderFromDB(folderId: string) {
-  await supabase.from('folders').delete().eq('id', folderId);
-}
-
-async function moveStudentToFolderDB(studentId: string, folderId: string | null) {
-  await supabase.from('folder_students').delete().eq('user_id', Number(studentId));
-  if (folderId) {
-    await supabase.from('folder_students').insert({ folder_id: folderId, user_id: Number(studentId) });
-  }
-}
-
-async function deleteStudentFromDB(studentId: string) {
-  await supabase.from('users').delete().eq('telegram_id', Number(studentId));
-}
+const ADMIN_IDS: number[] = [1394891154]; // ID учителей
 
 // ========== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ==========
 function extractUserInfoFromHash(): { id: string | null, firstName: string | null, lastName: string | null, username: string | null } {
   const hash = window.location.hash;
   if (!hash) return { id: null, firstName: null, lastName: null, username: null };
-  
   const params = new URLSearchParams(hash.substring(1));
   const tgData = params.get('tgWebAppData');
   if (!tgData) return { id: null, firstName: null, lastName: null, username: null };
-  
   const decoded = decodeURIComponent(tgData);
   const dataParams = new URLSearchParams(decoded);
   const userStr = dataParams.get('user');
   if (!userStr) return { id: null, firstName: null, lastName: null, username: null };
-  
   try {
     const user = JSON.parse(userStr);
     return {
@@ -207,7 +30,183 @@ function extractUserInfoFromHash(): { id: string | null, firstName: string | nul
   }
 }
 
+// ========== ФУНКЦИИ ДЛЯ РАБОТЫ С БАЗОЙ ==========
+
+// Получить все программы учителя
+async function getTeacherPrograms(teacherId: string) {
+  const { data, error } = await supabase
+    .from('programs')
+    .select('*')
+    .eq('teacher_id', Number(teacherId));
+  if (error) {
+    console.error('Ошибка загрузки программ учителя:', error);
+    return [];
+  }
+  return data || [];
+}
+
+// Получить все программы (для ученика)
+async function getAllPrograms() {
+  const { data, error } = await supabase
+    .from('programs')
+    .select('*');
+  if (error) {
+    console.error('Ошибка загрузки всех программ:', error);
+    return [];
+  }
+  return data || [];
+}
+
+// Создать программу
+async function createProgram(name: string, teacherId: string, structure: any) {
+  const { data, error } = await supabase
+    .from('programs')
+    .insert({
+      name,
+      teacher_id: Number(teacherId),
+      structure,
+    })
+    .select('id')
+    .single();
+  if (error) {
+    console.error('Ошибка создания программы:', error);
+    return null;
+  }
+  return data.id;
+}
+
+// Получить заявки для программы
+async function getApplicationsForProgram(programId: string) {
+  const { data, error } = await supabase
+    .from('applications')
+    .select('*')
+    .eq('program_id', programId);
+  if (error) {
+    console.error('Ошибка загрузки заявок:', error);
+    return [];
+  }
+  return data || [];
+}
+
+// Создать заявку
+async function createApplication(programId: string, studentId: string) {
+  const { error } = await supabase
+    .from('applications')
+    .insert({
+      program_id: programId,
+      student_id: Number(studentId),
+      status: 'pending',
+    });
+  if (error) {
+    console.error('Ошибка создания заявки:', error);
+    return false;
+  }
+  return true;
+}
+
+// Обновить статус заявки (принять/отклонить)
+async function updateApplicationStatus(applicationId: string, status: string) {
+  const { error } = await supabase
+    .from('applications')
+    .update({ status })
+    .eq('id', applicationId);
+  if (error) {
+    console.error('Ошибка обновления заявки:', error);
+    return false;
+  }
+  return true;
+}
+
+// Получить список учеников, принятых в программу
+async function getAcceptedStudents(programId: string) {
+  const { data, error } = await supabase
+    .from('applications')
+    .select('student_id')
+    .eq('program_id', programId)
+    .eq('status', 'accepted');
+  if (error || !data) return [];
+  const studentIds = data.map(item => item.student_id);
+  if (studentIds.length === 0) return [];
+
+  const { data: users, error: userError } = await supabase
+    .from('users')
+    .select('telegram_id, first_name, last_name')
+    .in('telegram_id', studentIds);
+  if (userError) return [];
+  return users.map(u => ({
+    id: u.telegram_id.toString(),
+    name: `${u.first_name || ''} ${u.last_name || ''}`.trim() || null,
+  }));
+}
+
+// Загрузить прогресс ученика для конкретной программы
+async function loadProgressForProgram(userId: string, programId: string): Promise<Record<string, boolean>> {
+  const { data, error } = await supabase
+    .from('progress')
+    .select('lesson_id, completed')
+    .eq('user_id', Number(userId))
+    .eq('program_id', programId);
+  if (error) {
+    console.error('Ошибка загрузки прогресса:', error);
+    return {};
+  }
+  const progress: Record<string, boolean> = {};
+  data.forEach(row => {
+    progress[row.lesson_id] = row.completed;
+  });
+  return progress;
+}
+
+// Сохранить прогресс ученика для программы
+async function saveProgressForProgram(userId: string, programId: string, progress: Record<string, boolean>) {
+  const entries = Object.entries(progress).map(([lesson_id, completed]) => ({
+    user_id: Number(userId),
+    program_id: programId,
+    lesson_id,
+    completed,
+    updated_at: new Date().toISOString(),
+  }));
+  const { error } = await supabase
+    .from('progress')
+    .upsert(entries, { onConflict: 'user_id, program_id, lesson_id' });
+  if (error) {
+    console.error('Ошибка сохранения прогресса:', error);
+  }
+}
+
+// Получить программы ученика (в которых он принят)
+async function getStudentPrograms(studentId: string) {
+  const { data, error } = await supabase
+    .from('applications')
+    .select('program_id')
+    .eq('student_id', Number(studentId))
+    .eq('status', 'accepted');
+  if (error || !data) return [];
+  const programIds = data.map(item => item.program_id);
+  if (programIds.length === 0) return [];
+  const { data: programs, error: progError } = await supabase
+    .from('programs')
+    .select('*')
+    .in('id', programIds);
+  if (progError) return [];
+  return programs || [];
+}
+
+// Проверить, подавал ли ученик заявку на программу
+async function getApplicationStatus(studentId: string, programId: string) {
+  const { data, error } = await supabase
+    .from('applications')
+    .select('status, id')
+    .eq('student_id', Number(studentId))
+    .eq('program_id', programId)
+    .maybeSingle();
+  if (error || !data) return null;
+  return data;
+}
+
 // ========== КОМПОНЕНТЫ ==========
+
+// Рекурсивная функция построения дерева для отображения (та же, что и раньше)
 function buildTreeForDisplay(node: any, progress: Record<string, boolean>): any {
   const isLesson = !node.children || node.children.length === 0;
   if (isLesson) {
@@ -220,10 +219,10 @@ function buildTreeForDisplay(node: any, progress: Record<string, boolean>): any 
       __completed: completed,
     };
   } else {
-    const lessonNodes = getAllLessonIds(node);
-    const total = lessonNodes.length;
+    const lessonIds = getAllLessonIds(node);
+    const total = lessonIds.length;
     let completedCount = 0;
-    lessonNodes.forEach(id => {
+    lessonIds.forEach(id => {
       if (progress[id]) completedCount++;
     });
     const percent = total === 0 ? 0 : Math.round((completedCount / total) * 100);
@@ -235,6 +234,15 @@ function buildTreeForDisplay(node: any, progress: Record<string, boolean>): any 
       __isLesson: false,
     };
   }
+}
+
+function getAllLessonIds(node: any): string[] {
+  if (!node.children) return [node.id];
+  let result: string[] = [];
+  node.children.forEach((child: any) => {
+    result = result.concat(getAllLessonIds(child));
+  });
+  return result;
 }
 
 const renderCustomNode = ({ nodeDatum, toggleNode }: any) => {
@@ -269,342 +277,13 @@ const renderCustomNode = ({ nodeDatum, toggleNode }: any) => {
   );
 };
 
-// Админка редактирования
-function AdminPanel({ studentId, progress, setProgress, userName, onProgressChanged }: {
-  studentId: string;
-  progress: Record<string, boolean>;
-  setProgress: React.Dispatch<React.SetStateAction<Record<string, boolean>>>;
-  userName: string | null;
-  onProgressChanged: () => void;
-}) {
-  const allLessons = ALL_LESSON_IDS.map(id => {
-    function findLesson(node: any): string | null {
-      if (node.id === id) return node.name;
-      if (node.children) {
-        for (const child of node.children) {
-          const found = findLesson(child);
-          if (found) return found;
-        }
-      }
-      return null;
-    }
-    const name = findLesson(TREE_STRUCTURE) || id;
-    return { id, name };
-  });
-
-  const handleToggle = async (lessonId: string) => {
-    const newProgress = { ...progress, [lessonId]: !progress[lessonId] };
-    setProgress(newProgress);
-    await saveProgressToDB(studentId, newProgress);
-    onProgressChanged();
-  };
-
-  const handleSelectAll = async (value: boolean) => {
-    const newProgress: Record<string, boolean> = {};
-    ALL_LESSON_IDS.forEach(id => { newProgress[id] = value; });
-    setProgress(newProgress);
-    await saveProgressToDB(studentId, newProgress);
-    onProgressChanged();
-  };
-
-  const displayName = userName || `ID: ${studentId}`;
-
-  return (
-    <div style={{ padding: '20px', color: '#fff', backgroundColor: '#1a1a2e', minHeight: '100vh' }}>
-      <h2>Редактирование прогресса: {displayName}</h2>
-      <div style={{ marginBottom: '10px' }}>
-        <button onClick={() => handleSelectAll(true)} style={{ marginRight: '10px' }}>✅ Все пройдены</button>
-        <button onClick={() => handleSelectAll(false)}>⬜ Все непройдены</button>
-      </div>
-      <ul style={{ listStyle: 'none', padding: 0 }}>
-        {allLessons.map(lesson => (
-          <li key={lesson.id} style={{ margin: '8px 0' }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <input
-                type="checkbox"
-                checked={!!progress[lesson.id]}
-                onChange={() => handleToggle(lesson.id)}
-              />
-              {lesson.name}
-            </label>
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
-
-// Панель учителя
-function TeacherDashboard({ onSelectStudent, teacherId }: {
-  onSelectStudent: (userId: string) => void;
-  teacherId: string;
-}) {
-  const [folders, setFolders] = useState<any[]>([]);
-  const [students, setStudents] = useState<{ id: string; name: string | null }[]>([]);
-  const [newFolderName, setNewFolderName] = useState('');
-  const [editingFolderId, setEditingFolderId] = useState<string | null>(null);
-  const [editingName, setEditingName] = useState('');
-
-  const loadData = async () => {
-    const folderData = await getFoldersFromDB(teacherId);
-    setFolders(folderData);
-    const studentData = await getAllStudentsFromDB(teacherId);
-    setStudents(studentData);
-  };
-
-  useEffect(() => {
-    loadData();
-  }, [teacherId]);
-
-  const handleCreateFolder = async () => {
-    if (newFolderName.trim() === '') return;
-    const id = await createFolderInDB(teacherId, newFolderName.trim());
-    setNewFolderName('');
-    if (id) await loadData();
-  };
-
-  const handleRenameFolder = async (folderId: string) => {
-    if (editingName.trim() === '') return;
-    await renameFolderInDB(folderId, editingName.trim());
-    setEditingFolderId(null);
-    setEditingName('');
-    await loadData();
-  };
-
-  const handleDeleteFolder = async (folderId: string) => {
-    if (!confirm('Удалить папку?')) return;
-    await deleteFolderFromDB(folderId);
-    await loadData();
-  };
-
-  const handleMoveStudent = async (studentId: string, folderId: string | null) => {
-    await moveStudentToFolderDB(studentId, folderId);
-    await loadData();
-  };
-
-  const handleDeleteStudent = async (studentId: string, userName: string | null) => {
-    if (!confirm(`Точно удалить ученика ${userName || studentId}?`)) return;
-    await deleteStudentFromDB(studentId);
-    await loadData();
-  };
-
-  const studentsWithoutFolder = students.filter(s => !folders.some(f => f.students.includes(s.id)));
-
-  return (
-    <div style={{ padding: '20px', color: '#fff', backgroundColor: '#1a1a2e', minHeight: '100vh' }}>
-      <h2>👨‍🏫 Панель учителя</h2>
-
-      <div style={{ marginBottom: '20px', display: 'flex', gap: '10px' }}>
-        <input
-          type="text"
-          placeholder="Название новой папки"
-          value={newFolderName}
-          onChange={(e) => setNewFolderName(e.target.value)}
-          style={{ padding: '8px', flex: 1 }}
-        />
-        <button onClick={handleCreateFolder}>Создать папку</button>
-        <button onClick={loadData} style={{ marginLeft: '10px' }}>🔄 Обновить</button>
-      </div>
-
-      {folders.map(folder => (
-        <div key={folder.id} style={{ marginBottom: '20px', backgroundColor: '#2a2a4e', borderRadius: '8px', padding: '10px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
-            {editingFolderId === folder.id ? (
-              <>
-                <input
-                  type="text"
-                  value={editingName}
-                  onChange={(e) => setEditingName(e.target.value)}
-                  style={{ padding: '4px', flex: 1 }}
-                />
-                <button onClick={() => handleRenameFolder(folder.id)}>Сохранить</button>
-                <button onClick={() => { setEditingFolderId(null); setEditingName(''); }}>Отмена</button>
-              </>
-            ) : (
-              <>
-                <span style={{ fontWeight: 'bold', fontSize: '18px' }}>📁 {folder.name}</span>
-                <button onClick={() => { setEditingFolderId(folder.id); setEditingName(folder.name); }}>✏️</button>
-                <button onClick={() => handleDeleteFolder(folder.id)} style={{ color: '#ff6b6b' }}>🗑️</button>
-                <span style={{ marginLeft: 'auto', color: '#aaa' }}>({folder.students.length} учеников)</span>
-              </>
-            )}
-          </div>
-
-          <ul style={{ listStyle: 'none', padding: '0 0 0 20px' }}>
-            {folder.students.map((studentId: string) => {
-              const student = students.find(s => s.id === studentId);
-              if (!student) return null;
-              return (
-                <li key={student.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', margin: '6px 0' }}>
-                  <button onClick={() => onSelectStudent(student.id)} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', textAlign: 'left', flex: 1 }}>
-                    {student.name || `ID: ${student.id}`}
-                  </button>
-                  <select
-                    value={folder.id}
-                    onChange={(e) => handleMoveStudent(student.id, e.target.value === 'null' ? null : e.target.value)}
-                    style={{ padding: '2px' }}
-                  >
-                    {folders.map(f => (
-                      <option key={f.id} value={f.id}>{f.name}</option>
-                    ))}
-                    <option value="null">Без папки</option>
-                  </select>
-                  <button onClick={() => handleDeleteStudent(student.id, student.name)} style={{ color: '#ff6b6b' }}>🗑️</button>
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-      ))}
-
-      {studentsWithoutFolder.length > 0 && (
-        <div style={{ marginBottom: '20px', backgroundColor: '#2a2a4e', borderRadius: '8px', padding: '10px' }}>
-          <h3 style={{ margin: '0 0 8px 0' }}>📂 Без папки</h3>
-          <ul style={{ listStyle: 'none', padding: '0 0 0 20px' }}>
-            {studentsWithoutFolder.map(student => (
-              <li key={student.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', margin: '6px 0' }}>
-                <button onClick={() => onSelectStudent(student.id)} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', textAlign: 'left', flex: 1 }}>
-                  {student.name || `ID: ${student.id}`}
-                </button>
-                <select
-                  value="null"
-                  onChange={(e) => handleMoveStudent(student.id, e.target.value === 'null' ? null : e.target.value)}
-                  style={{ padding: '2px' }}
-                >
-                  {folders.map(f => (
-                    <option key={f.id} value={f.id}>{f.name}</option>
-                  ))}
-                  <option value="null">Без папки</option>
-                </select>
-                <button onClick={() => handleDeleteStudent(student.id, student.name)} style={{ color: '#ff6b6b' }}>🗑️</button>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ========== ГЛАВНЫЙ КОМПОНЕНТ ==========
-function App() {
-  const [userId, setUserId] = useState('guest');
-  const [userName, setUserName] = useState<string | null>(null);
-  const [progress, setProgress] = useState<Record<string, boolean>>({});
-  const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const init = async () => {
-      const { id, firstName, lastName, username } = extractUserInfoFromHash();
-      if (id) {
-        // Устанавливаем ID в сессии Supabase (для RLS)
-        await supabase.rpc('set_user_id', { user_id: Number(id) });
-        setUserId(id);
-
-        // Сохраняем пользователя
-        await saveUserToDB(id, firstName || '', lastName || '', username || '');
-
-        // Загружаем прогресс
-        let prog = await loadProgressFromDB(id);
-        if (Object.keys(prog).length === 0) {
-          console.log('🔄 Прогресс пуст, создаём записи для ученика', id);
-          const initialProgress: Record<string, boolean> = {};
-          ALL_LESSON_IDS.forEach(lessonId => { initialProgress[lessonId] = false; });
-          await saveProgressToDB(id, initialProgress);
-          prog = initialProgress;
-        }
-        setProgress(prog);
-        const name = await loadUserNameFromDB(id);
-        setUserName(name || `${firstName || ''} ${lastName || ''}`.trim() || id);
-      } else {
-        // fallback через Telegram WebApp
-        const tg = (window as any).Telegram?.WebApp;
-        if (tg) {
-          tg.ready();
-          const user = tg.initDataUnsafe?.user;
-          if (user?.id) {
-            const id = user.id.toString();
-            await supabase.rpc('set_user_id', { user_id: Number(id) });
-            setUserId(id);
-            await saveUserToDB(id, user.first_name || '', user.last_name || '', user.username || '');
-            let prog = await loadProgressFromDB(id);
-            if (Object.keys(prog).length === 0) {
-              const initialProgress: Record<string, boolean> = {};
-              ALL_LESSON_IDS.forEach(lessonId => { initialProgress[lessonId] = false; });
-              await saveProgressToDB(id, initialProgress);
-              prog = initialProgress;
-            }
-            setProgress(prog);
-            const name = await loadUserNameFromDB(id);
-            setUserName(name || `${user.first_name || ''} ${user.last_name || ''}`.trim() || id);
-          }
-        }
-      }
-      setLoading(false);
-    };
-    init();
-  }, []);
-
-  // При выборе ученика (из панели учителя) загружаем его прогресс
-  useEffect(() => {
-    if (selectedStudentId) {
-      const loadStudentData = async () => {
-        const prog = await loadProgressFromDB(selectedStudentId);
-        setProgress(prog);
-        const name = await loadUserNameFromDB(selectedStudentId);
-        setUserName(name);
-      };
-      loadStudentData();
-    }
-  }, [selectedStudentId]);
-
-  const isAdmin = ADMIN_IDS.includes(Number(userId));
-
-  if (loading) {
-    return <div style={{ color: '#fff', padding: '20px' }}>Загрузка...</div>;
-  }
-
-  // Если учитель и не выбран ученик – показываем панель управления
-  if (isAdmin && selectedStudentId === null) {
-    return <TeacherDashboard teacherId={userId} onSelectStudent={(id) => {
-      setSelectedStudentId(id);
-    }} />;
-  }
-
-  // Если учитель и выбран ученик – показываем админку редактирования
-  if (isAdmin && selectedStudentId !== null) {
-    return (
-      <div>
-        <div style={{ padding: '10px', backgroundColor: '#333', display: 'flex', gap: '10px', alignItems: 'center' }}>
-          <button onClick={() => {
-            setSelectedStudentId(null);
-            setUserName('');
-          }}>⬅ Назад к списку</button>
-          <span style={{ color: '#fff' }}>Редактирование: {userName || `ID: ${selectedStudentId}`}</span>
-        </div>
-        <AdminPanel
-          studentId={selectedStudentId}
-          progress={progress}
-          setProgress={setProgress}
-          userName={userName}
-          onProgressChanged={async () => {
-            const prog = await loadProgressFromDB(selectedStudentId);
-            setProgress(prog);
-          }}
-        />
-      </div>
-    );
-  }
-
-  // Режим ученика (или учитель, который не админ)
+// Компонент дерева навыков (универсальный)
+function SkillTreeView({ structure, progress }: { structure: any; progress: Record<string, boolean> }) {
+  const treeData = buildTreeForDisplay(structure, progress);
   return (
     <div style={{ width: '100vw', height: '100vh', backgroundColor: '#1a1a2e' }}>
-      <div style={{ position: 'absolute', top: 10, left: 10, zIndex: 10 }}>
-        <span style={{ color: '#fff' }}>Ученик: {userName || userId}</span>
-      </div>
       <Tree
-        data={buildTreeForDisplay(TREE_STRUCTURE, progress)}
+        data={treeData}
         orientation="vertical"
         pathFunc="step"
         renderCustomNodeElement={renderCustomNode}
@@ -614,6 +293,403 @@ function App() {
         separation={{ siblings: 1.5, nonSiblings: 1.5 }}
         nodeSize={{ x: 200, y: 100 }}
       />
+    </div>
+  );
+}
+
+// ========== ОСНОВНОЙ КОМПОНЕНТ ==========
+function App() {
+  const [userId, setUserId] = useState('guest');
+  const [userName, setUserName] = useState<string | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  // Состояния для программ
+  const [programs, setPrograms] = useState<any[]>([]); // список программ (для текущего пользователя)
+  const [currentProgramId, setCurrentProgramId] = useState<string | null>(null);
+  const [view, setView] = useState<'programs' | 'create' | 'tree' | 'admin'>('programs');
+
+  // Для ученика: статус заявки на выбранную программу
+  const [applicationStatus, setApplicationStatus] = useState<string | null>(null);
+  const [applicationId, setApplicationId] = useState<string | null>(null);
+
+  // Прогресс для текущей программы
+  const [progress, setProgress] = useState<Record<string, boolean>>({});
+  const [structure, setStructure] = useState<any>(null);
+
+  // Для админки: список заявок и учеников
+  const [applications, setApplications] = useState<any[]>([]);
+  const [acceptedStudents, setAcceptedStudents] = useState<any[]>([]);
+  const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
+
+  // Для создания программы
+  const [newProgramName, setNewProgramName] = useState('');
+  const [newProgramJson, setNewProgramJson] = useState('');
+
+  // Загрузка данных пользователя
+  useEffect(() => {
+    const init = async () => {
+      const { id, firstName, lastName, username } = extractUserInfoFromHash();
+      if (id) {
+        setUserId(id);
+        const admin = ADMIN_IDS.includes(Number(id));
+        setIsAdmin(admin);
+        // Сохраняем пользователя в БД (если ещё нет)
+        await supabase
+          .from('users')
+          .upsert({
+            telegram_id: Number(id),
+            first_name: firstName || '',
+            last_name: lastName || '',
+            username: username || '',
+          }, { onConflict: 'telegram_id' });
+        setUserName(`${firstName || ''} ${lastName || ''}`.trim() || id);
+      } else {
+        // fallback через WebApp
+        const tg = (window as any).Telegram?.WebApp;
+        if (tg) {
+          tg.ready();
+          const user = tg.initDataUnsafe?.user;
+          if (user?.id) {
+            const id = user.id.toString();
+            setUserId(id);
+            const admin = ADMIN_IDS.includes(Number(id));
+            setIsAdmin(admin);
+            await supabase
+              .from('users')
+              .upsert({
+                telegram_id: Number(id),
+                first_name: user.first_name || '',
+                last_name: user.last_name || '',
+                username: user.username || '',
+              }, { onConflict: 'telegram_id' });
+            setUserName(`${user.first_name || ''} ${user.last_name || ''}`.trim() || id);
+          }
+        }
+      }
+    };
+    init();
+  }, []);
+
+  // Загрузка программ при смене userId или роли
+  useEffect(() => {
+    if (userId === 'guest') return;
+    loadPrograms();
+  }, [userId, isAdmin]);
+
+  const loadPrograms = async () => {
+    if (isAdmin) {
+      const progs = await getTeacherPrograms(userId);
+      setPrograms(progs);
+    } else {
+      // Ученик: загружаем программы, в которые он принят
+      const progs = await getStudentPrograms(userId);
+      setPrograms(progs);
+    }
+    // Если есть программы и не выбран конкретная, показываем список
+    setView('programs');
+    setCurrentProgramId(null);
+  };
+
+  // Загрузка данных программы при выборе
+  const selectProgram = async (programId: string) => {
+    setCurrentProgramId(programId);
+    // Находим программу в списке
+    const prog = programs.find(p => p.id === programId);
+    if (prog) {
+      setStructure(prog.structure);
+      // Загружаем прогресс для этого пользователя и программы
+      const progData = await loadProgressForProgram(userId, programId);
+      setProgress(progData);
+    }
+    if (isAdmin) {
+      // Учитель: загружаем заявки и учеников
+      const apps = await getApplicationsForProgram(programId);
+      setApplications(apps);
+      const accepted = await getAcceptedStudents(programId);
+      setAcceptedStudents(accepted);
+      setView('admin');
+      setSelectedStudentId(null);
+    } else {
+      // Ученик: проверяем статус заявки
+      const status = await getApplicationStatus(userId, programId);
+      if (status) {
+        setApplicationStatus(status.status);
+        setApplicationId(status.id);
+      } else {
+        setApplicationStatus(null);
+        setApplicationId(null);
+      }
+      setView('tree');
+    }
+  };
+
+  // Функции для учителя
+  const handleCreateProgram = async () => {
+    if (!newProgramName.trim() || !newProgramJson.trim()) {
+      alert('Введите название и JSON структуру');
+      return;
+    }
+    try {
+      const structure = JSON.parse(newProgramJson);
+      const id = await createProgram(newProgramName, userId, structure);
+      if (id) {
+        alert('Программа создана!');
+        setView('programs');
+        setNewProgramName('');
+        setNewProgramJson('');
+        loadPrograms();
+      } else {
+        alert('Ошибка создания');
+      }
+    } catch (e) {
+      alert('Неверный JSON формат');
+    }
+  };
+
+  const handleAcceptApplication = async (appId: string) => {
+    await updateApplicationStatus(appId, 'accepted');
+    // Обновляем список заявок и учеников
+    const apps = await getApplicationsForProgram(currentProgramId!);
+    setApplications(apps);
+    const accepted = await getAcceptedStudents(currentProgramId!);
+    setAcceptedStudents(accepted);
+  };
+
+  const handleRejectApplication = async (appId: string) => {
+    await updateApplicationStatus(appId, 'rejected');
+    const apps = await getApplicationsForProgram(currentProgramId!);
+    setApplications(apps);
+  };
+
+  // Функция для ученика: подать заявку
+  const handleApply = async (programId: string) => {
+    const success = await createApplication(programId, userId);
+    if (success) {
+      alert('Заявка отправлена!');
+      // Обновляем статус
+      const status = await getApplicationStatus(userId, programId);
+      if (status) {
+        setApplicationStatus(status.status);
+        setApplicationId(status.id);
+      }
+    } else {
+      alert('Ошибка отправки заявки');
+    }
+  };
+
+  // Редактирование прогресса ученика (для учителя)
+  const handleSelectStudent = async (studentId: string) => {
+    setSelectedStudentId(studentId);
+    const prog = await loadProgressForProgram(studentId, currentProgramId!);
+    setProgress(prog);
+    // Показываем дерево для этого ученика
+    setView('tree'); // но с возможностью вернуться в админку
+  };
+
+  // Возврат в админку из просмотра дерева ученика
+  const backToAdmin = () => {
+    setSelectedStudentId(null);
+    // Перезагружаем прогресс учителя (или можно сбросить)
+    setView('admin');
+    // Загружаем прогресс учителя (или текущий)
+    loadProgressForProgram(userId, currentProgramId!).then(p => setProgress(p));
+  };
+
+  // ========== ОТРИСОВКА ==========
+
+  // Если пользователь не определён
+  if (userId === 'guest') {
+    return <div style={{ color: '#fff', padding: '20px' }}>Загрузка...</div>;
+  }
+
+  // Если учитель и view == 'create' – форма создания программы
+  if (isAdmin && view === 'create') {
+    return (
+      <div style={{ padding: '20px', color: '#fff', backgroundColor: '#1a1a2e', minHeight: '100vh' }}>
+        <button onClick={() => setView('programs')}>⬅ Назад</button>
+        <h2>Создать программу</h2>
+        <div>
+          <label>Название:</label><br />
+          <input
+            type="text"
+            value={newProgramName}
+            onChange={(e) => setNewProgramName(e.target.value)}
+            style={{ width: '100%', padding: '8px', marginBottom: '10px' }}
+          />
+        </div>
+        <div>
+          <label>Структура (JSON):</label><br />
+          <textarea
+            rows={10}
+            value={newProgramJson}
+            onChange={(e) => setNewProgramJson(e.target.value)}
+            style={{ width: '100%', padding: '8px', fontFamily: 'monospace' }}
+            placeholder='{"id":"root","name":"Уровень А2","children":[...]}'
+          />
+        </div>
+        <div>
+          <button onClick={handleCreateProgram}>Сохранить программу</button>
+        </div>
+      </div>
+    );
+  }
+
+  // Если учитель и view == 'admin' – панель управления программой
+  if (isAdmin && view === 'admin' && currentProgramId) {
+    // Если выбран ученик для редактирования, показываем дерево
+    if (selectedStudentId) {
+      return (
+        <div style={{ width: '100vw', height: '100vh', backgroundColor: '#1a1a2e' }}>
+          <div style={{ position: 'absolute', top: 10, left: 10, zIndex: 10, display: 'flex', gap: '10px' }}>
+            <button onClick={backToAdmin}>⬅ Назад к админке</button>
+            <span style={{ color: '#fff' }}>Редактирование ученика: {selectedStudentId}</span>
+          </div>
+          <SkillTreeView structure={structure} progress={progress} />
+        </div>
+      );
+    }
+
+    // Основная админка
+    return (
+      <div style={{ padding: '20px', color: '#fff', backgroundColor: '#1a1a2e', minHeight: '100vh' }}>
+        <button onClick={() => { setView('programs'); setCurrentProgramId(null); }}>⬅ Назад к программам</button>
+        <h2>Панель управления программой</h2>
+        <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap' }}>
+          <div style={{ flex: 1, minWidth: '300px' }}>
+            <h3>Дерево навыков (превью)</h3>
+            <div style={{ height: '400px', overflow: 'auto', border: '1px solid #555', borderRadius: '8px', padding: '10px' }}>
+              <SkillTreeView structure={structure} progress={progress} />
+            </div>
+          </div>
+          <div style={{ flex: 1, minWidth: '300px' }}>
+            <h3>Заявки на вступление</h3>
+            {applications.filter(a => a.status === 'pending').map(app => (
+              <div key={app.id} style={{ marginBottom: '10px', backgroundColor: '#333', padding: '10px', borderRadius: '8px' }}>
+                <span>Ученик ID: {app.student_id}</span>
+                <div>
+                  <button onClick={() => handleAcceptApplication(app.id)} style={{ marginRight: '10px', backgroundColor: '#4CAF50' }}>✅ Принять</button>
+                  <button onClick={() => handleRejectApplication(app.id)} style={{ backgroundColor: '#f44336' }}>❌ Отклонить</button>
+                </div>
+              </div>
+            ))}
+            {applications.filter(a => a.status === 'pending').length === 0 && <p>Нет новых заявок</p>}
+
+            <h3>Принятые ученики</h3>
+            {acceptedStudents.map(student => (
+              <div key={student.id} style={{ marginBottom: '10px', backgroundColor: '#333', padding: '10px', borderRadius: '8px' }}>
+                <span>{student.name || `ID: ${student.id}`}</span>
+                <button onClick={() => handleSelectStudent(student.id)} style={{ marginLeft: '10px' }}>📝 Редактировать</button>
+              </div>
+            ))}
+            {acceptedStudents.length === 0 && <p>Нет принятых учеников</p>}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Если ученик и view == 'tree' – дерево навыков
+  if (!isAdmin && view === 'tree' && currentProgramId) {
+    return (
+      <div style={{ width: '100vw', height: '100vh', backgroundColor: '#1a1a2e' }}>
+        <div style={{ position: 'absolute', top: 10, left: 10, zIndex: 10, display: 'flex', gap: '10px', alignItems: 'center' }}>
+          <button onClick={() => { setView('programs'); setCurrentProgramId(null); }}>⬅ Сменить программу</button>
+          <span style={{ color: '#fff' }}>Программа: {programs.find(p => p.id === currentProgramId)?.name || ''}</span>
+          <span style={{ color: '#fff' }}>Ученик: {userName || userId}</span>
+        </div>
+        <SkillTreeView structure={structure} progress={progress} />
+      </div>
+    );
+  }
+
+  // Список программ (основной экран для всех)
+  if (view === 'programs') {
+    if (isAdmin) {
+      // Учитель видит свои программы и кнопку создать
+      return (
+        <div style={{ padding: '20px', color: '#fff', backgroundColor: '#1a1a2e', minHeight: '100vh' }}>
+          <h2>Мои программы</h2>
+          <button onClick={() => setView('create')}>➕ Создать программу</button>
+          {programs.length === 0 && <p>У вас пока нет программ. Создайте первую!</p>}
+          {programs.map(prog => (
+            <div key={prog.id} style={{ margin: '10px 0', backgroundColor: '#333', padding: '15px', borderRadius: '8px', display: 'flex', justifyContent: 'space-between' }}>
+              <span>{prog.name}</span>
+              <button onClick={() => selectProgram(prog.id)}>Открыть</button>
+            </div>
+          ))}
+        </div>
+      );
+    } else {
+      // Ученик: список его программ + возможность подать заявку на новую
+      return (
+        <div style={{ padding: '20px', color: '#fff', backgroundColor: '#1a1a2e', minHeight: '100vh' }}>
+          <h2>Мои программы</h2>
+          {programs.length === 0 && <p>Вы ещё не приняты ни в одну программу. Подайте заявку ниже.</p>}
+          {programs.map(prog => (
+            <div key={prog.id} style={{ margin: '10px 0', backgroundColor: '#333', padding: '15px', borderRadius: '8px', display: 'flex', justifyContent: 'space-between' }}>
+              <span>{prog.name}</span>
+              <button onClick={() => selectProgram(prog.id)}>Открыть</button>
+            </div>
+          ))}
+
+          <hr style={{ margin: '30px 0' }} />
+          <h3>Доступные программы</h3>
+          <StudentProgramList userId={userId} onApply={handleApply} existingProgramIds={programs.map(p => p.id)} />
+        </div>
+      );
+    }
+  }
+
+  return <div style={{ color: '#fff', padding: '20px' }}>Неизвестный экран</div>;
+}
+
+// Компонент для ученика: список программ, на которые можно подать заявку
+function StudentProgramList({ userId, onApply, existingProgramIds }: { userId: string; onApply: (programId: string) => void; existingProgramIds: string[] }) {
+  const [availablePrograms, setAvailablePrograms] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const load = async () => {
+      const all = await getAllPrograms();
+      // Исключаем программы, в которые ученик уже принят или уже подавал заявку
+      // Для простоты покажем все, кроме тех, что уже есть в existingProgramIds (принятые)
+      // Но нужно также исключить те, где есть pending/rejected заявка.
+      // Для этого проверим статус заявки для каждой программы.
+      const filtered = [];
+      for (const prog of all) {
+        if (existingProgramIds.includes(prog.id)) continue; // уже принят
+        const status = await getApplicationStatus(userId, prog.id);
+        if (status && (status.status === 'pending' || status.status === 'rejected')) {
+          // Можно показать, но с пометкой
+          filtered.push({ ...prog, appStatus: status.status, appId: status.id });
+        } else if (!status) {
+          filtered.push({ ...prog, appStatus: null });
+        }
+      }
+      setAvailablePrograms(filtered);
+      setLoading(false);
+    };
+    load();
+  }, [userId, existingProgramIds]);
+
+  if (loading) return <p>Загрузка...</p>;
+
+  if (availablePrograms.length === 0) {
+    return <p>Нет доступных программ для подачи заявки.</p>;
+  }
+
+  return (
+    <div>
+      {availablePrograms.map(prog => (
+        <div key={prog.id} style={{ margin: '10px 0', backgroundColor: '#333', padding: '15px', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span>{prog.name}</span>
+          {prog.appStatus === 'pending' && <span style={{ color: '#ffa500' }}>⏳ Заявка отправлена</span>}
+          {prog.appStatus === 'rejected' && <span style={{ color: '#ff4444' }}>❌ Отклонена</span>}
+          {!prog.appStatus && <button onClick={() => onApply(prog.id)}>📩 Подать заявку</button>}
+          {prog.appStatus === 'pending' && <span>ожидайте</span>}
+          {prog.appStatus === 'rejected' && <button onClick={() => onApply(prog.id)}>📩 Подать заново</button>}
+        </div>
+      ))}
     </div>
   );
 }
