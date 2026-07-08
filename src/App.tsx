@@ -4,7 +4,10 @@ import { supabase } from './supabaseClient';
 import JSZip from 'jszip';
 import './App.css';
 
-// ========== НАСТРОЙКА ==========
+// ========== КОНСТАНТЫ ==========
+// Замени <project_id> на свой ID проекта Supabase
+const STORAGE_URL = 'https://<project_id>.supabase.co/storage/v1/object/public/icons/';
+
 const ADMIN_IDS: number[] = [1394891154]; // ID учителей
 
 // ========== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ==========
@@ -29,6 +32,17 @@ function extractUserInfoFromHash(): { id: string | null, firstName: string | nul
   } catch {
     return { id: null, firstName: null, lastName: null, username: null };
   }
+}
+
+// Парсинг имени с ключом в скобках
+function parseNameWithIcon(rawName: string): { displayName: string; imageKey: string | null } {
+  const match = rawName.match(/\(([^)]+)\)/);
+  if (match) {
+    const imageKey = match[1].trim();
+    const displayName = rawName.replace(/\(([^)]+)\)/, '').trim();
+    return { displayName, imageKey };
+  }
+  return { displayName: rawName, imageKey: null };
 }
 
 // ========== ФУНКЦИИ ДЛЯ РАБОТЫ С БАЗОЙ ==========
@@ -95,7 +109,6 @@ async function getApplicationsForProgram(programId: string) {
     console.error('Ошибка загрузки заявок:', error);
     return [];
   }
-  // Получаем имена учеников для всех заявок
   const studentIds = data.map(app => app.student_id);
   if (studentIds.length === 0) return data;
   const { data: users, error: userError } = await supabase
@@ -108,7 +121,6 @@ async function getApplicationsForProgram(programId: string) {
     const name = `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.telegram_id.toString();
     userMap[u.telegram_id] = name;
   });
-  // Добавляем поле student_name к каждой заявке
   return data.map(app => ({
     ...app,
     student_name: userMap[app.student_id] || app.student_id.toString(),
@@ -224,9 +236,8 @@ async function getApplicationStatus(studentId: string, programId: string) {
   return data;
 }
 
-// ========== ФУНКЦИЯ ПОСТРОЕНИЯ ДЕРЕВА ИЗ ZIP (без дублирования корня) ==========
+// ========== ФУНКЦИЯ ПОСТРОЕНИЯ ДЕРЕВА ИЗ ZIP С ПОДДЕРЖКОЙ КАРТИНОК ==========
 function buildTreeFromZip(zip: JSZip): { name: string; structure: any } {
-  // Определяем корневую папку – берём первую папку верхнего уровня
   const rootFolders = new Set<string>();
   Object.keys(zip.files).forEach(path => {
     if (path.includes('/')) {
@@ -234,14 +245,15 @@ function buildTreeFromZip(zip: JSZip): { name: string; structure: any } {
       if (root) rootFolders.add(root);
     }
   });
-  const rootFolderName = rootFolders.size === 1 ? Array.from(rootFolders)[0] : 'Программа';
+  let rootFolderName = rootFolders.size === 1 ? Array.from(rootFolders)[0] : 'Программа';
+  // Обрабатываем имя корневой папки на наличие скобок
+  const rootParsed = parseNameWithIcon(rootFolderName);
+  const rootDisplayName = rootParsed.displayName;
+  const rootImageKey = rootParsed.imageKey;
 
-  // Рекурсивная функция построения узла
   function buildNode(prefix: string): any[] {
-    // Все элементы внутри текущего префикса
     const entries = Object.keys(zip.files).filter(key => key.startsWith(prefix) && key !== prefix && !key.endsWith('/'));
 
-    // Группируем по первому элементу после префикса
     const childrenMap = new Map<string, { isFile: boolean; name: string }>();
     entries.forEach(key => {
       const relative = key.slice(prefix.length);
@@ -256,28 +268,40 @@ function buildTreeFromZip(zip: JSZip): { name: string; structure: any } {
     });
 
     const children: any[] = [];
-    for (const [name, info] of childrenMap) {
+    for (const [rawName, info] of childrenMap) {
+      const { displayName, imageKey } = parseNameWithIcon(rawName);
+      const imageUrl = imageKey ? `${STORAGE_URL}${imageKey}.png` : null; // можно расширить на jpg/webp
       if (info.isFile) {
-        children.push({ id: info.name, name: info.name });
+        children.push({ id: info.name, name: displayName, imageUrl, imageKey });
       } else {
-        const subPrefix = prefix + name + '/';
+        const subPrefix = prefix + rawName + '/';
         const subChildren = buildNode(subPrefix);
-        children.push({ id: name, name: name, children: subChildren });
+        children.push({ id: rawName, name: displayName, children: subChildren, imageUrl, imageKey });
       }
     }
     return children;
   }
 
-  // Строим дерево, начиная с пустого префикса (корень)
   const rootChildren = buildNode('');
-  // Проверяем, есть ли одна корневая папка с таким же именем, как rootFolderName, и если да, то используем её напрямую
   let structure;
-  if (rootChildren.length === 1 && rootChildren[0].name === rootFolderName) {
-    structure = { id: 'root', name: rootFolderName, children: rootChildren[0].children || [] };
+  if (rootChildren.length === 1 && rootChildren[0].name === rootDisplayName) {
+    structure = { 
+      id: 'root', 
+      name: rootDisplayName, 
+      children: rootChildren[0].children || [],
+      imageUrl: rootImageKey ? `${STORAGE_URL}${rootImageKey}.png` : null,
+      imageKey: rootImageKey,
+    };
   } else {
-    structure = { id: 'root', name: rootFolderName, children: rootChildren };
+    structure = { 
+      id: 'root', 
+      name: rootDisplayName, 
+      children: rootChildren,
+      imageUrl: rootImageKey ? `${STORAGE_URL}${rootImageKey}.png` : null,
+      imageKey: rootImageKey,
+    };
   }
-  return { name: rootFolderName, structure };
+  return { name: rootDisplayName, structure };
 }
 
 // ========== КОМПОНЕНТЫ ==========
@@ -292,6 +316,8 @@ function buildTreeForDisplay(node: any, progress: Record<string, boolean>): any 
       __id: node.id,
       __isLesson: true,
       __completed: completed,
+      __imageUrl: node.imageUrl || null,
+      __imageKey: node.imageKey || null,
     };
   } else {
     const lessonIds = getAllLessonIds(node);
@@ -307,6 +333,8 @@ function buildTreeForDisplay(node: any, progress: Record<string, boolean>): any 
       children: node.children.map((child: any) => buildTreeForDisplay(child, progress)),
       __id: node.id,
       __isLesson: false,
+      __imageUrl: node.imageUrl || null,
+      __imageKey: node.imageKey || null,
     };
   }
 }
@@ -320,30 +348,48 @@ function getAllLessonIds(node: any): string[] {
   return result;
 }
 
-// Кастомный рендер узла – клик по уроку меняет статус (только для учителя)
+// Кастомный рендер узла с поддержкой изображений
 const renderCustomNode = ({ nodeDatum, onLessonClick }: any) => {
   const isLesson = nodeDatum.__isLesson;
   const completed = nodeDatum.__completed;
-  const bgColor = isLesson ? (completed ? '#4CAF50' : '#FF9800') : '#2196F3';
+  const imageUrl = nodeDatum.__imageUrl;
   const radius = isLesson ? 18 : 24;
   
   const handleClick = () => {
     if (isLesson && onLessonClick) {
       onLessonClick(nodeDatum.__id);
     }
-    // для папок ничего не делаем (сворачивание отключено)
   };
+
+  // Используем clipPath для обрезания картинки по кругу
+  const clipId = `clip-${nodeDatum.__id || Math.random().toString(36).substring(2, 10)}`;
 
   return (
     <g>
-      <circle
-        r={radius}
-        fill={bgColor}
-        stroke="#fff"
-        strokeWidth="2"
-        onClick={handleClick}
-        style={{ cursor: isLesson ? 'pointer' : 'default' }}
-      />
+      <defs>
+        <clipPath id={clipId}>
+          <circle cx="0" cy="0" r={radius} />
+        </clipPath>
+      </defs>
+      {imageUrl ? (
+        <image
+          href={imageUrl}
+          x="-24" y="-24"
+          width="48" height="48"
+          clipPath={`url(#${clipId})`}
+          onClick={handleClick}
+          style={{ cursor: isLesson ? 'pointer' : 'default' }}
+        />
+      ) : (
+        <circle
+          r={radius}
+          fill={isLesson ? (completed ? '#4CAF50' : '#FF9800') : '#2196F3'}
+          stroke="#fff"
+          strokeWidth="2"
+          onClick={handleClick}
+          style={{ cursor: isLesson ? 'pointer' : 'default' }}
+        />
+      )}
       <text
         fill="#fff"
         stroke="none"
@@ -381,7 +427,7 @@ function SkillTreeView({ structure, progress, onToggleLesson }: {
         draggable={true}
         separation={{ siblings: 1.5, nonSiblings: 1.5 }}
         nodeSize={{ x: 200, y: 100 }}
-        collapsible={false}   // отключаем сворачивание веток
+        collapsible={false}
       />
     </div>
   );
@@ -605,12 +651,10 @@ function App() {
     }
   };
 
-  // При выборе ученика для редактирования – НЕ МЕНЯЕМ view, остаёмся в 'admin'
   const handleSelectStudent = async (studentId: string) => {
     setSelectedStudentId(studentId);
     const prog = await loadProgressForProgram(studentId, currentProgramId!);
     setProgress(prog);
-    // Ищем имя ученика в списке acceptedStudents
     const student = acceptedStudents.find(s => s.id === studentId);
     setSelectedStudentName(student ? student.name : null);
   };
@@ -621,7 +665,6 @@ function App() {
     loadProgressForProgram(userId, currentProgramId!).then(p => setProgress(p));
   };
 
-  // Функция переключения статуса урока (только для учителя)
   const toggleLessonForStudent = async (lessonId: string) => {
     if (!selectedStudentId || !currentProgramId) return;
     const newProgress = { ...progress, [lessonId]: !progress[lessonId] };
@@ -629,7 +672,6 @@ function App() {
     await saveProgressForProgram(selectedStudentId, currentProgramId, newProgress);
   };
 
-  // Удаление ученика из программы (для учителя)
   const handleDeleteStudent = async (studentId: string, studentName: string | null) => {
     if (!confirm(`Вы уверены, что хотите удалить ученика "${studentName || studentId}" из программы?`)) return;
     await supabase.from('progress').delete().eq('user_id', Number(studentId)).eq('program_id', currentProgramId!);
@@ -651,7 +693,6 @@ function App() {
     return <div style={{ color: '#fff', padding: '20px' }}>Загрузка...</div>;
   }
 
-  // Форма создания программы
   if (isAdmin && view === 'create') {
     return (
       <div style={{ padding: '20px', color: '#fff', backgroundColor: '#1a1a2e', minHeight: '100vh' }}>
@@ -682,15 +723,13 @@ function App() {
           </button>
         </div>
         <div style={{ marginTop: '20px', color: '#aaa' }}>
-          <p>Инструкция: создайте ZIP-архив, внутри которого папки с названиями категорий (например, "Лексика"), внутри каждой папки — файлы-уроки (можно .txt). Структура будет автоматически преобразована в дерево навыков.</p>
+          <p>Инструкция: создайте ZIP-архив, внутри которого папки с названиями категорий (например, "Лексика"), внутри каждой папки — файлы-уроки (можно .txt). Структура будет автоматически преобразована в дерево навыков. Для добавления иконок используйте скобки в имени: Лексика (lexicon) — тогда картинка lexicon.png из хранилища подгрузится.</p>
         </div>
       </div>
     );
   }
 
-  // Панель учителя (админка программы)
   if (isAdmin && view === 'admin' && currentProgramId) {
-    // Если выбран ученик для редактирования – показываем дерево с возможностью вернуться
     if (selectedStudentId) {
       return (
         <div style={{ width: '100vw', height: '100vh', backgroundColor: '#1a1a2e' }}>
@@ -707,7 +746,6 @@ function App() {
       );
     }
 
-    // Основная админка
     return (
       <div style={{ padding: '20px', color: '#fff', backgroundColor: '#1a1a2e', minHeight: '100vh' }}>
         <button onClick={() => { setView('programs'); setCurrentProgramId(null); }}>⬅ Назад к программам</button>
@@ -767,7 +805,6 @@ function App() {
     );
   }
 
-  // Режим ученика – дерево БЕЗ возможности отмечать уроки
   if (!isAdmin && view === 'tree' && currentProgramId) {
     return (
       <div style={{ width: '100vw', height: '100vh', backgroundColor: '#1a1a2e' }}>
@@ -779,13 +816,11 @@ function App() {
         <SkillTreeView 
           structure={structure} 
           progress={progress} 
-          // onToggleLesson не передаём – ученик не может отмечать
         />
       </div>
     );
   }
 
-  // Список программ (главный экран)
   if (view === 'programs') {
     if (isAdmin) {
       return (
