@@ -373,7 +373,7 @@ const renderCustomNode = ({ nodeDatum, onLessonClick }: any) => {
       </defs>
       {imageUrl ? (
         <image
-          href="https://wmfjjpsakhmwwyvimqwx.supabase.co/storage/v1/object/public/icons/vika.png"
+          href={imageUrl}
           x="-24" y="-24"
           width="48" height="48"
           clipPath={`url(#${clipId})`}
