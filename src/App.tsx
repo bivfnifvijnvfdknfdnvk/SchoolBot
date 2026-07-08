@@ -157,23 +157,6 @@ async function loadProgressForProgram(userId: string, programId: string): Promis
   return progress;
 }
 
-// Сохранить прогресс ученика для программы (используется в админке)
-async function saveProgressForProgram(userId: string, programId: string, progress: Record<string, boolean>) {
-  const entries = Object.entries(progress).map(([lesson_id, completed]) => ({
-    user_id: Number(userId),
-    program_id: programId,
-    lesson_id,
-    completed,
-    updated_at: new Date().toISOString(),
-  }));
-  const { error } = await supabase
-    .from('progress')
-    .upsert(entries, { onConflict: 'user_id, program_id, lesson_id' });
-  if (error) {
-    console.error('Ошибка сохранения прогресса:', error);
-  }
-}
-
 // Получить программы ученика (в которых он принят)
 async function getStudentPrograms(studentId: string) {
   const { data, error } = await supabase
