@@ -362,7 +362,7 @@ function buildEditorTree(node: any): any {
   };
 }
 
-// Компонент дерева для редактора (с переворотом контейнера)
+// Компонент дерева для редактора (с переворотом контейнера – ветви вверх)
 function EditableTreeView({ structure, onNodeClick }: { structure: any; onNodeClick: (nodeId: string) => void }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [translate, setTranslate] = useState({ x: 400, y: 100 });
@@ -461,7 +461,6 @@ function ProgramEditor({ initialStructure, onSave, onCancel }: {
       setEditContent(node.content || '');
       setEditImageKey(node.imageKey || null);
       setModalOpen(true);
-      // Запускаем анимацию открытия
       setTimeout(() => setModalVisible(true), 10);
     }
   };
@@ -551,7 +550,6 @@ function ProgramEditor({ initialStructure, onSave, onCancel }: {
           }}
           onClick={(e) => e.stopPropagation()}
         >
-          {/* Кнопка закрытия в правом верхнем углу */}
           <button
             onClick={closeEditor}
             style={{
@@ -654,7 +652,7 @@ function ProgramEditor({ initialStructure, onSave, onCancel }: {
             </button>
             {!isRoot && (
               <button onClick={handleDeleteNode} style={{ background: '#f44336', border: 'none', padding: '8px 16px', borderRadius: '4px', color: '#fff', cursor: 'pointer' }}>
-                🗑️ Удалить
+                🗑️
               </button>
             )}
           </div>
@@ -702,7 +700,6 @@ function buildTreeForDisplay(node: any, progress: Record<string, boolean>): any 
       __content: node.content || null,
     };
   } else {
-    // Папка – без процентов
     const displayName = node.name;
     return {
       name: displayName,
@@ -714,8 +711,6 @@ function buildTreeForDisplay(node: any, progress: Record<string, boolean>): any 
     };
   }
 }
-
-// getAllLessonIds удалена (не используется)
 
 const renderCustomNode = ({ nodeDatum, onLessonClick, onToggleLesson }: any) => {
   const isLesson = nodeDatum.__isLesson;
