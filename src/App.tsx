@@ -274,6 +274,7 @@ function addChildWithId(node: any, parentId: string): { newTree: any; newId: str
   return { newTree: node, newId: '' };
 }
 
+// ---- НОВЫЙ РЕНДЕР ДЛЯ РЕДАКТОРА ----
 // Кастомный рендер узла для редактора (все узлы кликабельны)
 const renderEditorNode = ({ nodeDatum, onNodeClick }: any) => {
   const isLesson = nodeDatum.isLesson || false;
@@ -337,9 +338,21 @@ const renderEditorNode = ({ nodeDatum, onNodeClick }: any) => {
   );
 };
 
+// Функция построения дерева для редактора (без прогресса, сохраняет все поля)
+function buildEditorTree(node: any): any {
+  return {
+    name: node.name,
+    id: node.id,
+    isLesson: node.isLesson || false,
+    imageKey: node.imageKey || null,
+    content: node.content || null,
+    children: node.children ? node.children.map((child: any) => buildEditorTree(child)) : undefined,
+  };
+}
+
 // Компонент дерева для редактора
 function EditableTreeView({ structure, onNodeClick }: { structure: any; onNodeClick: (nodeId: string) => void }) {
-  const treeData = buildTreeForDisplay(structure, {});
+  const treeData = buildEditorTree(structure);
   return (
     <div style={{ width: '100%', height: '100%', backgroundColor: '#1a1a2e' }}>
       <Tree
@@ -621,7 +634,7 @@ function ProgramEditor({ initialStructure, onSave, onCancel }: {
         </div>
       </div>
       <div style={{ border: '1px solid #555', borderRadius: 8, padding: 10, height: '600px', overflow: 'auto' }}>
-       <EditableTreeView structure={tree} onNodeClick={handleNodeClick} />
+        <EditableTreeView structure={tree} onNodeClick={handleNodeClick} />
       </div>
       {renderModal()}
     </div>
