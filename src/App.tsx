@@ -239,9 +239,9 @@ async function getApplicationStatus(studentId: string, programId: string) {
   return data;
 }
 
-// ========== НОВАЯ ФУНКЦИЯ ПОСТРОЕНИЯ ДЕРЕВА ИЗ ZIP (папки = уроки) ==========
+// ========== ФУНКЦИЯ ПОСТРОЕНИЯ ДЕРЕВА ИЗ ZIP (папки = всегда узлы, урок = папка с .txt и без подпапок) ==========
 async function buildTreeFromZip(zip: JSZip): Promise<{ name: string; structure: any }> {
-  // Определяем корневые папки (первые элементы верхнего уровня)
+  // Определяем корневые элементы (первый уровень)
   const rootFolders = new Set<string>();
   const rootFiles = new Set<string>();
   Object.keys(zip.files).forEach(path => {
@@ -249,7 +249,7 @@ async function buildTreeFromZip(zip: JSZip): Promise<{ name: string; structure: 
       const root = path.split('/')[0];
       if (root) rootFolders.add(root);
     } else if (path !== '' && !path.endsWith('/')) {
-      rootFiles.add(path); // файлы в корне
+      rootFiles.add(path); // файлы в корне игнорируем
     }
   });
 
@@ -282,49 +282,29 @@ async function buildTreeFromZip(zip: JSZip): Promise<{ name: string; structure: 
 
     for (const [name, info] of items) {
       if (info.isFile) {
-        // Файл: игнорируем, кроме .txt на корневом уровне? Но по новой логике игнорируем все файлы на любом уровне,
-        // кроме как внутри папок-уроков (обрабатываем отдельно).
-        // Пропускаем файлы, они не создают узлов.
+        // Файлы на уровне папки (не .txt внутри подпапки) игнорируем, кроме случая, когда это .txt и нет подпапок (обрабатывается позже)
         continue;
       } else {
         // Это папка
         const folderPathFull = prefix + name + '/';
-        // Проверяем, есть ли внутри этой папки файлы .txt (непосредственно)
-        const txtFiles = Object.keys(zip.files).filter(key =>
-          key.startsWith(folderPathFull) && key !== folderPathFull && !key.endsWith('/') && key.endsWith('.txt')
-        );
-        // Также проверяем, есть ли подпапки (для определения категории)
+        // Проверяем, есть ли подпапки внутри этой папки (непосредственно)
         const subFolders = Object.keys(zip.files).filter(key =>
           key.startsWith(folderPathFull) && key !== folderPathFull && key.endsWith('/') &&
           key.split('/').length === folderPathFull.split('/').length + 1 // только непосредственные подпапки
         );
+        // Проверяем, есть ли .txt файлы непосредственно в этой папке
+        const txtFiles = Object.keys(zip.files).filter(key =>
+          key.startsWith(folderPathFull) && key !== folderPathFull && !key.endsWith('/') && key.endsWith('.txt') &&
+          key.split('/').length === folderPathFull.split('/').length + 1 // только непосредственные .txt
+        );
 
-        // Если есть .txt файлы, то это урок
-        if (txtFiles.length > 0) {
-          // Читаем содержимое первого .txt (можно объединить все, но обычно один)
-          const txtFile = txtFiles[0];
-          const file = zip.file(txtFile);
-          let content = null;
-          if (file) {
-            content = await file.async('text');
-          }
-          // Парсим имя папки для иконки
-          const { displayName, imageKey } = parseNameWithIcon(name);
-          const finalName = removeExtension(displayName);
-          const imageUrl = imageKey ? `${STORAGE_URL}${imageKey}.png` : null;
-          nodes.push({
-            id: name,
-            name: finalName,
-            imageUrl,
-            imageKey,
-            content,
-            // Не добавляем children, так как это лист
-          });
-        } else if (subFolders.length > 0) {
-          // Нет .txt, но есть подпапки – это категория
-          const { displayName, imageKey } = parseNameWithIcon(name);
-          const finalName = removeExtension(displayName);
-          const imageUrl = imageKey ? `${STORAGE_URL}${imageKey}.png` : null;
+        // Парсим имя папки для иконки
+        const { displayName, imageKey } = parseNameWithIcon(name);
+        const finalName = removeExtension(displayName);
+        const imageUrl = imageKey ? `${STORAGE_URL}${imageKey}.png` : null;
+
+        if (subFolders.length > 0) {
+          // Есть подпапки – это папка (даже если есть .txt, они игнорируются)
           const children = await processFolder(folderPathFull);
           nodes.push({
             id: name,
@@ -333,8 +313,31 @@ async function buildTreeFromZip(zip: JSZip): Promise<{ name: string; structure: 
             imageKey,
             children,
           });
+        } else if (txtFiles.length > 0) {
+          // Нет подпапок, но есть .txt – это урок
+          const txtFile = txtFiles[0]; // берём первый
+          const file = zip.file(txtFile);
+          let content = null;
+          if (file) {
+            content = await file.async('text');
+          }
+          nodes.push({
+            id: name,
+            name: finalName,
+            imageUrl,
+            imageKey,
+            content,
+            // нет children – это лист
+          });
         } else {
-          // Пустая папка без .txt и подпапок – игнорируем
+          // Пустая папка (без подпапок и без .txt) – тоже папка без детей
+          nodes.push({
+            id: name,
+            name: finalName,
+            imageUrl,
+            imageKey,
+            children: [], // пустой массив, чтобы отображалась как папка
+          });
         }
       }
     }
@@ -346,10 +349,8 @@ async function buildTreeFromZip(zip: JSZip): Promise<{ name: string; structure: 
   if (rootFolders.size === 1) {
     const rootPath = Array.from(rootFolders)[0] + '/';
     rootChildren = await processFolder(rootPath);
-    // Если внутри корня только одна папка, и она является уроком или категорией, мы можем поднять её
-    // Но для простоты оставляем корень как есть.
   } else {
-    // Несколько корневых папок – обрабатываем каждую как отдельную категорию
+    // Несколько корневых папок – каждая как отдельная категория
     for (const folder of rootFolders) {
       const folderPath = folder + '/';
       const children = await processFolder(folderPath);
@@ -366,7 +367,6 @@ async function buildTreeFromZip(zip: JSZip): Promise<{ name: string; structure: 
     }
   }
 
-  // Если корневых папок нет, но есть файлы – игнорируем
   const structure = {
     id: 'root',
     name: rootDisplayName,
@@ -375,7 +375,7 @@ async function buildTreeFromZip(zip: JSZip): Promise<{ name: string; structure: 
     imageKey: rootImageKey,
   };
 
-  console.log('✅ Создана структура из папок (уроки = папки с .txt):', structure);
+  console.log('✅ Создана структура (папки всегда узлы, уроки = папки с .txt без подпапок):', structure);
   return { name: rootDisplayName, structure };
 }
 
