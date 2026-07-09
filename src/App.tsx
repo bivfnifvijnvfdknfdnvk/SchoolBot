@@ -434,7 +434,7 @@ function ProgramEditor({ initialStructure, onSave, onCancel }: {
   const [iconList, setIconList] = useState<string[]>([]);
   const [loadingIcons, setLoadingIcons] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
-  const [modalClosing, setModalClosing] = useState(false);
+  const [modalVisible, setModalVisible] = useState(false);
 
   useEffect(() => {
     const fetchIcons = async () => {
@@ -461,16 +461,16 @@ function ProgramEditor({ initialStructure, onSave, onCancel }: {
       setEditContent(node.content || '');
       setEditImageKey(node.imageKey || null);
       setModalOpen(true);
-      setModalClosing(false);
+      // Запускаем анимацию открытия
+      setTimeout(() => setModalVisible(true), 10);
     }
   };
 
   const closeEditor = () => {
-    setModalClosing(true);
+    setModalVisible(false);
     setTimeout(() => {
       setModalOpen(false);
       setSelectedNodeId(null);
-      setModalClosing(false);
     }, 200);
   };
 
@@ -515,23 +515,25 @@ function ProgramEditor({ initialStructure, onSave, onCancel }: {
   const renderModal = () => {
     if (!modalOpen) return null;
     const isRoot = selectedNodeId === 'root';
-    const modalStyle: React.CSSProperties = {
-      position: 'fixed',
-      top: 0,
-      left: 0,
-      width: '100vw',
-      height: '100vh',
-      backgroundColor: 'rgba(0,0,0,0.6)',
-      display: 'flex',
-      justifyContent: 'center',
-      alignItems: 'center',
-      zIndex: 999,
-      opacity: modalClosing ? 0 : 1,
-      transition: 'opacity 0.2s ease',
-    };
 
     return (
-      <div style={modalStyle} onClick={closeEditor}>
+      <div
+        style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          width: '100vw',
+          height: '100vh',
+          backgroundColor: 'rgba(0,0,0,0.6)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 999,
+          opacity: modalVisible ? 1 : 0,
+          transition: 'opacity 0.2s ease',
+        }}
+        onClick={closeEditor}
+      >
         <div
           style={{
             backgroundColor: '#2a2a4e',
@@ -543,11 +545,33 @@ function ProgramEditor({ initialStructure, onSave, onCancel }: {
             overflow: 'auto',
             color: '#fff',
             boxShadow: '0 8px 32px rgba(0,0,0,0.7)',
-            transform: modalClosing ? 'scale(0.95)' : 'scale(1)',
+            transform: modalVisible ? 'scale(1)' : 'scale(0.95)',
             transition: 'transform 0.2s ease',
+            position: 'relative',
           }}
           onClick={(e) => e.stopPropagation()}
         >
+          {/* Кнопка закрытия в правом верхнем углу */}
+          <button
+            onClick={closeEditor}
+            style={{
+              position: 'absolute',
+              top: '12px',
+              right: '16px',
+              background: 'transparent',
+              border: 'none',
+              color: 'rgba(255,255,255,0.4)',
+              fontSize: '24px',
+              cursor: 'pointer',
+              transition: 'color 0.2s',
+              padding: '4px 8px',
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.color = '#fff'}
+            onMouseLeave={(e) => e.currentTarget.style.color = 'rgba(255,255,255,0.4)'}
+          >
+            ✕
+          </button>
+
           <h2 style={{ marginBottom: '16px' }}>Редактировать узел</h2>
           <div style={{ marginBottom: '12px' }}>
             <label>Название</label>
@@ -622,6 +646,9 @@ function ProgramEditor({ initialStructure, onSave, onCancel }: {
             </div>
           </div>
           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '16px' }}>
+            <button onClick={saveNode} style={{ background: '#2196F3', border: 'none', padding: '8px 16px', borderRadius: '4px', color: '#fff', cursor: 'pointer' }}>
+              💾 Сохранить
+            </button>
             <button onClick={handleAddChild} style={{ background: '#4CAF50', border: 'none', padding: '8px 16px', borderRadius: '4px', color: '#fff', cursor: 'pointer' }}>
               ➕ Добавить узел
             </button>
@@ -630,12 +657,6 @@ function ProgramEditor({ initialStructure, onSave, onCancel }: {
                 🗑️ Удалить
               </button>
             )}
-            <button onClick={saveNode} style={{ background: '#2196F3', border: 'none', padding: '8px 16px', borderRadius: '4px', color: '#fff', cursor: 'pointer' }}>
-              💾 Сохранить
-            </button>
-            <button onClick={closeEditor} style={{ background: '#555', border: 'none', padding: '8px 16px', borderRadius: '4px', color: '#fff', cursor: 'pointer' }}>
-              ❌ Закрыть
-            </button>
           </div>
         </div>
       </div>
@@ -644,15 +665,15 @@ function ProgramEditor({ initialStructure, onSave, onCancel }: {
 
   return (
     <div style={{ padding: 20, color: '#fff', backgroundColor: '#1a1a2e', minHeight: '100vh' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: 20 }}>
         <input
           type="text"
           value={programName}
           onChange={(e) => setProgramName(e.target.value)}
-          style={{ background: 'transparent', color: '#fff', border: '1px solid #555', borderRadius: 4, padding: '4px 8px', fontSize: 20, fontWeight: 'bold', flex: 1, minWidth: 200, marginRight: 10 }}
+          style={{ background: 'transparent', color: '#fff', border: '1px solid #555', borderRadius: 4, padding: '4px 8px', fontSize: 20, fontWeight: 'bold', width: '100%' }}
           placeholder="Название программы"
         />
-        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
           <button onClick={onCancel} style={{ padding: '6px 12px', background: '#555', border: 'none', borderRadius: 4, color: '#fff', cursor: 'pointer' }}>Отмена</button>
           <button onClick={handleSaveProgram} style={{ padding: '6px 12px', background: '#4CAF50', border: 'none', borderRadius: 4, color: '#fff', cursor: 'pointer' }}>Сохранить</button>
         </div>
