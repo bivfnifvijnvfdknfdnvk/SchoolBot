@@ -288,7 +288,7 @@ function findNodeAndAddChild(tree: any, parentId: string): { newTree: any; newId
   return { newTree: result.newNode, newId: result.newId };
 }
 
-// Рендер узла для редактора (с обратным переворотом текста)
+// Рендер узла для редактора (с переворотом содержимого обратно)
 const renderEditorNode = ({ nodeDatum, onNodeClick }: any) => {
   const isLesson = nodeDatum.isLesson || false;
   const imageUrl = nodeDatum.imageKey ? `${STORAGE_URL}${nodeDatum.imageKey}` : null;
@@ -319,7 +319,7 @@ const renderEditorNode = ({ nodeDatum, onNodeClick }: any) => {
           clipPath={`url(#${clipId})`}
           preserveAspectRatio="xMidYMid slice"
           onClick={handleClick}
-          style={{ cursor: 'pointer' }}
+          style={{ cursor: 'pointer', transform: 'scaleY(-1)' }}
         />
       ) : (
         <circle
@@ -342,7 +342,7 @@ const renderEditorNode = ({ nodeDatum, onNodeClick }: any) => {
         fontSize={14}
         fontFamily="Arial, sans-serif"
         textAnchor="start"
-        style={{ fontWeight: 'normal', transform: 'scaleY(-1)' }} // переворачиваем текст обратно
+        style={{ fontWeight: 'normal', transform: 'scaleY(-1)' }}
         onClick={handleClick}
       >
         {nodeDatum.name}
@@ -351,7 +351,6 @@ const renderEditorNode = ({ nodeDatum, onNodeClick }: any) => {
   );
 };
 
-// Функция построения дерева для редактора (без прогресса)
 function buildEditorTree(node: any): any {
   return {
     name: node.name,
@@ -363,7 +362,7 @@ function buildEditorTree(node: any): any {
   };
 }
 
-// Компонент дерева для редактора (с переворотом, чтобы ветви росли вверх)
+// Компонент дерева для редактора (с переворотом контейнера)
 function EditableTreeView({ structure, onNodeClick }: { structure: any; onNodeClick: (nodeId: string) => void }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [translate, setTranslate] = useState({ x: 400, y: 100 });
@@ -373,7 +372,6 @@ function EditableTreeView({ structure, onNodeClick }: { structure: any; onNodeCl
       if (containerRef.current) {
         const width = containerRef.current.clientWidth;
         const height = containerRef.current.clientHeight;
-        // Корень внизу, но так как мы переворачиваем, координаты считаем от низа
         setTranslate({ x: width / 2, y: height - 150 });
       }
     };
@@ -436,6 +434,7 @@ function ProgramEditor({ initialStructure, onSave, onCancel }: {
   const [iconList, setIconList] = useState<string[]>([]);
   const [loadingIcons, setLoadingIcons] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
+  const [modalClosing, setModalClosing] = useState(false);
 
   useEffect(() => {
     const fetchIcons = async () => {
@@ -462,12 +461,17 @@ function ProgramEditor({ initialStructure, onSave, onCancel }: {
       setEditContent(node.content || '');
       setEditImageKey(node.imageKey || null);
       setModalOpen(true);
+      setModalClosing(false);
     }
   };
 
   const closeEditor = () => {
-    setModalOpen(false);
-    setSelectedNodeId(null);
+    setModalClosing(true);
+    setTimeout(() => {
+      setModalOpen(false);
+      setSelectedNodeId(null);
+      setModalClosing(false);
+    }, 200);
   };
 
   const saveNode = () => {
@@ -489,7 +493,6 @@ function ProgramEditor({ initialStructure, onSave, onCancel }: {
     if (!selectedNodeId) return;
     const { newTree } = findNodeAndAddChild(tree, selectedNodeId);
     setTree(newTree);
-    // Закрываем модалку, но не открываем редактор для нового узла
     closeEditor();
   };
 
@@ -510,25 +513,25 @@ function ProgramEditor({ initialStructure, onSave, onCancel }: {
   };
 
   const renderModal = () => {
-    if (!modalOpen || !selectedNodeId) return null;
+    if (!modalOpen) return null;
     const isRoot = selectedNodeId === 'root';
+    const modalStyle: React.CSSProperties = {
+      position: 'fixed',
+      top: 0,
+      left: 0,
+      width: '100vw',
+      height: '100vh',
+      backgroundColor: 'rgba(0,0,0,0.6)',
+      display: 'flex',
+      justifyContent: 'center',
+      alignItems: 'center',
+      zIndex: 999,
+      opacity: modalClosing ? 0 : 1,
+      transition: 'opacity 0.2s ease',
+    };
 
     return (
-      <div
-        style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          width: '100vw',
-          height: '100vh',
-          backgroundColor: 'rgba(0,0,0,0.6)',
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          zIndex: 999,
-        }}
-        onClick={closeEditor}
-      >
+      <div style={modalStyle} onClick={closeEditor}>
         <div
           style={{
             backgroundColor: '#2a2a4e',
@@ -540,6 +543,8 @@ function ProgramEditor({ initialStructure, onSave, onCancel }: {
             overflow: 'auto',
             color: '#fff',
             boxShadow: '0 8px 32px rgba(0,0,0,0.7)',
+            transform: modalClosing ? 'scale(0.95)' : 'scale(1)',
+            transition: 'transform 0.2s ease',
           }}
           onClick={(e) => e.stopPropagation()}
         >
@@ -639,16 +644,16 @@ function ProgramEditor({ initialStructure, onSave, onCancel }: {
 
   return (
     <div style={{ padding: 20, color: '#fff', backgroundColor: '#1a1a2e', minHeight: '100vh' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap' }}>
         <input
           type="text"
           value={programName}
           onChange={(e) => setProgramName(e.target.value)}
-          style={{ background: 'transparent', color: '#fff', border: '1px solid #555', borderRadius: 4, padding: '4px 8px', fontSize: 20, fontWeight: 'bold', flex: 1, marginRight: 10 }}
+          style={{ background: 'transparent', color: '#fff', border: '1px solid #555', borderRadius: 4, padding: '4px 8px', fontSize: 20, fontWeight: 'bold', flex: 1, minWidth: 200, marginRight: 10 }}
           placeholder="Название программы"
         />
-        <div>
-          <button onClick={onCancel} style={{ marginRight: 10, padding: '6px 12px', background: '#555', border: 'none', borderRadius: 4, color: '#fff', cursor: 'pointer' }}>Отмена</button>
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          <button onClick={onCancel} style={{ padding: '6px 12px', background: '#555', border: 'none', borderRadius: 4, color: '#fff', cursor: 'pointer' }}>Отмена</button>
           <button onClick={handleSaveProgram} style={{ padding: '6px 12px', background: '#4CAF50', border: 'none', borderRadius: 4, color: '#fff', cursor: 'pointer' }}>Сохранить</button>
         </div>
       </div>
@@ -676,7 +681,7 @@ function buildTreeForDisplay(node: any, progress: Record<string, boolean>): any 
       __content: node.content || null,
     };
   } else {
-    // Папка – убираем проценты
+    // Папка – без процентов
     const displayName = node.name;
     return {
       name: displayName,
@@ -688,6 +693,8 @@ function buildTreeForDisplay(node: any, progress: Record<string, boolean>): any 
     };
   }
 }
+
+// getAllLessonIds удалена (не используется)
 
 const renderCustomNode = ({ nodeDatum, onLessonClick, onToggleLesson }: any) => {
   const isLesson = nodeDatum.__isLesson;
