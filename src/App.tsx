@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import Tree from 'react-d3-tree';
 import { supabase } from './supabaseClient';
-import JSZip from 'jszip';
 import './App.css';
 
 // ========== КОНСТАНТЫ ==========
@@ -32,24 +31,7 @@ function extractUserInfoFromHash(): { id: string | null, firstName: string | nul
   }
 }
 
-// Парсинг имени с ключом в скобках
-function parseNameWithIcon(rawName: string): { displayName: string; imageKey: string | null } {
-  const match = rawName.match(/\(([^)]+)\)/);
-  if (match) {
-    const imageKey = match[1].trim();
-    const displayName = rawName.replace(/\(([^)]+)\)/, '').trim();
-    return { displayName, imageKey };
-  }
-  return { displayName: rawName, imageKey: null };
-}
-
-// Удаляет расширение файла (если есть)
-function removeExtension(name: string): string {
-  return name.replace(/\.[^/.]+$/, '');
-}
-
 // ========== ФУНКЦИИ ДЛЯ РАБОТЫ С БАЗОЙ ==========
-
 async function getTeacherPrograms(teacherId: string) {
   const { data, error } = await supabase
     .from('programs')
@@ -102,7 +84,6 @@ async function deleteProgram(programId: string) {
   return true;
 }
 
-// Получить заявки с именами учеников
 async function getApplicationsForProgram(programId: string) {
   const { data, error } = await supabase
     .from('applications')
@@ -239,148 +220,236 @@ async function getApplicationStatus(studentId: string, programId: string) {
   return data;
 }
 
-// ========== ФУНКЦИЯ ПОСТРОЕНИЯ ДЕРЕВА ИЗ ZIP (папки = всегда узлы, урок = папка с .txt и без подпапок) ==========
-async function buildTreeFromZip(zip: JSZip): Promise<{ name: string; structure: any }> {
-  // Определяем корневые элементы (первый уровень)
-  const rootFolders = new Set<string>();
-  const rootFiles = new Set<string>();
-  Object.keys(zip.files).forEach(path => {
-    if (path.includes('/')) {
-      const root = path.split('/')[0];
-      if (root) rootFolders.add(root);
-    } else if (path !== '' && !path.endsWith('/')) {
-      rootFiles.add(path); // файлы в корне игнорируем
-    }
-  });
-
-  let rootFolderName = rootFolders.size === 1 ? Array.from(rootFolders)[0] : 'Программа';
-  const rootParsed = parseNameWithIcon(rootFolderName);
-  const rootDisplayName = removeExtension(rootParsed.displayName);
-  const rootImageKey = rootParsed.imageKey;
-
-  // Рекурсивная функция: обрабатывает папку и возвращает массив узлов
-  async function processFolder(folderPath: string): Promise<any[]> {
-    // Все записи, находящиеся непосредственно в этой папке
-    const prefix = folderPath === '' ? '' : folderPath + '/';
-    const entries = Object.keys(zip.files).filter(key => key.startsWith(prefix) && key !== prefix && !key.endsWith('/'));
-
-    // Группируем по первому элементу после префикса (папки или файлы)
-    const items = new Map<string, { isFile: boolean; fullPath: string }>();
-    entries.forEach(key => {
-      const relative = key.slice(prefix.length);
-      const parts = relative.split('/');
-      const first = parts[0];
-      if (!first) return;
-      const isFile = parts.length === 1;
-      const fullPath = key;
-      if (!items.has(first)) {
-        items.set(first, { isFile, fullPath });
-      }
-    });
-
-    const nodes: any[] = [];
-
-    for (const [name, info] of items) {
-      if (info.isFile) {
-        // Файлы на уровне папки (не .txt внутри подпапки) игнорируем, кроме случая, когда это .txt и нет подпапок (обрабатывается позже)
-        continue;
-      } else {
-        // Это папка
-        const folderPathFull = prefix + name + '/';
-        // Проверяем, есть ли подпапки внутри этой папки (непосредственно)
-        const subFolders = Object.keys(zip.files).filter(key =>
-          key.startsWith(folderPathFull) && key !== folderPathFull && key.endsWith('/') &&
-          key.split('/').length === folderPathFull.split('/').length + 1 // только непосредственные подпапки
-        );
-        // Проверяем, есть ли .txt файлы непосредственно в этой папке
-        const txtFiles = Object.keys(zip.files).filter(key =>
-          key.startsWith(folderPathFull) && key !== folderPathFull && !key.endsWith('/') && key.endsWith('.txt') &&
-          key.split('/').length === folderPathFull.split('/').length + 1 // только непосредственные .txt
-        );
-
-        // Парсим имя папки для иконки
-        const { displayName, imageKey } = parseNameWithIcon(name);
-        const finalName = removeExtension(displayName);
-        const imageUrl = imageKey ? `${STORAGE_URL}${imageKey}.png` : null;
-
-        if (subFolders.length > 0) {
-          // Есть подпапки – это папка (даже если есть .txt, они игнорируются)
-          const children = await processFolder(folderPathFull);
-          nodes.push({
-            id: name,
-            name: finalName,
-            imageUrl,
-            imageKey,
-            children,
-          });
-        } else if (txtFiles.length > 0) {
-          // Нет подпапок, но есть .txt – это урок
-          const txtFile = txtFiles[0]; // берём первый
-          const file = zip.file(txtFile);
-          let content = null;
-          if (file) {
-            content = await file.async('text');
-          }
-          nodes.push({
-            id: name,
-            name: finalName,
-            imageUrl,
-            imageKey,
-            content,
-            // нет children – это лист
-          });
-        } else {
-          // Пустая папка (без подпапок и без .txt) – тоже папка без детей
-          nodes.push({
-            id: name,
-            name: finalName,
-            imageUrl,
-            imageKey,
-            children: [], // пустой массив, чтобы отображалась как папка
-          });
-        }
-      }
-    }
-    return nodes;
-  }
-
-  // Обрабатываем корневую папку
-  let rootChildren: any[] = [];
-  if (rootFolders.size === 1) {
-    const rootPath = Array.from(rootFolders)[0] + '/';
-    rootChildren = await processFolder(rootPath);
-  } else {
-    // Несколько корневых папок – каждая как отдельная категория
-    for (const folder of rootFolders) {
-      const folderPath = folder + '/';
-      const children = await processFolder(folderPath);
-      const { displayName, imageKey } = parseNameWithIcon(folder);
-      const finalName = removeExtension(displayName);
-      const imageUrl = imageKey ? `${STORAGE_URL}${imageKey}.png` : null;
-      rootChildren.push({
-        id: folder,
-        name: finalName,
-        imageUrl,
-        imageKey,
-        children,
-      });
-    }
-  }
-
-  const structure = {
-    id: 'root',
-    name: rootDisplayName,
-    children: rootChildren,
-    imageUrl: rootImageKey ? `${STORAGE_URL}${rootImageKey}.png` : null,
-    imageKey: rootImageKey,
-  };
-
-  console.log('✅ Создана структура (папки всегда узлы, уроки = папки с .txt без подпапок):', structure);
-  return { name: rootDisplayName, structure };
-}
-
 // ========== КОМПОНЕНТЫ ==========
 
+// ---- ВИЗУАЛЬНЫЙ РЕДАКТОР ПРОГРАММ ----
+function ProgramEditor({ initialStructure, onSave, onCancel }: {
+  initialStructure?: any;
+  onSave: (name: string, structure: any) => void;
+  onCancel: () => void;
+}) {
+  const [iconList, setIconList] = useState<string[]>([]);
+  const [loadingIcons, setLoadingIcons] = useState(false);
+
+  const [tree, setTree] = useState<any>(() => {
+    if (initialStructure) {
+      return initialStructure;
+    }
+    return {
+      id: 'root',
+      name: 'Новая программа',
+      children: [],
+      imageKey: null,
+    };
+  });
+
+  useEffect(() => {
+    const fetchIcons = async () => {
+      setLoadingIcons(true);
+      try {
+        const { data, error } = await supabase.storage.from('icons').list();
+        if (error) throw error;
+        const files = data.map(f => f.name);
+        setIconList(files);
+      } catch (e) {
+        console.error('Не удалось загрузить иконки:', e);
+      }
+      setLoadingIcons(false);
+    };
+    fetchIcons();
+  }, []);
+
+  function updateNode(node: any, id: string, updates: any): any {
+    if (node.id === id) {
+      return { ...node, ...updates };
+    }
+    if (node.children) {
+      return {
+        ...node,
+        children: node.children.map((child: any) => updateNode(child, id, updates)),
+      };
+    }
+    return node;
+  }
+
+  function deleteNode(node: any, id: string): any {
+    if (node.children) {
+      const filtered = node.children.filter((child: any) => child.id !== id);
+      return {
+        ...node,
+        children: filtered.map((child: any) => deleteNode(child, id)),
+      };
+    }
+    return node;
+  }
+
+  function addChild(node: any, parentId: string): any {
+    if (node.id === parentId) {
+      if (!node.children) node.children = [];
+      const newChild = {
+        id: Date.now().toString() + Math.random().toString(36).substring(2, 6),
+        name: 'Новый узел',
+        children: [],
+        isLesson: false,
+        content: '',
+        imageKey: null,
+      };
+      node.children.push(newChild);
+      return node;
+    }
+    if (node.children) {
+      return {
+        ...node,
+        children: node.children.map((child: any) => addChild(child, parentId)),
+      };
+    }
+    return node;
+  }
+
+  const handleAddChild = (parentId: string) => {
+    setTree((prev: any) => addChild(prev, parentId));
+  };
+
+  const handleDeleteNode = (nodeId: string) => {
+    if (nodeId === 'root') return;
+    setTree((prev: any) => deleteNode(prev, nodeId));
+  };
+
+  const handleUpdateNode = (nodeId: string, updates: any) => {
+    setTree((prev: any) => updateNode(prev, nodeId, updates));
+  };
+
+  const handleSave = () => {
+    const structure = JSON.parse(JSON.stringify(tree));
+    const programName = tree.name || 'Новая программа';
+    onSave(programName, structure);
+  };
+
+  const renderNode = (node: any, path: string[]) => {
+    const isRoot = node.id === 'root';
+    const isLesson = node.isLesson || false;
+    const iconUrl = node.imageKey ? `${STORAGE_URL}${node.imageKey}` : null;
+    const hasChildren = node.children && node.children.length > 0;
+
+    return (
+      <div key={node.id} style={{ marginLeft: isRoot ? 0 : 20, marginTop: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          {iconUrl ? (
+            <img src={iconUrl} alt="icon" style={{ width: 24, height: 24, borderRadius: '50%' }} />
+          ) : (
+            <span style={{ fontSize: 20 }}>{isLesson ? '📄' : '📁'}</span>
+          )}
+
+          <input
+            type="text"
+            value={node.name}
+            onChange={(e) => handleUpdateNode(node.id, { name: e.target.value })}
+            style={{ background: 'transparent', color: '#fff', border: '1px solid #555', borderRadius: 4, padding: '2px 6px', fontSize: 16, flex: 1 }}
+          />
+
+          <button
+            onClick={() => handleUpdateNode(node.id, { isLesson: !isLesson })}
+            style={{ background: 'transparent', border: '1px solid #555', borderRadius: 4, padding: '2px 6px', color: '#fff', cursor: 'pointer' }}
+            title={isLesson ? 'Сделать папкой' : 'Сделать уроком'}
+          >
+            {isLesson ? '📄' : '📁'}
+          </button>
+
+          <button
+            onClick={() => handleAddChild(node.id)}
+            style={{ background: 'transparent', border: '1px solid #555', borderRadius: 4, padding: '2px 6px', color: '#fff', cursor: 'pointer' }}
+            title="Добавить дочерний узел"
+          >
+            ➕
+          </button>
+
+          {!isRoot && (
+            <button
+              onClick={() => handleDeleteNode(node.id)}
+              style={{ background: 'transparent', border: 'none', color: '#f44336', cursor: 'pointer', fontSize: 18 }}
+              title="Удалить узел"
+            >
+              🗑️
+            </button>
+          )}
+        </div>
+
+        {isLesson && (
+          <div style={{ marginTop: 4, marginLeft: 28 }}>
+            <textarea
+              value={node.content || ''}
+              onChange={(e) => handleUpdateNode(node.id, { content: e.target.value })}
+              placeholder="Содержимое урока..."
+              style={{ width: '100%', minHeight: 60, background: '#2a2a4e', color: '#fff', border: '1px solid #555', borderRadius: 4, padding: 6, resize: 'vertical' }}
+            />
+          </div>
+        )}
+
+        <div style={{ marginLeft: isRoot ? 0 : 28, marginTop: 4, display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center' }}>
+          <span style={{ fontSize: 12, color: '#aaa' }}>Иконка:</span>
+          {loadingIcons ? (
+            <span style={{ fontSize: 12, color: '#aaa' }}>Загрузка...</span>
+          ) : (
+            <>
+              <button
+                onClick={() => handleUpdateNode(node.id, { imageKey: null })}
+                style={{ background: node.imageKey === null ? '#444' : 'transparent', border: '1px solid #555', borderRadius: 4, padding: '2px 6px', color: '#fff', cursor: 'pointer' }}
+              >
+                🚫
+              </button>
+              {iconList.map(file => {
+                const url = STORAGE_URL + file;
+                return (
+                  <button
+                    key={file}
+                    onClick={() => handleUpdateNode(node.id, { imageKey: file })}
+                    style={{
+                      background: node.imageKey === file ? '#444' : 'transparent',
+                      border: '1px solid #555',
+                      borderRadius: 4,
+                      padding: 2,
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      width: 32,
+                      height: 32,
+                    }}
+                  >
+                    <img src={url} alt={file} style={{ width: 24, height: 24, borderRadius: '50%' }} />
+                  </button>
+                );
+              })}
+            </>
+          )}
+        </div>
+
+        {hasChildren && (
+          <div style={{ marginLeft: 20 }}>
+            {node.children.map((child: any) => renderNode(child, [...path, child.id]))}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  return (
+    <div style={{ padding: 20, color: '#fff', backgroundColor: '#1a1a2e', minHeight: '100vh' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+        <h2>Редактор программы</h2>
+        <div>
+          <button onClick={onCancel} style={{ marginRight: 10, padding: '6px 12px', background: '#555', border: 'none', borderRadius: 4, color: '#fff', cursor: 'pointer' }}>Отмена</button>
+          <button onClick={handleSave} style={{ padding: '6px 12px', background: '#4CAF50', border: 'none', borderRadius: 4, color: '#fff', cursor: 'pointer' }}>Сохранить</button>
+        </div>
+      </div>
+      <div style={{ maxWidth: 800 }}>
+        {renderNode(tree, ['root'])}
+      </div>
+    </div>
+  );
+}
+
+// ---- ДЕРЕВО НАВЫКОВ (для отображения) ----
 function buildTreeForDisplay(node: any, progress: Record<string, boolean>): any {
   const isLesson = !node.children || node.children.length === 0;
   if (isLesson) {
@@ -390,7 +459,7 @@ function buildTreeForDisplay(node: any, progress: Record<string, boolean>): any 
       __id: node.id,
       __isLesson: true,
       __completed: completed,
-      __imageUrl: node.imageUrl || null,
+      __imageUrl: node.imageKey ? `${STORAGE_URL}${node.imageKey}` : null,
       __imageKey: node.imageKey || null,
       __content: node.content || null,
     };
@@ -408,7 +477,7 @@ function buildTreeForDisplay(node: any, progress: Record<string, boolean>): any 
       children: node.children.map((child: any) => buildTreeForDisplay(child, progress)),
       __id: node.id,
       __isLesson: false,
-      __imageUrl: node.imageUrl || null,
+      __imageUrl: node.imageKey ? `${STORAGE_URL}${node.imageKey}` : null,
       __imageKey: node.imageKey || null,
     };
   }
@@ -423,7 +492,6 @@ function getAllLessonIds(node: any): string[] {
   return result;
 }
 
-// ========== КАСТОМНЫЙ РЕНДЕР УЗЛА ==========
 const renderCustomNode = ({ nodeDatum, onLessonClick, onToggleLesson }: any) => {
   const isLesson = nodeDatum.__isLesson;
   const completed = nodeDatum.__completed;
@@ -472,64 +540,22 @@ const renderCustomNode = ({ nodeDatum, onLessonClick, onToggleLesson }: any) => 
         />
       )}
 
-      <circle
-        cx="0"
-        cy="0"
-        r={radius}
-        fill="none"
-        stroke="#fff"
-        strokeWidth="2"
-        onClick={handleClick}
-        style={{ pointerEvents: 'none' }}
-      />
+      <circle cx="0" cy="0" r={radius} fill="none" stroke="#fff" strokeWidth="2" onClick={handleClick} style={{ pointerEvents: 'none' }} />
 
       {isLesson && completed && (
         <>
-          <circle
-            cx="0"
-            cy="0"
-            r={radius}
-            fill="rgba(76, 175, 80, 0.4)"
-            stroke="none"
-            onClick={handleClick}
-            style={{ cursor: 'pointer' }}
-          />
-          <text
-            x="0"
-            y="2"
-            fontSize={radius * 0.9}
-            fill="rgba(255, 255, 255, 0.8)"
-            stroke="none"
-            textAnchor="middle"
-            dominantBaseline="central"
-            fontWeight="bold"
-            onClick={handleClick}
-            style={{ cursor: 'pointer' }}
-          >
-            ✓
-          </text>
+          <circle cx="0" cy="0" r={radius} fill="rgba(76, 175, 80, 0.4)" stroke="none" onClick={handleClick} style={{ cursor: 'pointer' }} />
+          <text x="0" y="2" fontSize={radius * 0.9} fill="rgba(255,255,255,0.8)" stroke="none" textAnchor="middle" dominantBaseline="central" fontWeight="bold" onClick={handleClick} style={{ cursor: 'pointer' }}>✓</text>
         </>
       )}
 
-      <text
-        fill={textColor}
-        stroke="none"
-        strokeWidth="0"
-        x={radius + 10}
-        y="4"
-        fontSize={isLesson ? 14 : 16}
-        fontFamily="Arial, sans-serif"
-        textAnchor="start"
-        style={{ fontWeight: isLesson ? 'normal' : 'bold' }}
-        onClick={handleClick}
-      >
+      <text fill={textColor} stroke="none" strokeWidth="0" x={radius + 10} y="4" fontSize={isLesson ? 14 : 16} fontFamily="Arial, sans-serif" textAnchor="start" style={{ fontWeight: isLesson ? 'normal' : 'bold' }} onClick={handleClick}>
         {nodeDatum.name}
       </text>
     </g>
   );
 };
 
-// Компонент дерева
 function SkillTreeView({ structure, progress, onLessonClick, onToggleLesson }: { 
   structure: any; 
   progress: Record<string, boolean>;
@@ -606,54 +632,11 @@ function LessonModal({ isOpen, onClose, title, content }: { isOpen: boolean; onC
   if (!isOpen) return null;
 
   return (
-    <div
-      style={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        width: '100vw',
-        height: '100vh',
-        backgroundColor: 'rgba(0,0,0,0.6)',
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-        zIndex: 999,
-        cursor: 'pointer',
-      }}
-      onClick={onClose}
-    >
-      <div
-        style={{
-          backgroundColor: '#2a2a4e',
-          padding: '30px',
-          borderRadius: '12px',
-          maxWidth: '80%',
-          maxHeight: '80%',
-          overflow: 'auto',
-          cursor: 'default',
-          color: '#fff',
-          boxShadow: '0 8px 32px rgba(0,0,0,0.7)',
-        }}
-        onClick={(e) => e.stopPropagation()}
-      >
+    <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 999, cursor: 'pointer' }} onClick={onClose}>
+      <div style={{ backgroundColor: '#2a2a4e', padding: '30px', borderRadius: '12px', maxWidth: '80%', maxHeight: '80%', overflow: 'auto', cursor: 'default', color: '#fff', boxShadow: '0 8px 32px rgba(0,0,0,0.7)' }} onClick={(e) => e.stopPropagation()}>
         <h2 style={{ marginBottom: '16px', borderBottom: '1px solid #555', paddingBottom: '8px' }}>{title}</h2>
-        <div style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', lineHeight: '1.6' }}>
-          {content || 'Нет содержимого'}
-        </div>
-        <button
-          onClick={onClose}
-          style={{
-            marginTop: '20px',
-            padding: '8px 20px',
-            backgroundColor: '#4CAF50',
-            border: 'none',
-            borderRadius: '6px',
-            color: '#fff',
-            cursor: 'pointer',
-          }}
-        >
-          Закрыть
-        </button>
+        <div style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', lineHeight: '1.6' }}>{content || 'Нет содержимого'}</div>
+        <button onClick={onClose} style={{ marginTop: '20px', padding: '8px 20px', backgroundColor: '#4CAF50', border: 'none', borderRadius: '6px', color: '#fff', cursor: 'pointer' }}>Закрыть</button>
       </div>
     </div>
   );
@@ -677,15 +660,13 @@ function App() {
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
   const [selectedStudentName, setSelectedStudentName] = useState<string | null>(null);
 
-  const [newProgramName, setNewProgramName] = useState('');
-  const [newProgramZip, setNewProgramZip] = useState<File | null>(null);
-  const [uploading, setUploading] = useState(false);
+  const [editingProgramId, setEditingProgramId] = useState<string | null>(null);
+  const [editingStructure, setEditingStructure] = useState<any>(null);
 
   const [modalOpen, setModalOpen] = useState(false);
   const [modalTitle, setModalTitle] = useState('');
   const [modalContent, setModalContent] = useState<string | null>(null);
 
-  // Загрузка данных пользователя
   useEffect(() => {
     const init = async () => {
       const { id, firstName, lastName, username } = extractUserInfoFromHash();
@@ -768,36 +749,48 @@ function App() {
     }
   };
 
-  // Создание программы из ZIP
-  const handleCreateProgramFromZip = async () => {
-    if (!newProgramName.trim()) {
-      alert('Введите название программы');
-      return;
+  const startEditingProgram = (programId: string) => {
+    const prog = programs.find(p => p.id === programId);
+    if (prog) {
+      setEditingProgramId(programId);
+      setEditingStructure(JSON.parse(JSON.stringify(prog.structure)));
+      setView('create');
     }
-    if (!newProgramZip) {
-      alert('Выберите ZIP-архив');
-      return;
-    }
-    setUploading(true);
-    try {
-      const zip = await JSZip.loadAsync(await newProgramZip.arrayBuffer());
-      const { name, structure } = await buildTreeFromZip(zip);
-      const programName = newProgramName.trim() || name;
-      const id = await createProgram(programName, userId, structure);
-      if (id) {
-        alert('Программа успешно создана!');
-        setView('programs');
-        setNewProgramName('');
-        setNewProgramZip(null);
+  };
+
+  const handleSaveProgram = async (name: string, structure: any) => {
+    if (editingProgramId) {
+      await deleteProgram(editingProgramId);
+      const newId = await createProgram(name, userId, structure);
+      if (newId) {
+        alert('Программа обновлена!');
+        setEditingProgramId(null);
+        setEditingStructure(null);
         loadPrograms();
       } else {
-        alert('Ошибка создания программы');
+        alert('Ошибка обновления');
       }
-    } catch (error) {
-      console.error(error);
-      alert('Ошибка при распаковке ZIP. Убедитесь, что файл корректен.');
+    } else {
+      const id = await createProgram(name, userId, structure);
+      if (id) {
+        alert('Программа создана!');
+        loadPrograms();
+      } else {
+        alert('Ошибка создания');
+      }
     }
-    setUploading(false);
+  };
+
+  const handleCreateNewProgram = () => {
+    setEditingProgramId(null);
+    setEditingStructure(null);
+    setView('create');
+  };
+
+  const handleCancelEditor = () => {
+    setEditingProgramId(null);
+    setEditingStructure(null);
+    setView('programs');
   };
 
   const handleDeleteProgram = async (programId: string, programName: string) => {
@@ -883,7 +876,6 @@ function App() {
     setModalContent(null);
   };
 
-  // Realtime подписка
   useEffect(() => {
     if (!userId || userId === 'guest' || !currentProgramId) return;
 
@@ -920,52 +912,14 @@ function App() {
 
   if (isAdmin && view === 'create') {
     return (
-      <div style={{ padding: '20px', color: '#fff', backgroundColor: '#1a1a2e', minHeight: '100vh' }}>
-        <button onClick={() => setView('programs')}>⬅ Назад</button>
-        <h2>Создать программу из ZIP</h2>
-        <div>
-          <label>Название программы (опционально):</label><br />
-          <input
-            type="text"
-            value={newProgramName}
-            onChange={(e) => setNewProgramName(e.target.value)}
-            placeholder="Введите название"
-            style={{ width: '100%', padding: '8px', marginBottom: '10px' }}
-          />
-        </div>
-        <div>
-          <label>Выберите ZIP-архив с папками:</label><br />
-          <input
-            type="file"
-            accept=".zip"
-            onChange={(e) => setNewProgramZip(e.target.files ? e.target.files[0] : null)}
-            style={{ marginBottom: '10px' }}
-          />
-        </div>
-        <div>
-          <button onClick={handleCreateProgramFromZip} disabled={uploading}>
-            {uploading ? 'Загрузка...' : 'Создать программу'}
-          </button>
-        </div>
-        <div style={{ marginTop: '20px', color: '#aaa' }}>
-          <p>
-            <strong>Новая структура:</strong><br />
-            Каждый урок – это папка, внутри которой должен быть файл <code>.txt</code> с содержимым.<br />
-            Категории – это папки, внутри которых лежат папки-уроки.<br />
-            Для иконок добавьте в имя папки ключ в скобках, например <code>Лексика (lexicon)</code>.<br />
-            Файлы на любом уровне, кроме .txt внутри папок-уроков, игнорируются.
-          </p>
-        </div>
-      </div>
+      <ProgramEditor
+        initialStructure={editingStructure}
+        onSave={handleSaveProgram}
+        onCancel={handleCancelEditor}
+      />
     );
   }
 
-  // ... остальной код без изменений (панель учителя, ученик и т.д.) ...
-  // (здесь остаются все остальные блоки из предыдущей версии, они не менялись)
-
-  // Поскольку полный код слишком длинный, я включу его в файл целиком в архиве.
-  // Но для краткости, после этой точки я продолжу, но в реальности код полностью приведён выше.
-  // Продолжаем с уже существующими блоками...
   if (isAdmin && view === 'admin' && currentProgramId) {
     if (selectedStudentId) {
       return (
@@ -1071,7 +1025,7 @@ function App() {
       return (
         <div style={{ padding: '20px', color: '#fff', backgroundColor: '#1a1a2e', minHeight: '100vh' }}>
           <h2>Мои программы</h2>
-          <button onClick={() => setView('create')}>➕ Создать программу (ZIP)</button>
+          <button onClick={handleCreateNewProgram}>➕ Создать программу</button>
           {programs.length === 0 && <p>У вас пока нет программ. Создайте первую!</p>}
           {programs.map(prog => (
             <div 
@@ -1092,12 +1046,20 @@ function App() {
               onClick={() => selectProgram(prog.id)}
             >
               <span>{prog.name}</span>
-              <button 
-                onClick={(e) => { e.stopPropagation(); handleDeleteProgram(prog.id, prog.name); }}
-                style={{ backgroundColor: 'transparent', border: 'none', color: '#f44336', fontSize: '1.2rem', cursor: 'pointer' }}
-              >
-                🗑️
-              </button>
+              <div>
+                <button 
+                  onClick={(e) => { e.stopPropagation(); startEditingProgram(prog.id); }}
+                  style={{ background: 'transparent', border: 'none', color: '#4CAF50', fontSize: '1.2rem', cursor: 'pointer', marginRight: 8 }}
+                >
+                  ✏️
+                </button>
+                <button 
+                  onClick={(e) => { e.stopPropagation(); handleDeleteProgram(prog.id, prog.name); }}
+                  style={{ backgroundColor: 'transparent', border: 'none', color: '#f44336', fontSize: '1.2rem', cursor: 'pointer' }}
+                >
+                  🗑️
+                </button>
+              </div>
             </div>
           ))}
         </div>
