@@ -222,7 +222,6 @@ async function getApplicationStatus(studentId: string, programId: string) {
 
 // ========== КОМПОНЕНТЫ ДЛЯ РЕДАКТОРА ==========
 
-// Рекурсивная функция для обновления узла в дереве
 function updateNodeInTree(tree: any, id: string, updates: any): any {
   if (tree.id === id) {
     return { ...tree, ...updates };
@@ -247,35 +246,49 @@ function deleteNodeFromTree(tree: any, id: string): any {
   return tree;
 }
 
-function addChildWithId(node: any, parentId: string): { newTree: any; newId: string } {
-  if (node.id === parentId) {
-    if (!node.children) node.children = [];
-    const newId = Date.now().toString() + Math.random().toString(36).substring(2, 6);
-    const newChild = {
-      id: newId,
-      name: 'Новый узел',
-      children: [],
-      isLesson: false,
-      content: '',
-      imageKey: null,
-    };
-    node.children.push(newChild);
-    return { newTree: node, newId };
-  }
+function findNode(node: any, id: string): any {
+  if (node.id === id) return node;
   if (node.children) {
-    for (let i = 0; i < node.children.length; i++) {
-      const result = addChildWithId(node.children[i], parentId);
-      if (result) {
-        node.children[i] = result.newTree;
-        return { newTree: node, newId: result.newId };
-      }
+    for (const child of node.children) {
+      const found = findNode(child, id);
+      if (found) return found;
     }
   }
-  return { newTree: node, newId: '' };
+  return null;
 }
 
-// ---- НОВЫЙ РЕНДЕР ДЛЯ РЕДАКТОРА ----
-// Кастомный рендер узла для редактора (все узлы кликабельны)
+function findNodeAndAddChild(tree: any, parentId: string): { newTree: any; newId: string } {
+  function traverse(node: any): { found: boolean; newNode: any; newId: string } {
+    if (node.id === parentId) {
+      const newId = Date.now().toString() + Math.random().toString(36).substring(2, 6);
+      const newChild = {
+        id: newId,
+        name: 'Новый узел',
+        children: [],
+        isLesson: false,
+        content: '',
+        imageKey: null,
+      };
+      const newChildren = node.children ? [...node.children, newChild] : [newChild];
+      return { found: true, newNode: { ...node, children: newChildren }, newId };
+    }
+    if (node.children) {
+      for (let i = 0; i < node.children.length; i++) {
+        const result = traverse(node.children[i]);
+        if (result.found) {
+          const newChildren = [...node.children];
+          newChildren[i] = result.newNode;
+          return { found: true, newNode: { ...node, children: newChildren }, newId: result.newId };
+        }
+      }
+    }
+    return { found: false, newNode: node, newId: '' };
+  }
+  const result = traverse(tree);
+  return { newTree: result.newNode, newId: result.newId };
+}
+
+// Рендер узла для редактора
 const renderEditorNode = ({ nodeDatum, onNodeClick }: any) => {
   const isLesson = nodeDatum.isLesson || false;
   const imageUrl = nodeDatum.imageKey ? `${STORAGE_URL}${nodeDatum.imageKey}` : null;
@@ -338,7 +351,7 @@ const renderEditorNode = ({ nodeDatum, onNodeClick }: any) => {
   );
 };
 
-// Функция построения дерева для редактора (без прогресса, сохраняет все поля)
+// Функция построения дерева для редактора (без прогресса)
 function buildEditorTree(node: any): any {
   return {
     name: node.name,
@@ -371,7 +384,7 @@ function EditableTreeView({ structure, onNodeClick }: { structure: any; onNodeCl
   );
 }
 
-// ---- ВИЗУАЛЬНЫЙ РЕДАКТОР ПРОГРАММ ----
+// ========== ВИЗУАЛЬНЫЙ РЕДАКТОР ПРОГРАММ ==========
 function ProgramEditor({ initialStructure, onSave, onCancel }: {
   initialStructure?: any;
   onSave: (name: string, structure: any) => void;
@@ -383,12 +396,19 @@ function ProgramEditor({ initialStructure, onSave, onCancel }: {
     }
     return {
       id: 'root',
-      name: 'Новая программа',
+      name: 'Корневой узел',
       children: [],
       isLesson: false,
       content: '',
       imageKey: null,
     };
+  });
+
+  const [programName, setProgramName] = useState(() => {
+    if (initialStructure) {
+      return initialStructure.name || 'Новая программа';
+    }
+    return 'Новая программа';
   });
 
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
@@ -400,7 +420,6 @@ function ProgramEditor({ initialStructure, onSave, onCancel }: {
   const [loadingIcons, setLoadingIcons] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
 
-  // Загрузка списка иконок
   useEffect(() => {
     const fetchIcons = async () => {
       setLoadingIcons(true);
@@ -417,7 +436,6 @@ function ProgramEditor({ initialStructure, onSave, onCancel }: {
     fetchIcons();
   }, []);
 
-  // Открытие модалки редактирования узла
   const openEditor = (nodeId: string) => {
     const node = findNode(tree, nodeId);
     if (node) {
@@ -435,19 +453,6 @@ function ProgramEditor({ initialStructure, onSave, onCancel }: {
     setSelectedNodeId(null);
   };
 
-  // Найти узел по id
-  function findNode(node: any, id: string): any {
-    if (node.id === id) return node;
-    if (node.children) {
-      for (const child of node.children) {
-        const found = findNode(child, id);
-        if (found) return found;
-      }
-    }
-    return null;
-  }
-
-  // Сохранить изменения узла
   const saveNode = () => {
     if (!selectedNodeId) return;
     const updates: any = {
@@ -465,7 +470,7 @@ function ProgramEditor({ initialStructure, onSave, onCancel }: {
 
   const handleAddChild = () => {
     if (!selectedNodeId) return;
-    const { newTree, newId } = addChildWithId(tree, selectedNodeId);
+    const { newTree, newId } = findNodeAndAddChild(tree, selectedNodeId);
     setTree(newTree);
     if (newId) {
       setSelectedNodeId(newId);
@@ -490,7 +495,6 @@ function ProgramEditor({ initialStructure, onSave, onCancel }: {
 
   const handleSaveProgram = () => {
     const structure = JSON.parse(JSON.stringify(tree));
-    const programName = tree.name || 'Новая программа';
     onSave(programName, structure);
   };
 
@@ -627,7 +631,13 @@ function ProgramEditor({ initialStructure, onSave, onCancel }: {
   return (
     <div style={{ padding: 20, color: '#fff', backgroundColor: '#1a1a2e', minHeight: '100vh' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-        <h2>Редактор программы</h2>
+        <input
+          type="text"
+          value={programName}
+          onChange={(e) => setProgramName(e.target.value)}
+          style={{ background: 'transparent', color: '#fff', border: '1px solid #555', borderRadius: 4, padding: '4px 8px', fontSize: 20, fontWeight: 'bold', flex: 1, marginRight: 10 }}
+          placeholder="Название программы"
+        />
         <div>
           <button onClick={onCancel} style={{ marginRight: 10, padding: '6px 12px', background: '#555', border: 'none', borderRadius: 4, color: '#fff', cursor: 'pointer' }}>Отмена</button>
           <button onClick={handleSaveProgram} style={{ padding: '6px 12px', background: '#4CAF50', border: 'none', borderRadius: 4, color: '#fff', cursor: 'pointer' }}>Сохранить</button>
