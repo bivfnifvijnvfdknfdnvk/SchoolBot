@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Tree from 'react-d3-tree';
 import { supabase } from './supabaseClient';
 import './App.css';
@@ -363,17 +363,34 @@ function buildEditorTree(node: any): any {
   };
 }
 
-// Компонент дерева для редактора
+// Компонент дерева для редактора (с центрированием корня и направлением вверх)
 function EditableTreeView({ structure, onNodeClick }: { structure: any; onNodeClick: (nodeId: string) => void }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [translate, setTranslate] = useState({ x: 400, y: 100 });
+
+  useEffect(() => {
+    const updateTranslate = () => {
+      if (containerRef.current) {
+        const width = containerRef.current.clientWidth;
+        const height = containerRef.current.clientHeight;
+        // Центрируем корень по горизонтали, по вертикали ставим снизу (чтобы дерево росло вверх)
+        setTranslate({ x: width / 2, y: height - 150 });
+      }
+    };
+    updateTranslate();
+    window.addEventListener('resize', updateTranslate);
+    return () => window.removeEventListener('resize', updateTranslate);
+  }, []);
+
   const treeData = buildEditorTree(structure);
   return (
-    <div style={{ width: '100%', height: '100%', backgroundColor: '#1a1a2e' }}>
+    <div ref={containerRef} style={{ width: '100%', height: '100%', backgroundColor: '#1a1a2e' }}>
       <Tree
         data={treeData}
         orientation="vertical"
         pathFunc="step"
         renderCustomNodeElement={(props) => renderEditorNode({ ...props, onNodeClick })}
-        translate={{ x: 400, y: 100 }}
+        translate={translate}
         zoomable={true}
         draggable={true}
         separation={{ siblings: 1.5, nonSiblings: 1.5 }}
@@ -606,15 +623,14 @@ function ProgramEditor({ initialStructure, onSave, onCancel }: {
             </div>
           </div>
           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '16px' }}>
+            {/* Кнопка добавления потомка доступна для всех узлов, включая корень */}
+            <button onClick={handleAddChild} style={{ background: '#4CAF50', border: 'none', padding: '8px 16px', borderRadius: '4px', color: '#fff', cursor: 'pointer' }}>
+              ➕ Добавить потомка
+            </button>
             {!isRoot && (
-              <>
-                <button onClick={handleAddChild} style={{ background: '#4CAF50', border: 'none', padding: '8px 16px', borderRadius: '4px', color: '#fff', cursor: 'pointer' }}>
-                  ➕ Добавить потомка
-                </button>
-                <button onClick={handleDeleteNode} style={{ background: '#f44336', border: 'none', padding: '8px 16px', borderRadius: '4px', color: '#fff', cursor: 'pointer' }}>
-                  🗑️ Удалить
-                </button>
-              </>
+              <button onClick={handleDeleteNode} style={{ background: '#f44336', border: 'none', padding: '8px 16px', borderRadius: '4px', color: '#fff', cursor: 'pointer' }}>
+                🗑️ Удалить
+              </button>
             )}
             <button onClick={saveNode} style={{ background: '#2196F3', border: 'none', padding: '8px 16px', borderRadius: '4px', color: '#fff', cursor: 'pointer' }}>
               💾 Сохранить
