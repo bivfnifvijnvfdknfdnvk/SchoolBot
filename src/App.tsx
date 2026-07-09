@@ -220,7 +220,144 @@ async function getApplicationStatus(studentId: string, programId: string) {
   return data;
 }
 
-// ========== КОМПОНЕНТЫ ==========
+// ========== КОМПОНЕНТЫ ДЛЯ РЕДАКТОРА ==========
+
+// Рекурсивная функция для обновления узла в дереве
+function updateNodeInTree(tree: any, id: string, updates: any): any {
+  if (tree.id === id) {
+    return { ...tree, ...updates };
+  }
+  if (tree.children) {
+    return {
+      ...tree,
+      children: tree.children.map((child: any) => updateNodeInTree(child, id, updates)),
+    };
+  }
+  return tree;
+}
+
+function deleteNodeFromTree(tree: any, id: string): any {
+  if (tree.children) {
+    const filtered = tree.children.filter((child: any) => child.id !== id);
+    return {
+      ...tree,
+      children: filtered.map((child: any) => deleteNodeFromTree(child, id)),
+    };
+  }
+  return tree;
+}
+
+function addChildWithId(node: any, parentId: string): { newTree: any; newId: string } {
+  if (node.id === parentId) {
+    if (!node.children) node.children = [];
+    const newId = Date.now().toString() + Math.random().toString(36).substring(2, 6);
+    const newChild = {
+      id: newId,
+      name: 'Новый узел',
+      children: [],
+      isLesson: false,
+      content: '',
+      imageKey: null,
+    };
+    node.children.push(newChild);
+    return { newTree: node, newId };
+  }
+  if (node.children) {
+    for (let i = 0; i < node.children.length; i++) {
+      const result = addChildWithId(node.children[i], parentId);
+      if (result) {
+        node.children[i] = result.newTree;
+        return { newTree: node, newId: result.newId };
+      }
+    }
+  }
+  return { newTree: node, newId: '' };
+}
+
+// Кастомный рендер узла для редактора (все узлы кликабельны)
+const renderEditorNode = ({ nodeDatum, onNodeClick }: any) => {
+  const isLesson = nodeDatum.isLesson || false;
+  const imageUrl = nodeDatum.imageKey ? `${STORAGE_URL}${nodeDatum.imageKey}` : null;
+  const radius = 24;
+
+  const handleClick = (e: any) => {
+    e.stopPropagation();
+    if (onNodeClick) {
+      onNodeClick(nodeDatum.id);
+    }
+  };
+
+  const clipId = `clip-${nodeDatum.id || Math.random().toString(36).substring(2, 10)}`;
+
+  return (
+    <g>
+      <defs>
+        <clipPath id={clipId}>
+          <circle cx="0" cy="0" r={radius} />
+        </clipPath>
+      </defs>
+
+      {imageUrl ? (
+        <image
+          href={imageUrl}
+          x="-24" y="-24"
+          width="48" height="48"
+          clipPath={`url(#${clipId})`}
+          preserveAspectRatio="xMidYMid slice"
+          onClick={handleClick}
+          style={{ cursor: 'pointer' }}
+        />
+      ) : (
+        <circle
+          r={radius}
+          fill={isLesson ? '#FF9800' : '#2196F3'}
+          stroke="none"
+          onClick={handleClick}
+          style={{ cursor: 'pointer' }}
+        />
+      )}
+
+      <circle cx="0" cy="0" r={radius} fill="none" stroke="#fff" strokeWidth="2" onClick={handleClick} style={{ pointerEvents: 'none' }} />
+
+      <text
+        fill="#fff"
+        stroke="none"
+        strokeWidth="0"
+        x={radius + 10}
+        y="4"
+        fontSize={14}
+        fontFamily="Arial, sans-serif"
+        textAnchor="start"
+        style={{ fontWeight: 'normal' }}
+        onClick={handleClick}
+      >
+        {nodeDatum.name}
+      </text>
+    </g>
+  );
+};
+
+// Компонент дерева для редактора
+function EditableTreeView({ structure, onNodeClick }: { structure: any; onNodeClick: (nodeId: string) => void }) {
+  // Преобразуем структуру для отображения (без прогресса)
+  const treeData = buildTreeForDisplay(structure, {}); // прогресс пустой
+  return (
+    <div style={{ width: '100%', height: '100%', minHeight: '500px', backgroundColor: '#1a1a2e' }}>
+      <Tree
+        data={treeData}
+        orientation="vertical"
+        pathFunc="step"
+        renderCustomNodeElement={(props) => renderEditorNode({ ...props, onNodeClick })}
+        translate={{ x: 400, y: 100 }}
+        zoomable={true}
+        draggable={true}
+        separation={{ siblings: 1.5, nonSiblings: 1.5 }}
+        nodeSize={{ x: 200, y: 100 }}
+        collapsible={false}
+      />
+    </div>
+  );
+}
 
 // ---- ВИЗУАЛЬНЫЙ РЕДАКТОР ПРОГРАММ ----
 function ProgramEditor({ initialStructure, onSave, onCancel }: {
@@ -228,9 +365,6 @@ function ProgramEditor({ initialStructure, onSave, onCancel }: {
   onSave: (name: string, structure: any) => void;
   onCancel: () => void;
 }) {
-  const [iconList, setIconList] = useState<string[]>([]);
-  const [loadingIcons, setLoadingIcons] = useState(false);
-
   const [tree, setTree] = useState<any>(() => {
     if (initialStructure) {
       return initialStructure;
@@ -239,10 +373,22 @@ function ProgramEditor({ initialStructure, onSave, onCancel }: {
       id: 'root',
       name: 'Новая программа',
       children: [],
+      isLesson: false,
+      content: '',
       imageKey: null,
     };
   });
 
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editIsLesson, setEditIsLesson] = useState(false);
+  const [editContent, setEditContent] = useState('');
+  const [editImageKey, setEditImageKey] = useState<string | null>(null);
+  const [iconList, setIconList] = useState<string[]>([]);
+  const [loadingIcons, setLoadingIcons] = useState(false);
+  const [modalOpen, setModalOpen] = useState(false);
+
+  // Загрузка списка иконок
   useEffect(() => {
     const fetchIcons = async () => {
       setLoadingIcons(true);
@@ -259,176 +405,209 @@ function ProgramEditor({ initialStructure, onSave, onCancel }: {
     fetchIcons();
   }, []);
 
-  function updateNode(node: any, id: string, updates: any): any {
-    if (node.id === id) {
-      return { ...node, ...updates };
+  // Открытие модалки редактирования узла
+  const openEditor = (nodeId: string) => {
+    const node = findNode(tree, nodeId);
+    if (node) {
+      setSelectedNodeId(nodeId);
+      setEditName(node.name || '');
+      setEditIsLesson(node.isLesson || false);
+      setEditContent(node.content || '');
+      setEditImageKey(node.imageKey || null);
+      setModalOpen(true);
     }
-    if (node.children) {
-      return {
-        ...node,
-        children: node.children.map((child: any) => updateNode(child, id, updates)),
-      };
-    }
-    return node;
-  }
-
-  function deleteNode(node: any, id: string): any {
-    if (node.children) {
-      const filtered = node.children.filter((child: any) => child.id !== id);
-      return {
-        ...node,
-        children: filtered.map((child: any) => deleteNode(child, id)),
-      };
-    }
-    return node;
-  }
-
-  function addChild(node: any, parentId: string): any {
-    if (node.id === parentId) {
-      if (!node.children) node.children = [];
-      const newChild = {
-        id: Date.now().toString() + Math.random().toString(36).substring(2, 6),
-        name: 'Новый узел',
-        children: [],
-        isLesson: false,
-        content: '',
-        imageKey: null,
-      };
-      node.children.push(newChild);
-      return node;
-    }
-    if (node.children) {
-      return {
-        ...node,
-        children: node.children.map((child: any) => addChild(child, parentId)),
-      };
-    }
-    return node;
-  }
-
-  const handleAddChild = (parentId: string) => {
-    setTree((prev: any) => addChild(prev, parentId));
   };
 
-  const handleDeleteNode = (nodeId: string) => {
-    if (nodeId === 'root') return;
-    setTree((prev: any) => deleteNode(prev, nodeId));
+  const closeEditor = () => {
+    setModalOpen(false);
+    setSelectedNodeId(null);
   };
 
-  const handleUpdateNode = (nodeId: string, updates: any) => {
-    setTree((prev: any) => updateNode(prev, nodeId, updates));
+  // Найти узел по id
+  function findNode(node: any, id: string): any {
+    if (node.id === id) return node;
+    if (node.children) {
+      for (const child of node.children) {
+        const found = findNode(child, id);
+        if (found) return found;
+      }
+    }
+    return null;
+  }
+
+  // Сохранить изменения узла
+  const saveNode = () => {
+    if (!selectedNodeId) return;
+    const updates: any = {
+      name: editName,
+      isLesson: editIsLesson,
+      content: editContent,
+      imageKey: editImageKey,
+    };
+    if (editIsLesson) {
+      updates.children = [];
+    }
+    setTree((prev: any) => updateNodeInTree(prev, selectedNodeId, updates));
+    closeEditor();
   };
 
-  const handleSave = () => {
+  const handleAddChild = () => {
+    if (!selectedNodeId) return;
+    const { newTree, newId } = addChildWithId(tree, selectedNodeId);
+    setTree(newTree);
+    if (newId) {
+      setSelectedNodeId(newId);
+      setEditName('Новый узел');
+      setEditIsLesson(false);
+      setEditContent('');
+      setEditImageKey(null);
+      setModalOpen(true);
+    }
+  };
+
+  const handleDeleteNode = () => {
+    if (!selectedNodeId || selectedNodeId === 'root') return;
+    if (!confirm(`Удалить узел "${editName}"?`)) return;
+    setTree((prev: any) => deleteNodeFromTree(prev, selectedNodeId));
+    closeEditor();
+  };
+
+  const handleNodeClick = (nodeId: string) => {
+    openEditor(nodeId);
+  };
+
+  const handleSaveProgram = () => {
     const structure = JSON.parse(JSON.stringify(tree));
     const programName = tree.name || 'Новая программа';
     onSave(programName, structure);
   };
 
-  const renderNode = (node: any, path: string[]) => {
-    const isRoot = node.id === 'root';
-    const isLesson = node.isLesson || false;
-    const iconUrl = node.imageKey ? `${STORAGE_URL}${node.imageKey}` : null;
-    const hasChildren = node.children && node.children.length > 0;
+  const renderModal = () => {
+    if (!modalOpen || !selectedNodeId) return null;
+    const isRoot = selectedNodeId === 'root';
 
     return (
-      <div key={node.id} style={{ marginLeft: isRoot ? 0 : 20, marginTop: 8 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-          {iconUrl ? (
-            <img src={iconUrl} alt="icon" style={{ width: 24, height: 24, borderRadius: '50%' }} />
-          ) : (
-            <span style={{ fontSize: 20 }}>{isLesson ? '📄' : '📁'}</span>
-          )}
-
-          <input
-            type="text"
-            value={node.name}
-            onChange={(e) => handleUpdateNode(node.id, { name: e.target.value })}
-            style={{ background: 'transparent', color: '#fff', border: '1px solid #555', borderRadius: 4, padding: '2px 6px', fontSize: 16, flex: 1 }}
-          />
-
-          <button
-            onClick={() => handleUpdateNode(node.id, { isLesson: !isLesson })}
-            style={{ background: 'transparent', border: '1px solid #555', borderRadius: 4, padding: '2px 6px', color: '#fff', cursor: 'pointer' }}
-            title={isLesson ? 'Сделать папкой' : 'Сделать уроком'}
-          >
-            {isLesson ? '📄' : '📁'}
-          </button>
-
-          <button
-            onClick={() => handleAddChild(node.id)}
-            style={{ background: 'transparent', border: '1px solid #555', borderRadius: 4, padding: '2px 6px', color: '#fff', cursor: 'pointer' }}
-            title="Добавить дочерний узел"
-          >
-            ➕
-          </button>
-
-          {!isRoot && (
-            <button
-              onClick={() => handleDeleteNode(node.id)}
-              style={{ background: 'transparent', border: 'none', color: '#f44336', cursor: 'pointer', fontSize: 18 }}
-              title="Удалить узел"
-            >
-              🗑️
-            </button>
-          )}
-        </div>
-
-        {isLesson && (
-          <div style={{ marginTop: 4, marginLeft: 28 }}>
-            <textarea
-              value={node.content || ''}
-              onChange={(e) => handleUpdateNode(node.id, { content: e.target.value })}
-              placeholder="Содержимое урока..."
-              style={{ width: '100%', minHeight: 60, background: '#2a2a4e', color: '#fff', border: '1px solid #555', borderRadius: 4, padding: 6, resize: 'vertical' }}
+      <div
+        style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          width: '100vw',
+          height: '100vh',
+          backgroundColor: 'rgba(0,0,0,0.6)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 999,
+        }}
+        onClick={closeEditor}
+      >
+        <div
+          style={{
+            backgroundColor: '#2a2a4e',
+            padding: '30px',
+            borderRadius: '12px',
+            maxWidth: '500px',
+            width: '90%',
+            maxHeight: '80%',
+            overflow: 'auto',
+            color: '#fff',
+            boxShadow: '0 8px 32px rgba(0,0,0,0.7)',
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <h2 style={{ marginBottom: '16px' }}>Редактировать узел</h2>
+          <div style={{ marginBottom: '12px' }}>
+            <label>Название</label>
+            <input
+              type="text"
+              value={editName}
+              onChange={(e) => setEditName(e.target.value)}
+              style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #555', background: '#1a1a2e', color: '#fff' }}
             />
           </div>
-        )}
-
-        <div style={{ marginLeft: isRoot ? 0 : 28, marginTop: 4, display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center' }}>
-          <span style={{ fontSize: 12, color: '#aaa' }}>Иконка:</span>
-          {loadingIcons ? (
-            <span style={{ fontSize: 12, color: '#aaa' }}>Загрузка...</span>
-          ) : (
-            <>
+          <div style={{ marginBottom: '12px' }}>
+            <label>Тип</label>
+            <div>
               <button
-                onClick={() => handleUpdateNode(node.id, { imageKey: null })}
-                style={{ background: node.imageKey === null ? '#444' : 'transparent', border: '1px solid #555', borderRadius: 4, padding: '2px 6px', color: '#fff', cursor: 'pointer' }}
+                onClick={() => setEditIsLesson(false)}
+                style={{ background: editIsLesson ? '#555' : '#4CAF50', border: 'none', padding: '6px 12px', borderRadius: '4px', color: '#fff', cursor: 'pointer', marginRight: '8px' }}
+              >
+                📁 Папка
+              </button>
+              <button
+                onClick={() => setEditIsLesson(true)}
+                style={{ background: editIsLesson ? '#4CAF50' : '#555', border: 'none', padding: '6px 12px', borderRadius: '4px', color: '#fff', cursor: 'pointer' }}
+              >
+                📄 Урок
+              </button>
+            </div>
+          </div>
+          {editIsLesson && (
+            <div style={{ marginBottom: '12px' }}>
+              <label>Содержимое урока</label>
+              <textarea
+                value={editContent}
+                onChange={(e) => setEditContent(e.target.value)}
+                rows={4}
+                style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #555', background: '#1a1a2e', color: '#fff', resize: 'vertical' }}
+              />
+            </div>
+          )}
+          <div style={{ marginBottom: '12px' }}>
+            <label>Иконка</label>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '4px' }}>
+              <button
+                onClick={() => setEditImageKey(null)}
+                style={{ background: editImageKey === null ? '#444' : 'transparent', border: '1px solid #555', borderRadius: '4px', padding: '4px 8px', color: '#fff', cursor: 'pointer' }}
               >
                 🚫
               </button>
-              {iconList.map(file => {
-                const url = STORAGE_URL + file;
-                return (
+              {loadingIcons ? (
+                <span>Загрузка...</span>
+              ) : (
+                iconList.map(file => (
                   <button
                     key={file}
-                    onClick={() => handleUpdateNode(node.id, { imageKey: file })}
+                    onClick={() => setEditImageKey(file)}
                     style={{
-                      background: node.imageKey === file ? '#444' : 'transparent',
+                      background: editImageKey === file ? '#444' : 'transparent',
                       border: '1px solid #555',
-                      borderRadius: 4,
+                      borderRadius: '4px',
                       padding: 2,
                       cursor: 'pointer',
-                      display: 'inline-flex',
+                      width: 36,
+                      height: 36,
+                      display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      width: 32,
-                      height: 32,
                     }}
                   >
-                    <img src={url} alt={file} style={{ width: 24, height: 24, borderRadius: '50%' }} />
+                    <img src={`${STORAGE_URL}${file}`} alt={file} style={{ width: 28, height: 28, borderRadius: '50%' }} />
                   </button>
-                );
-              })}
-            </>
-          )}
-        </div>
-
-        {hasChildren && (
-          <div style={{ marginLeft: 20 }}>
-            {node.children.map((child: any) => renderNode(child, [...path, child.id]))}
+                ))
+              )}
+            </div>
           </div>
-        )}
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '16px' }}>
+            {!isRoot && (
+              <>
+                <button onClick={handleAddChild} style={{ background: '#4CAF50', border: 'none', padding: '8px 16px', borderRadius: '4px', color: '#fff', cursor: 'pointer' }}>
+                  ➕ Добавить потомка
+                </button>
+                <button onClick={handleDeleteNode} style={{ background: '#f44336', border: 'none', padding: '8px 16px', borderRadius: '4px', color: '#fff', cursor: 'pointer' }}>
+                  🗑️ Удалить
+                </button>
+              </>
+            )}
+            <button onClick={saveNode} style={{ background: '#2196F3', border: 'none', padding: '8px 16px', borderRadius: '4px', color: '#fff', cursor: 'pointer' }}>
+              💾 Сохранить
+            </button>
+            <button onClick={closeEditor} style={{ background: '#555', border: 'none', padding: '8px 16px', borderRadius: '4px', color: '#fff', cursor: 'pointer' }}>
+              ❌ Закрыть
+            </button>
+          </div>
+        </div>
       </div>
     );
   };
@@ -439,17 +618,19 @@ function ProgramEditor({ initialStructure, onSave, onCancel }: {
         <h2>Редактор программы</h2>
         <div>
           <button onClick={onCancel} style={{ marginRight: 10, padding: '6px 12px', background: '#555', border: 'none', borderRadius: 4, color: '#fff', cursor: 'pointer' }}>Отмена</button>
-          <button onClick={handleSave} style={{ padding: '6px 12px', background: '#4CAF50', border: 'none', borderRadius: 4, color: '#fff', cursor: 'pointer' }}>Сохранить</button>
+          <button onClick={handleSaveProgram} style={{ padding: '6px 12px', background: '#4CAF50', border: 'none', borderRadius: 4, color: '#fff', cursor: 'pointer' }}>Сохранить</button>
         </div>
       </div>
-      <div style={{ maxWidth: 800 }}>
-        {renderNode(tree, ['root'])}
+      <div style={{ border: '1px solid #555', borderRadius: 8, padding: 10, minHeight: '500px' }}>
+        <EditableTreeView structure={tree} onNodeClick={handleNodeClick} />
       </div>
+      {renderModal()}
     </div>
   );
 }
 
-// ---- ДЕРЕВО НАВЫКОВ (для отображения) ----
+// ========== КОМПОНЕНТЫ ДЛЯ ОТОБРАЖЕНИЯ ==========
+
 function buildTreeForDisplay(node: any, progress: Record<string, boolean>): any {
   const isLesson = !node.children || node.children.length === 0;
   if (isLesson) {
@@ -581,7 +762,6 @@ function SkillTreeView({ structure, progress, onLessonClick, onToggleLesson }: {
   );
 }
 
-// Список доступных программ для ученика
 function StudentProgramList({ userId, onApply, existingProgramIds }: { userId: string; onApply: (programId: string) => void; existingProgramIds: string[] }) {
   const [availablePrograms, setAvailablePrograms] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -627,7 +807,6 @@ function StudentProgramList({ userId, onApply, existingProgramIds }: { userId: s
   );
 }
 
-// ========== МОДАЛЬНОЕ ОКНО ==========
 function LessonModal({ isOpen, onClose, title, content }: { isOpen: boolean; onClose: () => void; title: string; content: string | null }) {
   if (!isOpen) return null;
 
