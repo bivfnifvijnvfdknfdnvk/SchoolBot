@@ -837,6 +837,41 @@ function App() {
     setModalContent(null);
   };
 
+// ========== Realtime: подписка на обновления прогресса ==========
+useEffect(() => {
+  if (!userId || userId === 'guest' || !currentProgramId) return;
+
+  const channel = supabase
+    .channel(`progress-${userId}-${currentProgramId}`)
+    .on(
+      'postgres_changes',
+      {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'progress',
+        filter: `user_id=eq.${userId},program_id=eq.${currentProgramId}`,
+      },
+      (payload) => {
+        const { lesson_id, completed } = payload.new;
+        setProgress(prev => ({
+          ...prev,
+          [lesson_id]: completed,
+        }));
+      }
+    )
+    .subscribe();
+
+  return () => {
+    supabase.removeChannel(channel);
+  };
+}, [userId, currentProgramId]);
+
+// ========== ОТРИСОВКА ==========
+if (userId === 'guest') {
+  return <div style={{ color: '#fff', padding: '20px' }}>Загрузка...</div>;
+}
+// ... остальной код
+
   // ========== ОТРИСОВКА ==========
 
   if (userId === 'guest') {
