@@ -288,7 +288,7 @@ function findNodeAndAddChild(tree: any, parentId: string): { newTree: any; newId
   return { newTree: result.newNode, newId: result.newId };
 }
 
-// Рендер узла для редактора
+// Рендер узла для редактора (с обратным переворотом текста)
 const renderEditorNode = ({ nodeDatum, onNodeClick }: any) => {
   const isLesson = nodeDatum.isLesson || false;
   const imageUrl = nodeDatum.imageKey ? `${STORAGE_URL}${nodeDatum.imageKey}` : null;
@@ -342,7 +342,7 @@ const renderEditorNode = ({ nodeDatum, onNodeClick }: any) => {
         fontSize={14}
         fontFamily="Arial, sans-serif"
         textAnchor="start"
-        style={{ fontWeight: 'normal' }}
+        style={{ fontWeight: 'normal', transform: 'scaleY(-1)' }} // переворачиваем текст обратно
         onClick={handleClick}
       >
         {nodeDatum.name}
@@ -363,7 +363,7 @@ function buildEditorTree(node: any): any {
   };
 }
 
-// Компонент дерева для редактора (с центрированием корня и направлением вверх)
+// Компонент дерева для редактора (с переворотом, чтобы ветви росли вверх)
 function EditableTreeView({ structure, onNodeClick }: { structure: any; onNodeClick: (nodeId: string) => void }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [translate, setTranslate] = useState({ x: 400, y: 100 });
@@ -373,7 +373,7 @@ function EditableTreeView({ structure, onNodeClick }: { structure: any; onNodeCl
       if (containerRef.current) {
         const width = containerRef.current.clientWidth;
         const height = containerRef.current.clientHeight;
-        // Центрируем корень по горизонтали, по вертикали ставим снизу (чтобы дерево росло вверх)
+        // Корень внизу, но так как мы переворачиваем, координаты считаем от низа
         setTranslate({ x: width / 2, y: height - 150 });
       }
     };
@@ -384,7 +384,7 @@ function EditableTreeView({ structure, onNodeClick }: { structure: any; onNodeCl
 
   const treeData = buildEditorTree(structure);
   return (
-    <div ref={containerRef} style={{ width: '100%', height: '100%', backgroundColor: '#1a1a2e' }}>
+    <div ref={containerRef} style={{ width: '100%', height: '100%', backgroundColor: '#1a1a2e', transform: 'scaleY(-1)' }}>
       <Tree
         data={treeData}
         orientation="vertical"
@@ -487,16 +487,10 @@ function ProgramEditor({ initialStructure, onSave, onCancel }: {
 
   const handleAddChild = () => {
     if (!selectedNodeId) return;
-    const { newTree, newId } = findNodeAndAddChild(tree, selectedNodeId);
+    const { newTree } = findNodeAndAddChild(tree, selectedNodeId);
     setTree(newTree);
-    if (newId) {
-      setSelectedNodeId(newId);
-      setEditName('Новый узел');
-      setEditIsLesson(false);
-      setEditContent('');
-      setEditImageKey(null);
-      setModalOpen(true);
-    }
+    // Закрываем модалку, но не открываем редактор для нового узла
+    closeEditor();
   };
 
   const handleDeleteNode = () => {
@@ -623,9 +617,8 @@ function ProgramEditor({ initialStructure, onSave, onCancel }: {
             </div>
           </div>
           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '16px' }}>
-            {/* Кнопка добавления потомка доступна для всех узлов, включая корень */}
             <button onClick={handleAddChild} style={{ background: '#4CAF50', border: 'none', padding: '8px 16px', borderRadius: '4px', color: '#fff', cursor: 'pointer' }}>
-              ➕ Добавить потомка
+              ➕ Добавить узел
             </button>
             {!isRoot && (
               <button onClick={handleDeleteNode} style={{ background: '#f44336', border: 'none', padding: '8px 16px', borderRadius: '4px', color: '#fff', cursor: 'pointer' }}>
@@ -683,14 +676,8 @@ function buildTreeForDisplay(node: any, progress: Record<string, boolean>): any 
       __content: node.content || null,
     };
   } else {
-    const lessonIds = getAllLessonIds(node);
-    const total = lessonIds.length;
-    let completedCount = 0;
-    lessonIds.forEach(id => {
-      if (progress[id]) completedCount++;
-    });
-    const percent = total === 0 ? 0 : Math.round((completedCount / total) * 100);
-    const displayName = `${node.name} (${percent}%)`;
+    // Папка – убираем проценты
+    const displayName = node.name;
     return {
       name: displayName,
       children: node.children.map((child: any) => buildTreeForDisplay(child, progress)),
@@ -700,15 +687,6 @@ function buildTreeForDisplay(node: any, progress: Record<string, boolean>): any 
       __imageKey: node.imageKey || null,
     };
   }
-}
-
-function getAllLessonIds(node: any): string[] {
-  if (!node.children) return [node.id];
-  let result: string[] = [];
-  node.children.forEach((child: any) => {
-    result = result.concat(getAllLessonIds(child));
-  });
-  return result;
 }
 
 const renderCustomNode = ({ nodeDatum, onLessonClick, onToggleLesson }: any) => {
