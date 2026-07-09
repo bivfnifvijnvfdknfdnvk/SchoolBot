@@ -339,10 +339,9 @@ const renderEditorNode = ({ nodeDatum, onNodeClick }: any) => {
 
 // Компонент дерева для редактора
 function EditableTreeView({ structure, onNodeClick }: { structure: any; onNodeClick: (nodeId: string) => void }) {
-  // Преобразуем структуру для отображения (без прогресса)
-  const treeData = buildTreeForDisplay(structure, {}); // прогресс пустой
+  const treeData = buildTreeForDisplay(structure, {});
   return (
-    <div style={{ width: '100%', height: '100%', minHeight: '500px', backgroundColor: '#1a1a2e' }}>
+    <div style={{ width: '100%', height: '100%', backgroundColor: '#1a1a2e' }}>
       <Tree
         data={treeData}
         orientation="vertical"
@@ -621,8 +620,8 @@ function ProgramEditor({ initialStructure, onSave, onCancel }: {
           <button onClick={handleSaveProgram} style={{ padding: '6px 12px', background: '#4CAF50', border: 'none', borderRadius: 4, color: '#fff', cursor: 'pointer' }}>Сохранить</button>
         </div>
       </div>
-      <div style={{ border: '1px solid #555', borderRadius: 8, padding: 10, minHeight: '500px' }}>
-        <EditableTreeView structure={tree} onNodeClick={handleNodeClick} />
+      <div style={{ border: '1px solid #555', borderRadius: 8, padding: 10, height: '600px', overflow: 'auto' }}>
+       <EditableTreeView structure={tree} onNodeClick={handleNodeClick} />
       </div>
       {renderModal()}
     </div>
