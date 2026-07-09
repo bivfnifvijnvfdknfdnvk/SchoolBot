@@ -362,7 +362,7 @@ function buildEditorTree(node: any): any {
   };
 }
 
-// Компонент дерева для редактора (с переворотом контейнера – ветви вверх)
+// Компонент дерева для редактора (ветви вверх)
 function EditableTreeView({ structure, onNodeClick }: { structure: any; onNodeClick: (nodeId: string) => void }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [translate, setTranslate] = useState({ x: 400, y: 100 });
@@ -684,7 +684,7 @@ function ProgramEditor({ initialStructure, onSave, onCancel }: {
   );
 }
 
-// ========== КОМПОНЕНТЫ ДЛЯ ОТОБРАЖЕНИЯ ==========
+// ========== КОМПОНЕНТЫ ДЛЯ ОТОБРАЖЕНИЯ (ветви вверх) ==========
 
 function buildTreeForDisplay(node: any, progress: Record<string, boolean>): any {
   const isLesson = !node.children || node.children.length === 0;
@@ -748,7 +748,7 @@ const renderCustomNode = ({ nodeDatum, onLessonClick, onToggleLesson }: any) => 
           clipPath={`url(#${clipId})`}
           preserveAspectRatio="xMidYMid slice"
           onClick={handleClick}
-          style={{ cursor: isLesson ? 'pointer' : 'default' }}
+          style={{ cursor: isLesson ? 'pointer' : 'default', transform: 'scaleY(-1)' }}
         />
       ) : (
         <circle
@@ -765,32 +765,59 @@ const renderCustomNode = ({ nodeDatum, onLessonClick, onToggleLesson }: any) => 
       {isLesson && completed && (
         <>
           <circle cx="0" cy="0" r={radius} fill="rgba(76, 175, 80, 0.4)" stroke="none" onClick={handleClick} style={{ cursor: 'pointer' }} />
-          <text x="0" y="2" fontSize={radius * 0.9} fill="rgba(255,255,255,0.8)" stroke="none" textAnchor="middle" dominantBaseline="central" fontWeight="bold" onClick={handleClick} style={{ cursor: 'pointer' }}>✓</text>
+          <text x="0" y="2" fontSize={radius * 0.9} fill="rgba(255,255,255,0.8)" stroke="none" textAnchor="middle" dominantBaseline="central" fontWeight="bold" onClick={handleClick} style={{ cursor: 'pointer', transform: 'scaleY(-1)' }}>✓</text>
         </>
       )}
 
-      <text fill={textColor} stroke="none" strokeWidth="0" x={radius + 10} y="4" fontSize={isLesson ? 14 : 16} fontFamily="Arial, sans-serif" textAnchor="start" style={{ fontWeight: isLesson ? 'normal' : 'bold' }} onClick={handleClick}>
+      <text
+        fill={textColor}
+        stroke="none"
+        strokeWidth="0"
+        x={radius + 10}
+        y="4"
+        fontSize={isLesson ? 14 : 16}
+        fontFamily="Arial, sans-serif"
+        textAnchor="start"
+        style={{ fontWeight: isLesson ? 'normal' : 'bold', transform: 'scaleY(-1)' }}
+        onClick={handleClick}
+      >
         {nodeDatum.name}
       </text>
     </g>
   );
 };
 
-function SkillTreeView({ structure, progress, onLessonClick, onToggleLesson }: { 
-  structure: any; 
+function SkillTreeView({ structure, progress, onLessonClick, onToggleLesson }: {
+  structure: any;
   progress: Record<string, boolean>;
   onLessonClick?: (content: string | null, lessonName: string) => void;
   onToggleLesson?: (lessonId: string) => void;
 }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [translate, setTranslate] = useState({ x: 400, y: 100 });
+
+  useEffect(() => {
+    const updateTranslate = () => {
+      if (containerRef.current) {
+        const width = containerRef.current.clientWidth;
+        const height = containerRef.current.clientHeight;
+        setTranslate({ x: width / 2, y: height - 150 });
+      }
+    };
+    updateTranslate();
+    window.addEventListener('resize', updateTranslate);
+    return () => window.removeEventListener('resize', updateTranslate);
+  }, []);
+
   const treeData = buildTreeForDisplay(structure, progress);
   return (
-    <div style={{ width: '100vw', height: '100vh', backgroundColor: '#1a1a2e' }}>
+    <div ref={containerRef} style={{ width: '100%', height: '100%', backgroundColor: '#1a1a2e', transform: 'scaleY(-1)' }}>
       <Tree
         data={treeData}
         orientation="vertical"
         pathFunc="step"
         renderCustomNodeElement={(props) => renderCustomNode({ ...props, onLessonClick, onToggleLesson })}
-        translate={{ x: window.innerWidth / 2, y: 100 }}
+        translate={translate}
         zoomable={true}
         draggable={true}
         separation={{ siblings: 1.5, nonSiblings: 1.5 }}
@@ -801,6 +828,7 @@ function SkillTreeView({ structure, progress, onLessonClick, onToggleLesson }: {
   );
 }
 
+// StudentProgramList (без изменений)
 function StudentProgramList({ userId, onApply, existingProgramIds }: { userId: string; onApply: (programId: string) => void; existingProgramIds: string[] }) {
   const [availablePrograms, setAvailablePrograms] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -846,6 +874,7 @@ function StudentProgramList({ userId, onApply, existingProgramIds }: { userId: s
   );
 }
 
+// LessonModal (без изменений)
 function LessonModal({ isOpen, onClose, title, content }: { isOpen: boolean; onClose: () => void; title: string; content: string | null }) {
   if (!isOpen) return null;
 
@@ -1146,9 +1175,9 @@ function App() {
             <button onClick={backToAdmin}>⬅ Назад к админке</button>
             <span style={{ color: '#fff' }}>Редактирование ученика: {selectedStudentName || '...'}</span>
           </div>
-          <SkillTreeView 
-            structure={structure} 
-            progress={progress} 
+          <SkillTreeView
+            structure={structure}
+            progress={progress}
             onToggleLesson={toggleLessonForStudent}
           />
           <LessonModal isOpen={modalOpen} onClose={closeModal} title={modalTitle} content={modalContent} />
@@ -1164,9 +1193,9 @@ function App() {
           <div style={{ flex: 1, minWidth: '300px' }}>
             <h3>Дерево навыков (превью)</h3>
             <div style={{ height: '400px', overflow: 'auto', border: '1px solid #555', borderRadius: '8px', padding: '10px' }}>
-              <SkillTreeView 
-                structure={structure} 
-                progress={progress} 
+              <SkillTreeView
+                structure={structure}
+                progress={progress}
                 onLessonClick={handleLessonClick}
               />
               <LessonModal isOpen={modalOpen} onClose={closeModal} title={modalTitle} content={modalContent} />
@@ -1187,16 +1216,16 @@ function App() {
 
             <h3>Принятые ученики</h3>
             {acceptedStudents.map(student => (
-              <div 
-                key={student.id} 
-                style={{ 
-                  marginBottom: '10px', 
-                  backgroundColor: '#333', 
-                  padding: '10px', 
-                  borderRadius: '8px', 
-                  display: 'flex', 
-                  justifyContent: 'space-between', 
-                  alignItems: 'center', 
+              <div
+                key={student.id}
+                style={{
+                  marginBottom: '10px',
+                  backgroundColor: '#333',
+                  padding: '10px',
+                  borderRadius: '8px',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
                   cursor: 'pointer',
                   transition: 'background-color 0.2s',
                 }}
@@ -1205,7 +1234,7 @@ function App() {
                 onClick={() => handleSelectStudent(student.id)}
               >
                 <span>{student.name}</span>
-                <button 
+                <button
                   onClick={(e) => { e.stopPropagation(); handleDeleteStudent(student.id, student.name); }}
                   style={{ backgroundColor: 'transparent', border: 'none', color: '#f44336', fontSize: '1.2rem', cursor: 'pointer' }}
                 >
@@ -1228,9 +1257,9 @@ function App() {
           <span style={{ color: '#fff' }}>Программа: {programs.find(p => p.id === currentProgramId)?.name || ''}</span>
           <span style={{ color: '#fff' }}>Ученик: {userName || userId}</span>
         </div>
-        <SkillTreeView 
-          structure={structure} 
-          progress={progress} 
+        <SkillTreeView
+          structure={structure}
+          progress={progress}
           onLessonClick={handleLessonClick}
         />
         <LessonModal isOpen={modalOpen} onClose={closeModal} title={modalTitle} content={modalContent} />
@@ -1246,15 +1275,15 @@ function App() {
           <button onClick={handleCreateNewProgram}>➕ Создать программу</button>
           {programs.length === 0 && <p>У вас пока нет программ. Создайте первую!</p>}
           {programs.map(prog => (
-            <div 
-              key={prog.id} 
-              style={{ 
-                margin: '10px 0', 
-                backgroundColor: '#333', 
-                padding: '15px', 
-                borderRadius: '8px', 
-                display: 'flex', 
-                justifyContent: 'space-between', 
+            <div
+              key={prog.id}
+              style={{
+                margin: '10px 0',
+                backgroundColor: '#333',
+                padding: '15px',
+                borderRadius: '8px',
+                display: 'flex',
+                justifyContent: 'space-between',
                 alignItems: 'center',
                 cursor: 'pointer',
                 transition: 'background-color 0.2s',
@@ -1265,13 +1294,13 @@ function App() {
             >
               <span>{prog.name}</span>
               <div>
-                <button 
+                <button
                   onClick={(e) => { e.stopPropagation(); startEditingProgram(prog.id); }}
                   style={{ background: 'transparent', border: 'none', color: '#4CAF50', fontSize: '1.2rem', cursor: 'pointer', marginRight: 8 }}
                 >
                   ✏️
                 </button>
-                <button 
+                <button
                   onClick={(e) => { e.stopPropagation(); handleDeleteProgram(prog.id, prog.name); }}
                   style={{ backgroundColor: 'transparent', border: 'none', color: '#f44336', fontSize: '1.2rem', cursor: 'pointer' }}
                 >
@@ -1288,13 +1317,13 @@ function App() {
           <h2>Мои программы</h2>
           {programs.length === 0 && <p>Вы ещё не приняты ни в одну программу. Подайте заявку ниже.</p>}
           {programs.map(prog => (
-            <div 
-              key={prog.id} 
-              style={{ 
-                margin: '10px 0', 
-                backgroundColor: '#333', 
-                padding: '15px', 
-                borderRadius: '8px', 
+            <div
+              key={prog.id}
+              style={{
+                margin: '10px 0',
+                backgroundColor: '#333',
+                padding: '15px',
+                borderRadius: '8px',
                 cursor: 'pointer',
                 transition: 'background-color 0.2s',
               }}
