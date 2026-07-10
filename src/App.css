@@ -1,5 +1,79 @@
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body { overflow: hidden; }
+/* Убираем синюю подсветку на Android */
 * {
   -webkit-tap-highlight-color: transparent !important;
+}
+
+/* ===== ПЛАВНЫЕ АНИМАЦИИ ===== */
+
+/* Для всех модальных окон (overlay) */
+.modal-overlay {
+  transition: opacity 0.25s ease;
+}
+
+/* Для контента модалок */
+.modal-content {
+  transition: transform 0.25s ease, opacity 0.25s ease;
+}
+
+/* Для панелей и блоков, которые появляются/исчезают */
+.fade-slide {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+/* Для кнопок и интерактивных элементов при наведении и нажатии */
+.hover-scale {
+  transition: transform 0.15s ease, background-color 0.15s ease, color 0.15s ease;
+}
+.hover-scale:hover {
+  transform: scale(1.02);
+}
+.hover-scale:active {
+  transform: scale(0.97);
+}
+
+/* Для карточек программ и учеников при наведении */
+.card-hover {
+  transition: background-color 0.2s ease, transform 0.2s ease;
+}
+.card-hover:hover {
+  transform: scale(1.01);
+}
+
+/* Для списков при загрузке */
+.list-enter {
+  animation: fadeInUp 0.3s ease forwards;
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Для всех кнопок и кликабельных элементов */
+button,
+[role="button"],
+[onClick] {
+  transition: background-color 0.15s ease, color 0.15s ease, transform 0.15s ease, opacity 0.15s ease;
+}
+button:active,
+[role="button"]:active,
+[onClick]:active {
+  transform: scale(0.96);
+}
+
+/* Для плавного появления самого приложения (опционально) */
+.app-enter {
+  animation: fadeIn 0.3s ease;
+}
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }

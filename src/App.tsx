@@ -622,6 +622,7 @@ function ProgramEditor({ initialStructure, initialName, onSave, onCancel }: {
 
     return (
       <div
+        className="modal-overlay"
         style={{
           position: 'fixed',
           top: 0,
@@ -634,11 +635,11 @@ function ProgramEditor({ initialStructure, initialName, onSave, onCancel }: {
           alignItems: 'center',
           zIndex: 999,
           opacity: modalVisible ? 1 : 0,
-          transition: 'opacity 0.2s ease',
         }}
         onClick={closeEditor}
       >
         <div
+          className="modal-content"
           style={{
             backgroundColor: '#2a2a4e',
             padding: '30px',
@@ -650,13 +651,13 @@ function ProgramEditor({ initialStructure, initialName, onSave, onCancel }: {
             color: '#fff',
             boxShadow: '0 8px 32px rgba(0,0,0,0.7)',
             transform: modalVisible ? 'scale(1)' : 'scale(0.95)',
-            transition: 'transform 0.2s ease',
             position: 'relative',
           }}
           onClick={(e) => e.stopPropagation()}
         >
           <button
             onClick={closeEditor}
+            className="hover-scale"
             style={{
               position: 'absolute',
               top: '12px',
@@ -666,7 +667,6 @@ function ProgramEditor({ initialStructure, initialName, onSave, onCancel }: {
               color: 'rgba(255,255,255,0.4)',
               fontSize: '24px',
               cursor: 'pointer',
-              transition: 'color 0.2s',
               padding: '4px 8px',
             }}
             onMouseEnter={(e) => e.currentTarget.style.color = '#fff'}
@@ -690,12 +690,14 @@ function ProgramEditor({ initialStructure, initialName, onSave, onCancel }: {
             <div>
               <button
                 onClick={() => setEditIsLesson(false)}
+                className="hover-scale"
                 style={{ background: editIsLesson ? '#555' : '#4CAF50', border: 'none', padding: '6px 12px', borderRadius: '4px', color: '#fff', cursor: 'pointer', marginRight: '8px' }}
               >
                 📁 Папка
               </button>
               <button
                 onClick={() => setEditIsLesson(true)}
+                className="hover-scale"
                 style={{ background: editIsLesson ? '#4CAF50' : '#555', border: 'none', padding: '6px 12px', borderRadius: '4px', color: '#fff', cursor: 'pointer' }}
               >
                 📄 Урок
@@ -736,6 +738,7 @@ function ProgramEditor({ initialStructure, initialName, onSave, onCancel }: {
                 <div style={{ display: 'flex', gap: '8px' }}>
                   <button
                     onClick={startSelectingPrerequisites}
+                    className="hover-scale"
                     style={{ background: '#4CAF50', border: 'none', padding: '6px 12px', borderRadius: '4px', color: '#fff', cursor: 'pointer' }}
                   >
                     🎯 Выбрать условия
@@ -752,6 +755,7 @@ function ProgramEditor({ initialStructure, initialName, onSave, onCancel }: {
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '4px' }}>
               <button
                 onClick={() => setEditImageKey(null)}
+                className="hover-scale"
                 style={{ background: editImageKey === null ? '#444' : 'transparent', border: '1px solid #555', borderRadius: '4px', padding: '4px 8px', color: '#fff', cursor: 'pointer' }}
               >
                 🚫
@@ -763,6 +767,7 @@ function ProgramEditor({ initialStructure, initialName, onSave, onCancel }: {
                   <button
                     key={file}
                     onClick={() => setEditImageKey(file)}
+                    className="hover-scale"
                     style={{
                       background: editImageKey === file ? '#444' : 'transparent',
                       border: '1px solid #555',
@@ -783,14 +788,14 @@ function ProgramEditor({ initialStructure, initialName, onSave, onCancel }: {
             </div>
           </div>
           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '16px' }}>
-            <button onClick={saveNode} style={{ background: '#2196F3', border: 'none', padding: '8px 16px', borderRadius: '4px', color: '#fff', cursor: 'pointer' }}>
+            <button onClick={saveNode} className="hover-scale" style={{ background: '#2196F3', border: 'none', padding: '8px 16px', borderRadius: '4px', color: '#fff', cursor: 'pointer' }}>
               💾 Сохранить
             </button>
-            <button onClick={handleAddChild} style={{ background: '#4CAF50', border: 'none', padding: '8px 16px', borderRadius: '4px', color: '#fff', cursor: 'pointer' }}>
+            <button onClick={handleAddChild} className="hover-scale" style={{ background: '#4CAF50', border: 'none', padding: '8px 16px', borderRadius: '4px', color: '#fff', cursor: 'pointer' }}>
               ➕ Добавить узел
             </button>
             {!isRoot && (
-              <button onClick={handleDeleteNode} style={{ background: '#f44336', border: 'none', padding: '8px 16px', borderRadius: '4px', color: '#fff', cursor: 'pointer' }}>
+              <button onClick={handleDeleteNode} className="hover-scale" style={{ background: '#f44336', border: 'none', padding: '8px 16px', borderRadius: '4px', color: '#fff', cursor: 'pointer' }}>
                 🗑️
               </button>
             )}
@@ -805,6 +810,7 @@ function ProgramEditor({ initialStructure, initialName, onSave, onCancel }: {
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: 20 }}>
         <button
           onClick={onCancel}
+          className="hover-scale"
           style={{
             background: 'transparent',
             border: 'none',
@@ -812,10 +818,7 @@ function ProgramEditor({ initialStructure, initialName, onSave, onCancel }: {
             fontSize: '28px',
             cursor: 'pointer',
             padding: '4px 8px',
-            transition: 'color 0.2s',
           }}
-          onMouseEnter={(e) => e.currentTarget.style.color = '#fff'}
-          onMouseLeave={(e) => e.currentTarget.style.color = 'rgba(255,255,255,0.3)'}
         >
           ←
         </button>
@@ -828,6 +831,7 @@ function ProgramEditor({ initialStructure, initialName, onSave, onCancel }: {
         />
         <button
           onClick={handleSaveProgram}
+          className="hover-scale"
           style={{
             background: 'rgba(255,255,255,0.1)',
             border: 'none',
@@ -836,11 +840,8 @@ function ProgramEditor({ initialStructure, initialName, onSave, onCancel }: {
             color: '#fff',
             cursor: 'pointer',
             fontSize: '20px',
-            transition: 'background 0.2s',
             flexShrink: 0,
           }}
-          onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.2)'}
-          onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
         >
           💾
         </button>
@@ -850,8 +851,8 @@ function ProgramEditor({ initialStructure, initialName, onSave, onCancel }: {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px', backgroundColor: '#2a2a4e', borderRadius: '8px', marginBottom: '10px' }}>
             <span style={{ color: '#fff' }}>Выберите уроки, которые должны быть пройдены для открытия текущего урока. Кликните по уроку на дереве, чтобы отметить/снять.</span>
             <div>
-              <button onClick={cancelSelectingPrerequisites} style={{ marginRight: '8px', padding: '6px 12px', background: '#555', border: 'none', borderRadius: '4px', color: '#fff', cursor: 'pointer' }}>Отмена</button>
-              <button onClick={finishSelectingPrerequisites} style={{ padding: '6px 12px', background: '#4CAF50', border: 'none', borderRadius: '4px', color: '#fff', cursor: 'pointer' }}>✅ Готово</button>
+              <button onClick={cancelSelectingPrerequisites} className="hover-scale" style={{ marginRight: '8px', padding: '6px 12px', background: '#555', border: 'none', borderRadius: '4px', color: '#fff', cursor: 'pointer' }}>Отмена</button>
+              <button onClick={finishSelectingPrerequisites} className="hover-scale" style={{ padding: '6px 12px', background: '#4CAF50', border: 'none', borderRadius: '4px', color: '#fff', cursor: 'pointer' }}>✅ Готово</button>
             </div>
           </div>
           <div style={{ border: '1px solid #555', borderRadius: 8, padding: 10, height: '600px', overflow: 'auto' }}>
@@ -945,7 +946,6 @@ function buildTreeForDisplay(
   if (isLesson && !isPreview) {
     const prereqs = prerequisitesMap[node.id] || [];
     isLocked = prereqs.some((id: string) => !progress[id]);
-    // Ищем названия в nodeMap
     prereqNames = prereqs.map((id: string) => {
       const foundNode = nodeMap[id];
       return foundNode ? foundNode.name : id;
@@ -1154,9 +1154,9 @@ function StudentProgramList({ userId, onApply, existingProgramIds }: { userId: s
   }
 
   return (
-    <div>
+    <div className="list-enter">
       {availablePrograms.map(prog => (
-        <div key={prog.id} style={{ margin: '10px 0', backgroundColor: '#333', padding: '15px', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div key={prog.id} className="card-hover" style={{ margin: '10px 0', backgroundColor: '#333', padding: '15px', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <span>{prog.name}</span>
           {prog.appStatus === 'pending' && (
             <span style={{ color: '#ffa500' }}>⏳</span>
@@ -1167,6 +1167,7 @@ function StudentProgramList({ userId, onApply, existingProgramIds }: { userId: s
           {!prog.appStatus && (
             <button
               onClick={() => onApply(prog.id)}
+              className="hover-scale"
               style={{
                 background: 'rgba(255,255,255,0.1)',
                 border: 'none',
@@ -1175,10 +1176,7 @@ function StudentProgramList({ userId, onApply, existingProgramIds }: { userId: s
                 color: '#fff',
                 cursor: 'pointer',
                 fontSize: '18px',
-                transition: 'background 0.2s',
               }}
-              onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.2)'}
-              onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
             >
               📩
             </button>
@@ -1189,6 +1187,7 @@ function StudentProgramList({ userId, onApply, existingProgramIds }: { userId: s
           {prog.appStatus === 'rejected' && (
             <button
               onClick={() => onApply(prog.id)}
+              className="hover-scale"
               style={{
                 background: 'rgba(255,255,255,0.1)',
                 border: 'none',
@@ -1197,10 +1196,7 @@ function StudentProgramList({ userId, onApply, existingProgramIds }: { userId: s
                 color: '#fff',
                 cursor: 'pointer',
                 fontSize: '18px',
-                transition: 'background 0.2s',
               }}
-              onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.2)'}
-              onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
             >
               📩
             </button>
@@ -1229,8 +1225,40 @@ function LessonModal({ isOpen, onClose, title, textClosed, textOpen, textComplet
   const hasContent = textClosed || textOpen || textCompleted;
 
   return (
-    <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 999, cursor: 'pointer' }} onClick={onClose}>
-      <div style={{ backgroundColor: '#2a2a4e', padding: '30px', borderRadius: '12px', maxWidth: '80%', maxHeight: '80%', overflow: 'auto', cursor: 'default', color: '#fff', boxShadow: '0 8px 32px rgba(0,0,0,0.7)' }} onClick={(e) => e.stopPropagation()}>
+    <div
+      className="modal-overlay"
+      style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        width: '100vw',
+        height: '100vh',
+        backgroundColor: 'rgba(0,0,0,0.6)',
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        zIndex: 999,
+        cursor: 'pointer',
+        opacity: isOpen ? 1 : 0,
+      }}
+      onClick={onClose}
+    >
+      <div
+        className="modal-content"
+        style={{
+          backgroundColor: '#2a2a4e',
+          padding: '30px',
+          borderRadius: '12px',
+          maxWidth: '80%',
+          maxHeight: '80%',
+          overflow: 'auto',
+          cursor: 'default',
+          color: '#fff',
+          boxShadow: '0 8px 32px rgba(0,0,0,0.7)',
+          transform: isOpen ? 'scale(1)' : 'scale(0.95)',
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
         <h2 style={{ marginBottom: '16px', borderBottom: '1px solid #555', paddingBottom: '8px' }}>{title}</h2>
         {locked && prereqNames.length > 0 && (
           <div style={{ marginBottom: '12px', color: '#ffa500' }}>
@@ -1263,7 +1291,7 @@ function LessonModal({ isOpen, onClose, title, textClosed, textOpen, textComplet
             <div style={{ color: '#aaa' }}>Нет содержимого</div>
           )}
         </div>
-        <button onClick={onClose} style={{ marginTop: '20px', padding: '8px 20px', backgroundColor: '#4CAF50', border: 'none', borderRadius: '6px', color: '#fff', cursor: 'pointer' }}>Закрыть</button>
+        <button onClick={onClose} className="hover-scale" style={{ marginTop: '20px', padding: '8px 20px', backgroundColor: '#4CAF50', border: 'none', borderRadius: '6px', color: '#fff', cursor: 'pointer' }}>Закрыть</button>
       </div>
     </div>
   );
@@ -1641,6 +1669,7 @@ function App() {
           <div style={{ position: 'absolute', top: 10, left: 10, right: 10, zIndex: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0 10px' }}>
             <button
               onClick={backToAdmin}
+              className="hover-scale"
               style={{
                 background: 'transparent',
                 border: 'none',
@@ -1648,10 +1677,7 @@ function App() {
                 fontSize: '28px',
                 cursor: 'pointer',
                 padding: '4px 8px',
-                transition: 'color 0.2s',
               }}
-              onMouseEnter={(e) => e.currentTarget.style.color = '#fff'}
-              onMouseLeave={(e) => e.currentTarget.style.color = 'rgba(255,255,255,0.3)'}
             >
               ←
             </button>
@@ -1691,6 +1717,7 @@ function App() {
         <div style={{ display: 'flex', alignItems: 'center', marginBottom: '16px' }}>
           <button
             onClick={() => { setView('programs'); setCurrentProgramId(null); }}
+            className="hover-scale"
             style={{
               background: 'transparent',
               border: 'none',
@@ -1698,10 +1725,7 @@ function App() {
               fontSize: '28px',
               cursor: 'pointer',
               padding: '4px 8px',
-              transition: 'color 0.2s',
             }}
-            onMouseEnter={(e) => e.currentTarget.style.color = '#fff'}
-            onMouseLeave={(e) => e.currentTarget.style.color = 'rgba(255,255,255,0.3)'}
           >
             ←
           </button>
@@ -1733,85 +1757,84 @@ function App() {
           <div style={{ flex: 1, minWidth: '300px' }}>
             <h3 style={{ marginTop: 0, marginBottom: '16px' }}>Ученики</h3>
             {combinedList.length === 0 && <p>Нет учеников</p>}
-            {combinedList.map((item) => {
-              const isPending = item._type === 'pending';
-              const studentName = item._name || `ID: ${item.student_id}`;
-              return (
-                <div
-                  key={isPending ? item.id : item.id}
-                  style={{
-                    marginBottom: '10px',
-                    backgroundColor: '#333',
-                    padding: '10px',
-                    borderRadius: '8px',
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    cursor: isPending ? 'default' : (isCreator ? 'pointer' : 'default'),
-                    transition: 'background-color 0.2s',
-                  }}
-                  onMouseEnter={(e) => { if (!isPending && isCreator) e.currentTarget.style.backgroundColor = '#444'; }}
-                  onMouseLeave={(e) => { if (!isPending && isCreator) e.currentTarget.style.backgroundColor = '#333'; }}
-                  onClick={() => { if (!isPending && isCreator) handleSelectStudent(item.student_id.toString()); }}
-                >
-                  <span style={{ fontWeight: 'bold', fontSize: '16px' }}>{studentName}</span>
-                  <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                    {isPending && isCreator && (
-                      <>
+            <div className="list-enter">
+              {combinedList.map((item) => {
+                const isPending = item._type === 'pending';
+                const studentName = item._name || `ID: ${item.student_id}`;
+                return (
+                  <div
+                    key={isPending ? item.id : item.id}
+                    className="card-hover"
+                    style={{
+                      marginBottom: '10px',
+                      backgroundColor: '#333',
+                      padding: '10px',
+                      borderRadius: '8px',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      cursor: isPending ? 'default' : (isCreator ? 'pointer' : 'default'),
+                    }}
+                    onMouseEnter={(e) => { if (!isPending && isCreator) e.currentTarget.style.backgroundColor = '#444'; }}
+                    onMouseLeave={(e) => { if (!isPending && isCreator) e.currentTarget.style.backgroundColor = '#333'; }}
+                    onClick={() => { if (!isPending && isCreator) handleSelectStudent(item.student_id.toString()); }}
+                  >
+                    <span style={{ fontWeight: 'bold', fontSize: '16px' }}>{studentName}</span>
+                    <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                      {isPending && isCreator && (
+                        <>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleAcceptApplication(item.id); }}
+                            className="hover-scale"
+                            style={{
+                              background: 'rgba(76, 175, 80, 0.2)',
+                              border: 'none',
+                              borderRadius: '4px',
+                              padding: '4px 6px',
+                              color: '#4CAF50',
+                              cursor: 'pointer',
+                              fontSize: '18px',
+                            }}
+                          >
+                            ✅
+                          </button>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleRejectApplication(item.id); }}
+                            className="hover-scale"
+                            style={{
+                              background: 'rgba(244, 67, 54, 0.2)',
+                              border: 'none',
+                              borderRadius: '4px',
+                              padding: '4px 6px',
+                              color: '#f44336',
+                              cursor: 'pointer',
+                              fontSize: '18px',
+                            }}
+                          >
+                            ❌
+                          </button>
+                        </>
+                      )}
+                      {!isPending && isCreator && (
                         <button
-                          onClick={(e) => { e.stopPropagation(); handleAcceptApplication(item.id); }}
+                          onClick={(e) => { e.stopPropagation(); handleDeleteStudent(item.student_id.toString(), studentName); }}
+                          className="hover-scale"
                           style={{
-                            background: 'rgba(76, 175, 80, 0.2)',
+                            background: 'transparent',
                             border: 'none',
-                            borderRadius: '4px',
-                            padding: '4px 6px',
-                            color: '#4CAF50',
-                            cursor: 'pointer',
-                            fontSize: '18px',
-                            transition: 'background 0.2s',
-                          }}
-                          onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(76, 175, 80, 0.4)'}
-                          onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(76, 175, 80, 0.2)'}
-                        >
-                          ✅
-                        </button>
-                        <button
-                          onClick={(e) => { e.stopPropagation(); handleRejectApplication(item.id); }}
-                          style={{
-                            background: 'rgba(244, 67, 54, 0.2)',
-                            border: 'none',
-                            borderRadius: '4px',
-                            padding: '4px 6px',
                             color: '#f44336',
+                            fontSize: '1.2rem',
                             cursor: 'pointer',
-                            fontSize: '18px',
-                            transition: 'background 0.2s',
                           }}
-                          onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(244, 67, 54, 0.4)'}
-                          onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(244, 67, 54, 0.2)'}
                         >
-                          ❌
+                          🗑️
                         </button>
-                      </>
-                    )}
-                    {!isPending && isCreator && (
-                      <button
-                        onClick={(e) => { e.stopPropagation(); handleDeleteStudent(item.student_id.toString(), studentName); }}
-                        style={{
-                          background: 'transparent',
-                          border: 'none',
-                          color: '#f44336',
-                          fontSize: '1.2rem',
-                          cursor: 'pointer',
-                        }}
-                      >
-                        🗑️
-                      </button>
-                    )}
+                      )}
+                    </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
         </div>
       </div>
@@ -1825,6 +1848,7 @@ function App() {
         <div style={{ position: 'absolute', top: 10, left: 10, right: 10, zIndex: 10, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '0 10px' }}>
           <button
             onClick={() => { setView('programs'); setCurrentProgramId(null); }}
+            className="hover-scale"
             style={{
               background: 'transparent',
               border: 'none',
@@ -1834,10 +1858,7 @@ function App() {
               padding: '4px 8px',
               position: 'absolute',
               left: 0,
-              transition: 'color 0.2s',
             }}
-            onMouseEnter={(e) => e.currentTarget.style.color = '#fff'}
-            onMouseLeave={(e) => e.currentTarget.style.color = 'rgba(255,255,255,0.3)'}
           >
             ←
           </button>
@@ -1872,6 +1893,7 @@ function App() {
             <h2 style={{ margin: 0 }}>Все программы</h2>
             <button
               onClick={handleCreateNewProgram}
+              className="hover-scale"
               style={{
                 background: 'transparent',
                 border: 'none',
@@ -1880,98 +1902,89 @@ function App() {
                 cursor: 'pointer',
                 padding: '0 12px',
                 lineHeight: 1,
-                transition: 'color 0.2s',
               }}
-              onMouseEnter={(e) => e.currentTarget.style.color = '#fff'}
-              onMouseLeave={(e) => e.currentTarget.style.color = 'rgba(255,255,255,0.3)'}
             >
               +
             </button>
           </div>
           {programs.length === 0 && <p>Программ пока нет</p>}
-          {programs.map(prog => {
-            const isCreator = prog.created_by === Number(userId);
-            return (
-              <div
-                key={prog.id}
-                style={{
-                  margin: '10px 0',
-                  backgroundColor: '#333',
-                  padding: '15px',
-                  borderRadius: '8px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  cursor: 'pointer',
-                  transition: 'background-color 0.2s',
-                }}
-                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#444'}
-                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#333'}
-                onClick={() => selectProgram(prog.id)}
-              >
-                <div style={{ fontSize: '0.75rem', color: '#aaa', marginBottom: '2px' }}>
-                  {prog.creator_name || 'Неизвестный создатель'}
-                </div>
-                <div style={{ fontWeight: 'bold', fontSize: '1.1rem' }}>
-                  {prog.name}
-                </div>
-                {isCreator && (
-                  <div style={{ display: 'flex', gap: '6px', marginTop: '6px', justifyContent: 'flex-end' }}>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); handleToggleVisibility(prog.id, prog.visible); }}
-                      style={{
-                        background: 'rgba(255,255,255,0.1)',
-                        border: 'none',
-                        borderRadius: '4px',
-                        padding: '4px 6px',
-                        color: prog.visible ? '#4CAF50' : '#f44336',
-                        cursor: 'pointer',
-                        fontSize: '1.2rem',
-                        transition: 'background 0.2s',
-                      }}
-                      onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.2)'}
-                      onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
-                    >
-                      {prog.visible ? '👁️' : '🚫'}
-                    </button>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); startEditingProgram(prog.id); }}
-                      style={{
-                        background: 'rgba(255,255,255,0.1)',
-                        border: 'none',
-                        borderRadius: '4px',
-                        padding: '4px 6px',
-                        color: '#4CAF50',
-                        cursor: 'pointer',
-                        fontSize: '1.2rem',
-                        transition: 'background 0.2s',
-                      }}
-                      onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.2)'}
-                      onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
-                    >
-                      ✏️
-                    </button>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); handleDeleteProgram(prog.id, prog.name); }}
-                      style={{
-                        background: 'rgba(255,255,255,0.1)',
-                        border: 'none',
-                        borderRadius: '4px',
-                        padding: '4px 6px',
-                        color: '#f44336',
-                        cursor: 'pointer',
-                        fontSize: '1.2rem',
-                        transition: 'background 0.2s',
-                      }}
-                      onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.2)'}
-                      onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
-                    >
-                      🗑️
-                    </button>
+          <div className="list-enter">
+            {programs.map(prog => {
+              const isCreator = prog.created_by === Number(userId);
+              return (
+                <div
+                  key={prog.id}
+                  className="card-hover"
+                  style={{
+                    margin: '10px 0',
+                    backgroundColor: '#333',
+                    padding: '15px',
+                    borderRadius: '8px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    cursor: 'pointer',
+                  }}
+                  onClick={() => selectProgram(prog.id)}
+                >
+                  <div style={{ fontSize: '0.75rem', color: '#aaa', marginBottom: '2px' }}>
+                    {prog.creator_name || 'Неизвестный создатель'}
                   </div>
-                )}
-              </div>
-            );
-          })}
+                  <div style={{ fontWeight: 'bold', fontSize: '1.1rem' }}>
+                    {prog.name}
+                  </div>
+                  {isCreator && (
+                    <div style={{ display: 'flex', gap: '6px', marginTop: '6px', justifyContent: 'flex-end' }}>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleToggleVisibility(prog.id, prog.visible); }}
+                        className="hover-scale"
+                        style={{
+                          background: 'rgba(255,255,255,0.1)',
+                          border: 'none',
+                          borderRadius: '4px',
+                          padding: '4px 6px',
+                          color: prog.visible ? '#4CAF50' : '#f44336',
+                          cursor: 'pointer',
+                          fontSize: '1.2rem',
+                        }}
+                      >
+                        {prog.visible ? '👁️' : '🚫'}
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); startEditingProgram(prog.id); }}
+                        className="hover-scale"
+                        style={{
+                          background: 'rgba(255,255,255,0.1)',
+                          border: 'none',
+                          borderRadius: '4px',
+                          padding: '4px 6px',
+                          color: '#4CAF50',
+                          cursor: 'pointer',
+                          fontSize: '1.2rem',
+                        }}
+                      >
+                        ✏️
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleDeleteProgram(prog.id, prog.name); }}
+                        className="hover-scale"
+                        style={{
+                          background: 'rgba(255,255,255,0.1)',
+                          border: 'none',
+                          borderRadius: '4px',
+                          padding: '4px 6px',
+                          color: '#f44336',
+                          cursor: 'pointer',
+                          fontSize: '1.2rem',
+                        }}
+                      >
+                        🗑️
+                      </button>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
         </div>
       );
     } else {
@@ -1979,24 +1992,24 @@ function App() {
         <div style={{ padding: '20px', color: '#fff', backgroundColor: '#1a1a2e', minHeight: '100vh' }}>
           <h2>Мои программы</h2>
           {programs.length === 0 && <p>Вы ещё не приняты ни в одну программу. Подайте заявку ниже.</p>}
-          {programs.map(prog => (
-            <div
-              key={prog.id}
-              style={{
-                margin: '10px 0',
-                backgroundColor: '#333',
-                padding: '15px',
-                borderRadius: '8px',
-                cursor: 'pointer',
-                transition: 'background-color 0.2s',
-              }}
-              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#444'}
-              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#333'}
-              onClick={() => selectProgram(prog.id)}
-            >
-              <span>{prog.name}</span>
-            </div>
-          ))}
+          <div className="list-enter">
+            {programs.map(prog => (
+              <div
+                key={prog.id}
+                className="card-hover"
+                style={{
+                  margin: '10px 0',
+                  backgroundColor: '#333',
+                  padding: '15px',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                }}
+                onClick={() => selectProgram(prog.id)}
+              >
+                <span>{prog.name}</span>
+              </div>
+            ))}
+          </div>
 
           <hr style={{ margin: '30px 0' }} />
           <h3>Доступные программы</h3>
