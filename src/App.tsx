@@ -803,48 +803,48 @@ function ProgramEditor({ initialStructure, initialName, onSave, onCancel }: {
   return (
     <div style={{ padding: 20, color: '#fff', backgroundColor: '#1a1a2e', minHeight: '100vh', overflow: 'hidden' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: 20 }}>
-  <button
-    onClick={onCancel}
-    style={{
-      background: 'transparent',
-      border: 'none',
-      color: 'rgba(255,255,255,0.3)',
-      fontSize: '28px',
-      cursor: 'pointer',
-      padding: '4px 8px',
-      transition: 'color 0.2s',
-    }}
-    onMouseEnter={(e) => e.currentTarget.style.color = '#fff'}
-    onMouseLeave={(e) => e.currentTarget.style.color = 'rgba(255,255,255,0.3)'}
-  >
-    ←
-  </button>
-  <input
-    type="text"
-    value={programName}
-    onChange={(e) => setProgramName(e.target.value)}
-    style={{ background: 'transparent', color: '#fff', border: '1px solid #555', borderRadius: 4, padding: '4px 8px', fontSize: 20, fontWeight: 'bold', flex: 1, minWidth: 0 }}
-    placeholder="Название программы"
-  />
-  <button
-    onClick={handleSaveProgram}
-    style={{
-      background: 'rgba(255,255,255,0.1)',
-      border: 'none',
-      borderRadius: '4px',
-      padding: '4px 8px',
-      color: '#fff',
-      cursor: 'pointer',
-      fontSize: '20px',
-      transition: 'background 0.2s',
-      flexShrink: 0,
-    }}
-    onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.2)'}
-    onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
-  >
-    💾
-  </button>
-</div>
+        <button
+          onClick={onCancel}
+          style={{
+            background: 'transparent',
+            border: 'none',
+            color: 'rgba(255,255,255,0.3)',
+            fontSize: '28px',
+            cursor: 'pointer',
+            padding: '4px 8px',
+            transition: 'color 0.2s',
+          }}
+          onMouseEnter={(e) => e.currentTarget.style.color = '#fff'}
+          onMouseLeave={(e) => e.currentTarget.style.color = 'rgba(255,255,255,0.3)'}
+        >
+          ←
+        </button>
+        <input
+          type="text"
+          value={programName}
+          onChange={(e) => setProgramName(e.target.value)}
+          style={{ background: 'transparent', color: '#fff', border: '1px solid #555', borderRadius: 4, padding: '4px 8px', fontSize: 20, fontWeight: 'bold', flex: 1, minWidth: 0 }}
+          placeholder="Название программы"
+        />
+        <button
+          onClick={handleSaveProgram}
+          style={{
+            background: 'rgba(255,255,255,0.1)',
+            border: 'none',
+            borderRadius: '4px',
+            padding: '4px 8px',
+            color: '#fff',
+            cursor: 'pointer',
+            fontSize: '20px',
+            transition: 'background 0.2s',
+            flexShrink: 0,
+          }}
+          onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.2)'}
+          onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
+        >
+          💾
+        </button>
+      </div>
       {isSelectingPrerequisites ? (
         <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px', backgroundColor: '#2a2a4e', borderRadius: '8px', marginBottom: '10px' }}>
@@ -883,7 +883,6 @@ function ProgramEditor({ initialStructure, initialName, onSave, onCancel }: {
 
 // ========== КОМПОНЕНТЫ ДЛЯ ОТОБРАЖЕНИЯ ==========
 
-// Функция для сбора всех уроков с их prerequisites
 function collectLessonsWithPrerequisites(node: any): Record<string, string[]> {
   const map: Record<string, string[]> = {};
   function traverse(n: any) {
@@ -900,7 +899,6 @@ function collectLessonsWithPrerequisites(node: any): Record<string, string[]> {
   return map;
 }
 
-// Функция рекурсивного пересчёта прогресса
 function recalculateProgress(structure: any, progress: Record<string, boolean>): Record<string, boolean> {
   const newProgress = { ...progress };
   const lessons: any[] = [];
@@ -937,11 +935,14 @@ function buildTreeForDisplay(node: any, progress: Record<string, boolean>, prere
   const isLesson = node.isLesson === true;
   const completed = isLesson ? (progress[node.id] || false) : false;
   let isLocked = false;
-  let prereqCount = 0;
+  let prereqNames: string[] = [];
   if (isLesson && !isPreview) {
     const prereqs = prerequisitesMap[node.id] || [];
     isLocked = prereqs.some((id: string) => !progress[id]);
-    prereqCount = prereqs.length;
+    prereqNames = prereqs.map((id: string) => {
+      const lessonNode = findNode(node, id);
+      return lessonNode ? lessonNode.name : id;
+    });
   }
   return {
     name: node.name,
@@ -949,7 +950,7 @@ function buildTreeForDisplay(node: any, progress: Record<string, boolean>, prere
     __isLesson: isLesson,
     __completed: completed,
     __locked: isLocked,
-    __prereqCount: prereqCount,
+    __prereqNames: prereqNames,
     __imageUrl: node.imageKey ? `${STORAGE_URL}${node.imageKey}` : null,
     __imageKey: node.imageKey || null,
     __textClosed: node.textClosed || '',
@@ -963,7 +964,7 @@ const renderCustomNode = ({ nodeDatum, onLessonClick, onToggleLesson, isPreview 
   const isLesson = nodeDatum.__isLesson;
   const completed = nodeDatum.__completed;
   const locked = nodeDatum.__locked || false;
-  const prereqCount = nodeDatum.__prereqCount || 0;
+  const prereqNames = nodeDatum.__prereqNames || [];
   const imageUrl = nodeDatum.__imageUrl;
   const textClosed = nodeDatum.__textClosed || '';
   const textOpen = nodeDatum.__textOpen || '';
@@ -983,7 +984,7 @@ const renderCustomNode = ({ nodeDatum, onLessonClick, onToggleLesson, isPreview 
           locked,
           completed,
           isPreview,
-          prereqCount
+          prereqNames
         );
       }
     }
@@ -1032,9 +1033,9 @@ const renderCustomNode = ({ nodeDatum, onLessonClick, onToggleLesson, isPreview 
       {isLesson && locked && !completed && (
         <>
           <text x="0" y="2" fontSize={radius * 0.7} fill="#fff" stroke="none" textAnchor="middle" dominantBaseline="central" fontWeight="bold" onClick={handleClick} style={{ cursor: 'default', transform: 'scaleY(-1)' }}>🔒</text>
-          {prereqCount > 1 && (
+          {prereqNames.length > 1 && (
             <text x={radius + 6} y="0" fontSize={12} fill="#ffa500" stroke="none" textAnchor="start" dominantBaseline="central" fontWeight="bold" onClick={handleClick}>
-              🔗{prereqCount}
+              🔗{prereqNames.length}
             </text>
           )}
         </>
@@ -1061,7 +1062,7 @@ const renderCustomNode = ({ nodeDatum, onLessonClick, onToggleLesson, isPreview 
 function SkillTreeView({ structure, progress, onLessonClick, onToggleLesson, isPreview = false }: {
   structure: any;
   progress: Record<string, boolean>;
-  onLessonClick?: (name: string, textClosed: string, textOpen: string, textCompleted: string, locked: boolean, completed: boolean, isPreview: boolean, prereqCount: number) => void;
+  onLessonClick?: (name: string, textClosed: string, textOpen: string, textCompleted: string, locked: boolean, completed: boolean, isPreview: boolean, prereqNames: string[]) => void;
   onToggleLesson?: (lessonId: string) => void;
   isPreview?: boolean;
 }) {
@@ -1101,7 +1102,7 @@ function SkillTreeView({ structure, progress, onLessonClick, onToggleLesson, isP
   );
 }
 
-// ========== КОМПОНЕНТ СПИСКА ПРОГРАММ ДЛЯ УЧЕНИКА (с исправлениями) ==========
+// ========== КОМПОНЕНТ СПИСКА ПРОГРАММ ДЛЯ УЧЕНИКА ==========
 function StudentProgramList({ userId, onApply, existingProgramIds }: { userId: string; onApply: (programId: string) => void; existingProgramIds: string[] }) {
   const [availablePrograms, setAvailablePrograms] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1190,7 +1191,7 @@ function StudentProgramList({ userId, onApply, existingProgramIds }: { userId: s
 }
 
 // ========== МОДАЛЬНОЕ ОКНО ДЛЯ УРОКА ==========
-function LessonModal({ isOpen, onClose, title, textClosed, textOpen, textCompleted, locked, completed, isPreview, prereqCount }: {
+function LessonModal({ isOpen, onClose, title, textClosed, textOpen, textCompleted, locked, completed, isPreview, prereqNames }: {
   isOpen: boolean;
   onClose: () => void;
   title: string;
@@ -1200,7 +1201,7 @@ function LessonModal({ isOpen, onClose, title, textClosed, textOpen, textComplet
   locked: boolean;
   completed: boolean;
   isPreview: boolean;
-  prereqCount: number;
+  prereqNames: string[];
 }) {
   if (!isOpen) return null;
 
@@ -1210,9 +1211,9 @@ function LessonModal({ isOpen, onClose, title, textClosed, textOpen, textComplet
     <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 999, cursor: 'pointer' }} onClick={onClose}>
       <div style={{ backgroundColor: '#2a2a4e', padding: '30px', borderRadius: '12px', maxWidth: '80%', maxHeight: '80%', overflow: 'auto', cursor: 'default', color: '#fff', boxShadow: '0 8px 32px rgba(0,0,0,0.7)' }} onClick={(e) => e.stopPropagation()}>
         <h2 style={{ marginBottom: '16px', borderBottom: '1px solid #555', paddingBottom: '8px' }}>{title}</h2>
-        {locked && prereqCount > 0 && (
+        {locked && prereqNames.length > 0 && (
           <div style={{ marginBottom: '12px', color: '#ffa500' }}>
-            <strong>🔗 Условия:</strong> требуется пройти {prereqCount} урок(а/ов).
+            <strong>🔗 Условие:</strong> требуется пройти {prereqNames.join(', ')}
           </div>
         )}
         <div style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', lineHeight: '1.6' }}>
@@ -1277,7 +1278,7 @@ function App() {
   const [lessonModalLocked, setLessonModalLocked] = useState(false);
   const [lessonModalCompleted, setLessonModalCompleted] = useState(false);
   const [lessonModalIsPreview, setLessonModalIsPreview] = useState(false);
-  const [lessonModalPrereqCount, setLessonModalPrereqCount] = useState(0);
+  const [lessonModalPrereqNames, setLessonModalPrereqNames] = useState<string[]>([]);
 
   useEffect(() => {
     const init = async () => {
@@ -1534,7 +1535,7 @@ function App() {
     }
   };
 
-  const handleLessonClick = (name: string, textClosed: string, textOpen: string, textCompleted: string, locked: boolean, completed: boolean, isPreview: boolean, prereqCount: number) => {
+  const handleLessonClick = (name: string, textClosed: string, textOpen: string, textCompleted: string, locked: boolean, completed: boolean, isPreview: boolean, prereqNames: string[]) => {
     setLessonModalTitle(name);
     setLessonModalTextClosed(textClosed);
     setLessonModalTextOpen(textOpen);
@@ -1542,7 +1543,7 @@ function App() {
     setLessonModalLocked(locked);
     setLessonModalCompleted(completed);
     setLessonModalIsPreview(isPreview);
-    setLessonModalPrereqCount(prereqCount);
+    setLessonModalPrereqNames(prereqNames);
     setLessonModalOpen(true);
   };
 
@@ -1599,7 +1600,6 @@ function App() {
     const currentProgram = programs.find(p => p.id === currentProgramId);
     const isCreator = currentProgram?.created_by === Number(userId);
 
-    // Объединяем заявки и принятых учеников в один список, помещая заявки вверх
     const pendingApps = applications.filter(a => a.status === 'pending').map(app => ({
       ...app,
       _type: 'pending',
@@ -1659,7 +1659,7 @@ function App() {
             locked={lessonModalLocked}
             completed={lessonModalCompleted}
             isPreview={lessonModalIsPreview}
-            prereqCount={lessonModalPrereqCount}
+            prereqNames={lessonModalPrereqNames}
           />
         </div>
       );
@@ -1705,7 +1705,7 @@ function App() {
                 locked={lessonModalLocked}
                 completed={lessonModalCompleted}
                 isPreview={lessonModalIsPreview}
-                prereqCount={lessonModalPrereqCount}
+                prereqNames={lessonModalPrereqNames}
               />
             </div>
           </div>
@@ -1720,7 +1720,7 @@ function App() {
                   key={isPending ? item.id : item.id}
                   style={{
                     marginBottom: '10px',
-                    backgroundColor: isPending ? '#4a3a2a' : '#333',
+                    backgroundColor: '#333',
                     padding: '10px',
                     borderRadius: '8px',
                     display: 'flex',
@@ -1798,7 +1798,6 @@ function App() {
   }
 
   if (!isAdmin && view === 'tree' && currentProgramId) {
-    // Режим ученика
     const progName = programs.find(p => p.id === currentProgramId)?.name || '';
     return (
       <div style={{ width: '100vw', height: '100vh', backgroundColor: '#1a1a2e' }}>
@@ -1838,7 +1837,7 @@ function App() {
           locked={lessonModalLocked}
           completed={lessonModalCompleted}
           isPreview={lessonModalIsPreview}
-          prereqCount={lessonModalPrereqCount}
+          prereqNames={lessonModalPrereqNames}
         />
       </div>
     );
