@@ -540,7 +540,6 @@ function ProgramEditor({ initialStructure, initialName, onSave, onCancel }: {
       prerequisites: editPrerequisites,
     };
     if (editIsLesson) {
-      updates.children = [];
     }
     setTree((prev: any) => updateNodeInTree(prev, selectedNodeId, updates));
     closeEditor();
