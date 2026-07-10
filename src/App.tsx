@@ -831,6 +831,23 @@ function ProgramEditor({ initialStructure, initialName, onSave, onCancel }: {
 // ========== КОМПОНЕНТЫ ДЛЯ ОТОБРАЖЕНИЯ ==========
 
 // Функция для сбора всех уроков с их prerequisites
+function buildTreeForDisplay(node: any, progress: Record<string, boolean>, prerequisitesMap: Record<string, string[]>): any {
+  const isLesson = node.isLesson === true;
+  const completed = isLesson ? (progress[node.id] || false) : false;
+  const isLocked = isLesson ? (prerequisitesMap[node.id] || []).some(id => !progress[id]) : false;
+  return {
+    name: node.name,
+    __id: node.id,
+    __isLesson: isLesson,
+    __completed: completed,
+    __locked: isLocked,
+    __imageUrl: node.imageKey ? `${STORAGE_URL}${node.imageKey}` : null,
+    __imageKey: node.imageKey || null,
+    __content: node.content || null,
+    children: node.children ? node.children.map((child: any) => buildTreeForDisplay(child, progress, prerequisitesMap)) : undefined,
+  };
+}
+
 function collectLessonsWithPrerequisites(node: any): Record<string, string[]> {
   const map: Record<string, string[]> = {};
   function traverse(n: any) {
@@ -845,35 +862,6 @@ function collectLessonsWithPrerequisites(node: any): Record<string, string[]> {
   }
   traverse(node);
   return map;
-}
-
-function buildTreeForDisplay(node: any, progress: Record<string, boolean>, prerequisitesMap: Record<string, string[]>): any {
-  const isLesson = node.isLesson === true;
-  if (isLesson) {
-    const completed = progress[node.id] || false;
-    const prereqs = prerequisitesMap[node.id] || [];
-    const isLocked = prereqs.some(id => !progress[id]);
-    return {
-      name: node.name,
-      __id: node.id,
-      __isLesson: true,
-      __completed: completed,
-      __locked: isLocked,
-      __imageUrl: node.imageKey ? `${STORAGE_URL}${node.imageKey}` : null,
-      __imageKey: node.imageKey || null,
-      __content: node.content || null,
-    };
-  } else {
-    const displayName = node.name;
-    return {
-      name: displayName,
-      children: node.children.map((child: any) => buildTreeForDisplay(child, progress, prerequisitesMap)),
-      __id: node.id,
-      __isLesson: false,
-      __imageUrl: node.imageKey ? `${STORAGE_URL}${node.imageKey}` : null,
-      __imageKey: node.imageKey || null,
-    };
-  }
 }
 
 const renderCustomNode = ({ nodeDatum, onLessonClick, onToggleLesson }: any) => {
