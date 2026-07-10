@@ -239,18 +239,19 @@ async function saveProgressForProgram(userId: string, programId: string, progres
 }
 
 async function getStudentPrograms(studentId: string) {
-  const { data, error } = await supabase
+  const { data: applications, error: appError } = await supabase
     .from('applications')
     .select('program_id')
     .eq('student_id', Number(studentId))
     .eq('status', 'accepted');
-  if (error || !data) return [];
-  const programIds = data.map(item => item.program_id);
+  if (appError || !applications) return [];
+  const programIds = applications.map(item => item.program_id);
   if (programIds.length === 0) return [];
   const { data: programs, error: progError } = await supabase
     .from('programs')
     .select('*')
-    .in('id', programIds);
+    .in('id', programIds)
+    .eq('visible', true);
   if (progError) return [];
   return programs || [];
 }
@@ -1014,7 +1015,6 @@ function App() {
         ...p,
         creator_name: nameMap[p.created_by] || p.created_by?.toString() || 'Неизвестный',
       }));
-      // Сортируем: сначала свои (created_by === userId)
       const sorted = progsWithNames.sort((a, b) => {
         const aIsMine = a.created_by === Number(userId);
         const bIsMine = b.created_by === Number(userId);
@@ -1036,11 +1036,20 @@ function App() {
   const selectProgram = async (programId: string) => {
     setCurrentProgramId(programId);
     const prog = programs.find(p => p.id === programId);
-    if (prog) {
-      setStructure(prog.structure);
-      const progData = await loadProgressForProgram(userId, programId);
-      setProgress(progData);
+    if (!prog) {
+      alert('Программа не найдена');
+      setView('programs');
+      return;
     }
+    if (!isAdmin && !prog.visible) {
+      alert('Эта программа временно недоступна.');
+      setView('programs');
+      setCurrentProgramId(null);
+      return;
+    }
+    setStructure(prog.structure);
+    const progData = await loadProgressForProgram(userId, programId);
+    setProgress(progData);
     if (isAdmin) {
       const apps = await getApplicationsForProgram(programId);
       setApplications(apps);
@@ -1252,6 +1261,9 @@ function App() {
   }
 
   if (isAdmin && view === 'admin' && currentProgramId) {
+    const currentProgram = programs.find(p => p.id === currentProgramId);
+    const isCreator = currentProgram?.created_by === Number(userId);
+
     if (selectedStudentId) {
       return (
         <div style={{ width: '100vw', height: '100vh', backgroundColor: '#1a1a2e' }}>
@@ -1259,11 +1271,18 @@ function App() {
             <button onClick={backToAdmin}>⬅ Назад к админке</button>
             <span style={{ color: '#fff' }}>Редактирование ученика: {selectedStudentName || '...'}</span>
           </div>
-          <SkillTreeView
-            structure={structure}
-            progress={progress}
-            onToggleLesson={toggleLessonForStudent}
-          />
+          {isCreator ? (
+            <SkillTreeView
+              structure={structure}
+              progress={progress}
+              onToggleLesson={toggleLessonForStudent}
+            />
+          ) : (
+            <div style={{ color: '#fff', padding: '20px', textAlign: 'center' }}>
+              <h3>Только для просмотра</h3>
+              <SkillTreeView structure={structure} progress={progress} />
+            </div>
+          )}
           <LessonModal isOpen={modalOpen} onClose={closeModal} title={modalTitle} content={modalContent} />
         </div>
       );
@@ -1290,10 +1309,12 @@ function App() {
             {applications.filter(a => a.status === 'pending').map(app => (
               <div key={app.id} style={{ marginBottom: '10px', backgroundColor: '#333', padding: '10px', borderRadius: '8px' }}>
                 <span>{app.student_name || app.student_id}</span>
-                <div>
-                  <button onClick={() => handleAcceptApplication(app.id)} style={{ marginRight: '10px', backgroundColor: '#4CAF50' }}>✅ Принять</button>
-                  <button onClick={() => handleRejectApplication(app.id)} style={{ backgroundColor: '#f44336' }}>❌ Отклонить</button>
-                </div>
+                {isCreator && (
+                  <div>
+                    <button onClick={() => handleAcceptApplication(app.id)} style={{ marginRight: '10px', backgroundColor: '#4CAF50' }}>✅ Принять</button>
+                    <button onClick={() => handleRejectApplication(app.id)} style={{ backgroundColor: '#f44336' }}>❌ Отклонить</button>
+                  </div>
+                )}
               </div>
             ))}
             {applications.filter(a => a.status === 'pending').length === 0 && <p>Нет новых заявок</p>}
@@ -1310,20 +1331,27 @@ function App() {
                   display: 'flex',
                   justifyContent: 'space-between',
                   alignItems: 'center',
-                  cursor: 'pointer',
+                  cursor: isCreator ? 'pointer' : 'default',
                   transition: 'background-color 0.2s',
                 }}
-                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#444'}
-                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#333'}
-                onClick={() => handleSelectStudent(student.id)}
+                onMouseEnter={(e) => { if (isCreator) e.currentTarget.style.backgroundColor = '#444'; }}
+                onMouseLeave={(e) => { if (isCreator) e.currentTarget.style.backgroundColor = '#333'; }}
+                onClick={() => { if (isCreator) handleSelectStudent(student.id); }}
               >
                 <span>{student.name}</span>
-                <button
-                  onClick={(e) => { e.stopPropagation(); handleDeleteStudent(student.id, student.name); }}
-                  style={{ backgroundColor: 'transparent', border: 'none', color: '#f44336', fontSize: '1.2rem', cursor: 'pointer' }}
-                >
-                  🗑️
-                </button>
+                {isCreator && (
+                  <>
+                    <button onClick={(e) => { e.stopPropagation(); handleSelectStudent(student.id); }} style={{ marginRight: '8px', background: 'transparent', border: 'none', color: '#4CAF50', cursor: 'pointer' }}>
+                      📝
+                    </button>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleDeleteStudent(student.id, student.name); }}
+                      style={{ backgroundColor: 'transparent', border: 'none', color: '#f44336', fontSize: '1.2rem', cursor: 'pointer' }}
+                    >
+                      🗑️
+                    </button>
+                  </>
+                )}
               </div>
             ))}
             {acceptedStudents.length === 0 && <p>Нет принятых учеников</p>}
