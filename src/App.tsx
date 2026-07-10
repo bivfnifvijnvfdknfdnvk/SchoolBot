@@ -58,7 +58,26 @@ async function getVisiblePrograms() {
   return data || [];
 }
 
-// Создать программу
+// Получить имена пользователей по их ID
+async function getUsersByIds(userIds: number[]): Promise<Record<number, string>> {
+  if (userIds.length === 0) return {};
+  const { data, error } = await supabase
+    .from('users')
+    .select('telegram_id, first_name, last_name')
+    .in('telegram_id', userIds);
+  if (error) {
+    console.error('Ошибка загрузки имён пользователей:', error);
+    return {};
+  }
+  const result: Record<number, string> = {};
+  data.forEach(u => {
+    const name = `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.telegram_id.toString();
+    result[u.telegram_id] = name;
+  });
+  return result;
+}
+
+// Создать программу (по умолчанию скрыта)
 async function createProgram(name: string, teacherId: string, structure: any) {
   const { data, error } = await supabase
     .from('programs')
@@ -66,7 +85,7 @@ async function createProgram(name: string, teacherId: string, structure: any) {
       name,
       teacher_id: Number(teacherId),
       created_by: Number(teacherId),
-      visible: true,
+      visible: false,
       structure,
     })
     .select('id')
@@ -107,189 +126,6 @@ async function deleteProgram(programId: string) {
     return false;
   }
   return true;
-}
-
-// ... остальные функции (getApplicationsForProgram, createApplication, updateApplicationStatus, getAcceptedStudents, loadProgressForProgram, saveProgressForProgram, getStudentPrograms, getApplicationStatus) остаются без изменений, я их не трогаю, но для полноты они должны быть здесь. Поскольку они не менялись, я их не включаю в этот сниппет для краткости, но в полном файле они есть.
-
-// ========== КОМПОНЕНТЫ ДЛЯ РЕДАКТОРА ==========
-
-function updateNodeInTree(tree: any, id: string, updates: any): any {
-  if (tree.id === id) {
-    return { ...tree, ...updates };
-  }
-  if (tree.children) {
-    return {
-      ...tree,
-      children: tree.children.map((child: any) => updateNodeInTree(child, id, updates)),
-    };
-  }
-  return tree;
-}
-
-function deleteNodeFromTree(tree: any, id: string): any {
-  if (tree.children) {
-    const filtered = tree.children.filter((child: any) => child.id !== id);
-    return {
-      ...tree,
-      children: filtered.map((child: any) => deleteNodeFromTree(child, id)),
-    };
-  }
-  return tree;
-}
-
-function findNode(node: any, id: string): any {
-  if (node.id === id) return node;
-  if (node.children) {
-    for (const child of node.children) {
-      const found = findNode(child, id);
-      if (found) return found;
-    }
-  }
-  return null;
-}
-
-function findNodeAndAddChild(tree: any, parentId: string): { newTree: any; newId: string } {
-  function traverse(node: any): { found: boolean; newNode: any; newId: string } {
-    if (node.id === parentId) {
-      const newId = Date.now().toString() + Math.random().toString(36).substring(2, 6);
-      const newChild = {
-        id: newId,
-        name: 'Новый узел',
-        children: [],
-        isLesson: false,
-        content: '',
-        imageKey: null,
-      };
-      // При добавлении потомка делаем родителя папкой
-      const updatedNode = { ...node, isLesson: false };
-      const newChildren = updatedNode.children ? [...updatedNode.children, newChild] : [newChild];
-      return { found: true, newNode: { ...updatedNode, children: newChildren }, newId };
-    }
-    if (node.children) {
-      for (let i = 0; i < node.children.length; i++) {
-        const result = traverse(node.children[i]);
-        if (result.found) {
-          const newChildren = [...node.children];
-          newChildren[i] = result.newNode;
-          return { found: true, newNode: { ...node, children: newChildren }, newId: result.newId };
-        }
-      }
-    }
-    return { found: false, newNode: node, newId: '' };
-  }
-  const result = traverse(tree);
-  return { newTree: result.newNode, newId: result.newId };
-}
-
-// Рендер узла для редактора (с переворотом содержимого обратно)
-const renderEditorNode = ({ nodeDatum, onNodeClick }: any) => {
-  const isLesson = nodeDatum.isLesson || false;
-  const imageUrl = nodeDatum.imageKey ? `${STORAGE_URL}${nodeDatum.imageKey}` : null;
-  const radius = 24;
-
-  const handleClick = (e: any) => {
-    e.stopPropagation();
-    if (onNodeClick) {
-      onNodeClick(nodeDatum.id);
-    }
-  };
-
-  const clipId = `clip-${nodeDatum.id || Math.random().toString(36).substring(2, 10)}`;
-
-  return (
-    <g>
-      <defs>
-        <clipPath id={clipId}>
-          <circle cx="0" cy="0" r={radius} />
-        </clipPath>
-      </defs>
-
-      {imageUrl ? (
-        <image
-          href={imageUrl}
-          x="-24" y="-24"
-          width="48" height="48"
-          clipPath={`url(#${clipId})`}
-          preserveAspectRatio="xMidYMid slice"
-          onClick={handleClick}
-          style={{ cursor: 'pointer', transform: 'scaleY(-1)' }}
-        />
-      ) : (
-        <circle
-          r={radius}
-          fill={isLesson ? '#FF9800' : '#2196F3'}
-          stroke="none"
-          onClick={handleClick}
-          style={{ cursor: 'pointer' }}
-        />
-      )}
-
-      <circle cx="0" cy="0" r={radius} fill="none" stroke="#fff" strokeWidth="2" onClick={handleClick} style={{ pointerEvents: 'none' }} />
-
-      <text
-        fill="#fff"
-        stroke="none"
-        strokeWidth="0"
-        x={radius + 10}
-        y="4"
-        fontSize={14}
-        fontFamily="Arial, sans-serif"
-        textAnchor="start"
-        style={{ fontWeight: 'normal', transform: 'scaleY(-1)' }}
-        onClick={handleClick}
-      >
-        {nodeDatum.name}
-      </text>
-    </g>
-  );
-};
-
-function buildEditorTree(node: any): any {
-  return {
-    name: node.name,
-    id: node.id,
-    isLesson: node.isLesson || false,
-    imageKey: node.imageKey || null,
-    content: node.content || null,
-    children: node.children ? node.children.map((child: any) => buildEditorTree(child)) : undefined,
-  };
-}
-
-// Компонент дерева для редактора (ветви вверх)
-function EditableTreeView({ structure, onNodeClick }: { structure: any; onNodeClick: (nodeId: string) => void }) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [translate, setTranslate] = useState({ x: 400, y: 100 });
-
-  useEffect(() => {
-    const updateTranslate = () => {
-      if (containerRef.current) {
-        const width = containerRef.current.clientWidth;
-        const height = containerRef.current.clientHeight;
-        setTranslate({ x: width / 2, y: height - 150 });
-      }
-    };
-    updateTranslate();
-    window.addEventListener('resize', updateTranslate);
-    return () => window.removeEventListener('resize', updateTranslate);
-  }, []);
-
-  const treeData = buildEditorTree(structure);
-  return (
-    <div ref={containerRef} style={{ width: '100%', height: '100%', backgroundColor: '#1a1a2e', transform: 'scaleY(-1)' }}>
-      <Tree
-        data={treeData}
-        orientation="vertical"
-        pathFunc="step"
-        renderCustomNodeElement={(props) => renderEditorNode({ ...props, onNodeClick })}
-        translate={translate}
-        zoomable={true}
-        draggable={true}
-        separation={{ siblings: 1.5, nonSiblings: 1.5 }}
-        nodeSize={{ x: 200, y: 100 }}
-        collapsible={false}
-      />
-    </div>
-  );
 }
 
 // ========== ФУНКЦИИ ДЛЯ РАБОТЫ С ЗАЯВКАМИ И ПРОГРЕССОМ ==========
@@ -428,6 +264,186 @@ async function getApplicationStatus(studentId: string, programId: string) {
     .maybeSingle();
   if (error || !data) return null;
   return data;
+}
+
+// ========== КОМПОНЕНТЫ ДЛЯ РЕДАКТОРА ==========
+
+function updateNodeInTree(tree: any, id: string, updates: any): any {
+  if (tree.id === id) {
+    return { ...tree, ...updates };
+  }
+  if (tree.children) {
+    return {
+      ...tree,
+      children: tree.children.map((child: any) => updateNodeInTree(child, id, updates)),
+    };
+  }
+  return tree;
+}
+
+function deleteNodeFromTree(tree: any, id: string): any {
+  if (tree.children) {
+    const filtered = tree.children.filter((child: any) => child.id !== id);
+    return {
+      ...tree,
+      children: filtered.map((child: any) => deleteNodeFromTree(child, id)),
+    };
+  }
+  return tree;
+}
+
+function findNode(node: any, id: string): any {
+  if (node.id === id) return node;
+  if (node.children) {
+    for (const child of node.children) {
+      const found = findNode(child, id);
+      if (found) return found;
+    }
+  }
+  return null;
+}
+
+function findNodeAndAddChild(tree: any, parentId: string): { newTree: any; newId: string } {
+  function traverse(node: any): { found: boolean; newNode: any; newId: string } {
+    if (node.id === parentId) {
+      const newId = Date.now().toString() + Math.random().toString(36).substring(2, 6);
+      const newChild = {
+        id: newId,
+        name: 'Новый узел',
+        children: [],
+        isLesson: false,
+        content: '',
+        imageKey: null,
+      };
+      const updatedNode = { ...node, isLesson: false };
+      const newChildren = updatedNode.children ? [...updatedNode.children, newChild] : [newChild];
+      return { found: true, newNode: { ...updatedNode, children: newChildren }, newId };
+    }
+    if (node.children) {
+      for (let i = 0; i < node.children.length; i++) {
+        const result = traverse(node.children[i]);
+        if (result.found) {
+          const newChildren = [...node.children];
+          newChildren[i] = result.newNode;
+          return { found: true, newNode: { ...node, children: newChildren }, newId: result.newId };
+        }
+      }
+    }
+    return { found: false, newNode: node, newId: '' };
+  }
+  const result = traverse(tree);
+  return { newTree: result.newNode, newId: result.newId };
+}
+
+// Рендер узла для редактора (с переворотом содержимого обратно)
+const renderEditorNode = ({ nodeDatum, onNodeClick }: any) => {
+  const isLesson = nodeDatum.isLesson || false;
+  const imageUrl = nodeDatum.imageKey ? `${STORAGE_URL}${nodeDatum.imageKey}` : null;
+  const radius = 24;
+
+  const handleClick = (e: any) => {
+    e.stopPropagation();
+    if (onNodeClick) {
+      onNodeClick(nodeDatum.id);
+    }
+  };
+
+  const clipId = `clip-${nodeDatum.id || Math.random().toString(36).substring(2, 10)}`;
+
+  return (
+    <g>
+      <defs>
+        <clipPath id={clipId}>
+          <circle cx="0" cy="0" r={radius} />
+        </clipPath>
+      </defs>
+
+      {imageUrl ? (
+        <image
+          href={imageUrl}
+          x="-24" y="-24"
+          width="48" height="48"
+          clipPath={`url(#${clipId})`}
+          preserveAspectRatio="xMidYMid slice"
+          onClick={handleClick}
+          style={{ cursor: 'pointer', transform: 'scaleY(-1)' }}
+        />
+      ) : (
+        <circle
+          r={radius}
+          fill={isLesson ? '#FF9800' : '#2196F3'}
+          stroke="none"
+          onClick={handleClick}
+          style={{ cursor: 'pointer' }}
+        />
+      )}
+
+      <circle cx="0" cy="0" r={radius} fill="none" stroke="#fff" strokeWidth="2" onClick={handleClick} style={{ pointerEvents: 'none' }} />
+
+      <text
+        fill="#fff"
+        stroke="none"
+        strokeWidth="0"
+        x={radius + 10}
+        y="4"
+        fontSize={14}
+        fontFamily="Arial, sans-serif"
+        textAnchor="start"
+        style={{ fontWeight: 'normal', transform: 'scaleY(-1)' }}
+        onClick={handleClick}
+      >
+        {nodeDatum.name}
+      </text>
+    </g>
+  );
+};
+
+function buildEditorTree(node: any): any {
+  return {
+    name: node.name,
+    id: node.id,
+    isLesson: node.isLesson || false,
+    imageKey: node.imageKey || null,
+    content: node.content || null,
+    children: node.children ? node.children.map((child: any) => buildEditorTree(child)) : undefined,
+  };
+}
+
+// Компонент дерева для редактора (ветви вверх)
+function EditableTreeView({ structure, onNodeClick }: { structure: any; onNodeClick: (nodeId: string) => void }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [translate, setTranslate] = useState({ x: 400, y: 100 });
+
+  useEffect(() => {
+    const updateTranslate = () => {
+      if (containerRef.current) {
+        const width = containerRef.current.clientWidth;
+        const height = containerRef.current.clientHeight;
+        setTranslate({ x: width / 2, y: height - 150 });
+      }
+    };
+    updateTranslate();
+    window.addEventListener('resize', updateTranslate);
+    return () => window.removeEventListener('resize', updateTranslate);
+  }, []);
+
+  const treeData = buildEditorTree(structure);
+  return (
+    <div ref={containerRef} style={{ width: '100%', height: '100%', backgroundColor: '#1a1a2e', transform: 'scaleY(-1)' }}>
+      <Tree
+        data={treeData}
+        orientation="vertical"
+        pathFunc="step"
+        renderCustomNodeElement={(props) => renderEditorNode({ ...props, onNodeClick })}
+        translate={translate}
+        zoomable={true}
+        draggable={true}
+        separation={{ siblings: 1.5, nonSiblings: 1.5 }}
+        nodeSize={{ x: 200, y: 100 }}
+        collapsible={false}
+      />
+    </div>
+  );
 }
 
 // ========== ВИЗУАЛЬНЫЙ РЕДАКТОР ПРОГРАММ ==========
@@ -862,7 +878,6 @@ function StudentProgramList({ userId, onApply, existingProgramIds }: { userId: s
 
   useEffect(() => {
     const load = async () => {
-      // Ученики видят только видимые программы
       const all = await getVisiblePrograms();
       const filtered = [];
       for (const prog of all) {
@@ -993,8 +1008,21 @@ function App() {
   const loadPrograms = async () => {
     if (isAdmin) {
       const progs = await getAllPrograms();
-      // Добавляем информацию о создателе (можно загружать имена отдельно)
-      setPrograms(progs);
+      const creatorIds = progs.map(p => p.created_by).filter(id => id);
+      const nameMap = await getUsersByIds(creatorIds);
+      const progsWithNames = progs.map(p => ({
+        ...p,
+        creator_name: nameMap[p.created_by] || p.created_by?.toString() || 'Неизвестный',
+      }));
+      // Сортируем: сначала свои (created_by === userId)
+      const sorted = progsWithNames.sort((a, b) => {
+        const aIsMine = a.created_by === Number(userId);
+        const bIsMine = b.created_by === Number(userId);
+        if (aIsMine && !bIsMine) return -1;
+        if (!aIsMine && bIsMine) return 1;
+        return a.name.localeCompare(b.name);
+      });
+      setPrograms(sorted);
     } else {
       const progs = await getStudentPrograms(userId);
       setPrograms(progs);
@@ -1029,7 +1057,6 @@ function App() {
   const startEditingProgram = (programId: string) => {
     const prog = programs.find(p => p.id === programId);
     if (prog) {
-      // Проверяем, является ли текущий пользователь создателем
       if (prog.created_by !== Number(userId)) {
         alert('Вы не можете редактировать эту программу, так как не являетесь её создателем.');
         return;
@@ -1070,6 +1097,9 @@ function App() {
   };
 
   const handleToggleVisibility = async (programId: string, currentVisible: boolean) => {
+    const newState = !currentVisible;
+    const action = newState ? 'открыть' : 'скрыть';
+    if (!confirm(`Вы уверены, что хотите ${action} программу для учеников?`)) return;
     const success = await toggleProgramVisibility(programId, currentVisible);
     if (success) {
       loadPrograms();
@@ -1104,7 +1134,6 @@ function App() {
     }
   };
 
-  // Остальные обработчики (заявки, ученики) без изменений
   const handleAcceptApplication = async (appId: string) => {
     await updateApplicationStatus(appId, 'accepted');
     const apps = await getApplicationsForProgram(currentProgramId!);
@@ -1340,8 +1369,7 @@ function App() {
                   padding: '15px',
                   borderRadius: '8px',
                   display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
+                  flexDirection: 'column',
                   cursor: 'pointer',
                   transition: 'background-color 0.2s',
                 }}
@@ -1349,42 +1377,40 @@ function App() {
                 onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#333'}
                 onClick={() => selectProgram(prog.id)}
               >
-                <span style={{ flex: 1 }}>
-                  {prog.name}
-                  <span style={{ fontSize: '0.8rem', color: '#aaa', marginLeft: '10px' }}>
-                    (создатель: {prog.creator_name || prog.created_by})
-                  </span>
-                </span>
-                <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                  {isCreator && (
-                    <>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); handleToggleVisibility(prog.id, prog.visible); }}
-                        style={{
-                          background: 'transparent',
-                          border: 'none',
-                          color: prog.visible ? '#4CAF50' : '#f44336',
-                          fontSize: '1.2rem',
-                          cursor: 'pointer',
-                        }}
-                      >
-                        {prog.visible ? '👁️' : '🚫'}
-                      </button>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); startEditingProgram(prog.id); }}
-                        style={{ background: 'transparent', border: 'none', color: '#4CAF50', fontSize: '1.2rem', cursor: 'pointer', marginRight: 4 }}
-                      >
-                        ✏️
-                      </button>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); handleDeleteProgram(prog.id, prog.name); }}
-                        style={{ backgroundColor: 'transparent', border: 'none', color: '#f44336', fontSize: '1.2rem', cursor: 'pointer' }}
-                      >
-                        🗑️
-                      </button>
-                    </>
-                  )}
+                <div style={{ fontSize: '0.75rem', color: '#aaa', marginBottom: '2px' }}>
+                  {prog.creator_name || 'Неизвестный создатель'}
                 </div>
+                <div style={{ fontWeight: 'bold', fontSize: '1.1rem' }}>
+                  {prog.name}
+                </div>
+                {isCreator && (
+                  <div style={{ display: 'flex', gap: '6px', marginTop: '6px', justifyContent: 'flex-end' }}>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleToggleVisibility(prog.id, prog.visible); }}
+                      style={{
+                        background: 'transparent',
+                        border: 'none',
+                        color: prog.visible ? '#4CAF50' : '#f44336',
+                        fontSize: '1.2rem',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {prog.visible ? '👁️' : '🚫'}
+                    </button>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); startEditingProgram(prog.id); }}
+                      style={{ background: 'transparent', border: 'none', color: '#4CAF50', fontSize: '1.2rem', cursor: 'pointer' }}
+                    >
+                      ✏️
+                    </button>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleDeleteProgram(prog.id, prog.name); }}
+                      style={{ backgroundColor: 'transparent', border: 'none', color: '#f44336', fontSize: '1.2rem', cursor: 'pointer' }}
+                    >
+                      🗑️
+                    </button>
+                  </div>
+                )}
               </div>
             );
           })}
