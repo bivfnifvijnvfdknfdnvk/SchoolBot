@@ -304,7 +304,6 @@ function findNodeAndAddChild(tree: any, parentId: string): { newTree: any; newId
         name: 'Новый узел',
         children: [],
         isLesson: false,
-        content: '',
         imageKey: null,
         prerequisites: [],
         textClosed: '',
@@ -406,7 +405,6 @@ function buildEditorTree(node: any, selectedIds?: string[]): any {
     id: node.id,
     isLesson: node.isLesson || false,
     imageKey: node.imageKey || null,
-    content: node.content || null,
     prerequisites: node.prerequisites || [],
     textClosed: node.textClosed || '',
     textOpen: node.textOpen || '',
@@ -485,7 +483,6 @@ function ProgramEditor({ initialStructure, initialName, onSave, onCancel }: {
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
   const [editIsLesson, setEditIsLesson] = useState(false);
-  const [editContent, setEditContent] = useState('');
   const [editImageKey, setEditImageKey] = useState<string | null>(null);
   const [editPrerequisites, setEditPrerequisites] = useState<string[]>([]);
   const [editTextClosed, setEditTextClosed] = useState('');
@@ -521,7 +518,6 @@ function ProgramEditor({ initialStructure, initialName, onSave, onCancel }: {
       setSelectedNodeId(nodeId);
       setEditName(node.name || '');
       setEditIsLesson(node.isLesson || false);
-      setEditContent(node.content || '');
       setEditImageKey(node.imageKey || null);
       setEditPrerequisites(node.prerequisites || []);
       setEditTextClosed(node.textClosed || '');
@@ -545,7 +541,6 @@ function ProgramEditor({ initialStructure, initialName, onSave, onCancel }: {
     const updates: any = {
       name: editName,
       isLesson: editIsLesson,
-      content: editContent,
       imageKey: editImageKey,
       prerequisites: editPrerequisites,
       textClosed: editTextClosed,
@@ -710,15 +705,6 @@ function ProgramEditor({ initialStructure, initialName, onSave, onCancel }: {
           </div>
           {editIsLesson && (
             <>
-              <div style={{ marginBottom: '12px' }}>
-                <label>Содержимое урока (старое, для совместимости)</label>
-                <textarea
-                  value={editContent}
-                  onChange={(e) => setEditContent(e.target.value)}
-                  rows={2}
-                  style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #555', background: '#1a1a2e', color: '#fff', resize: 'vertical' }}
-                />
-              </div>
               <div style={{ marginBottom: '12px' }}>
                 <label>Текст в закрытом состоянии (краткое описание)</label>
                 <textarea
@@ -1131,33 +1117,35 @@ function LessonModal({ isOpen, onClose, title, textClosed, textOpen, textComplet
 }) {
   if (!isOpen) return null;
 
+  const hasContent = textClosed || textOpen || textCompleted;
+
   return (
     <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 999, cursor: 'pointer' }} onClick={onClose}>
       <div style={{ backgroundColor: '#2a2a4e', padding: '30px', borderRadius: '12px', maxWidth: '80%', maxHeight: '80%', overflow: 'auto', cursor: 'default', color: '#fff', boxShadow: '0 8px 32px rgba(0,0,0,0.7)' }} onClick={(e) => e.stopPropagation()}>
         <h2 style={{ marginBottom: '16px', borderBottom: '1px solid #555', paddingBottom: '8px' }}>{title}</h2>
         <div style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', lineHeight: '1.6' }}>
-          {/* Всегда показываем текст3 (закрытое состояние) */}
-          {textClosed && (
-            <div style={{ marginBottom: '12px' }}>
-              <strong>📖 Описание:</strong>
-              <div>{textClosed}</div>
-            </div>
-          )}
-          {/* Если открыт (не заблокирован), показываем текст1 (задания) */}
-          {!locked && textOpen && (
-            <div style={{ marginBottom: '12px' }}>
-              <strong>📝 Задания:</strong>
-              <div>{textOpen}</div>
-            </div>
-          )}
-          {/* Если пройден, показываем текст2 (материалы) */}
-          {completed && textCompleted && (
-            <div style={{ marginBottom: '12px' }}>
-              <strong>📚 Материалы:</strong>
-              <div>{textCompleted}</div>
-            </div>
-          )}
-          {!textClosed && !textOpen && !textCompleted && (
+          {hasContent ? (
+            <>
+              {textClosed && (
+                <div style={{ marginBottom: '12px' }}>
+                  <strong>📖 Описание:</strong>
+                  <div>{textClosed}</div>
+                </div>
+              )}
+              {!locked && textOpen && (
+                <div style={{ marginBottom: '12px' }}>
+                  <strong>📝 Задания:</strong>
+                  <div>{textOpen}</div>
+                </div>
+              )}
+              {completed && textCompleted && (
+                <div style={{ marginBottom: '12px' }}>
+                  <strong>📚 Материалы:</strong>
+                  <div>{textCompleted}</div>
+                </div>
+              )}
+            </>
+          ) : (
             <div style={{ color: '#aaa' }}>Нет содержимого</div>
           )}
         </div>
