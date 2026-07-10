@@ -1097,6 +1097,7 @@ function SkillTreeView({ structure, progress, onLessonClick, onToggleLesson, isP
   );
 }
 
+// ========== КОМПОНЕНТ СПИСКА ПРОГРАММ ДЛЯ УЧЕНИКА (с исправлениями) ==========
 function StudentProgramList({ userId, onApply, existingProgramIds }: { userId: string; onApply: (programId: string) => void; existingProgramIds: string[] }) {
   const [availablePrograms, setAvailablePrograms] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1131,17 +1132,60 @@ function StudentProgramList({ userId, onApply, existingProgramIds }: { userId: s
       {availablePrograms.map(prog => (
         <div key={prog.id} style={{ margin: '10px 0', backgroundColor: '#333', padding: '15px', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <span>{prog.name}</span>
-          {prog.appStatus === 'pending' && <span style={{ color: '#ffa500' }}>⏳ Заявка отправлена</span>}
-          {prog.appStatus === 'rejected' && <span style={{ color: '#ff4444' }}>❌ Отклонена</span>}
-          {!prog.appStatus && <button onClick={() => onApply(prog.id)}>📩 Подать заявку</button>}
-          {prog.appStatus === 'pending' && <span>ожидайте</span>}
-          {prog.appStatus === 'rejected' && <button onClick={() => onApply(prog.id)}>📩 Подать заново</button>}
+          {prog.appStatus === 'pending' && (
+            <span style={{ color: '#ffa500' }}>⏳</span>
+          )}
+          {prog.appStatus === 'rejected' && (
+            <span style={{ color: '#ff4444' }}>❌</span>
+          )}
+          {!prog.appStatus && (
+            <button
+              onClick={() => onApply(prog.id)}
+              style={{
+                background: 'rgba(255,255,255,0.1)',
+                border: 'none',
+                borderRadius: '4px',
+                padding: '6px 8px',
+                color: '#fff',
+                cursor: 'pointer',
+                fontSize: '18px',
+                transition: 'background 0.2s',
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.2)'}
+              onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
+            >
+              📩
+            </button>
+          )}
+          {prog.appStatus === 'pending' && (
+            <span style={{ color: '#aaa' }}>⏳</span>
+          )}
+          {prog.appStatus === 'rejected' && (
+            <button
+              onClick={() => onApply(prog.id)}
+              style={{
+                background: 'rgba(255,255,255,0.1)',
+                border: 'none',
+                borderRadius: '4px',
+                padding: '6px 8px',
+                color: '#fff',
+                cursor: 'pointer',
+                fontSize: '18px',
+                transition: 'background 0.2s',
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.2)'}
+              onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
+            >
+              📩
+            </button>
+          )}
         </div>
       ))}
     </div>
   );
 }
 
+// ========== МОДАЛЬНОЕ ОКНО ДЛЯ УРОКА ==========
 function LessonModal({ isOpen, onClose, title, textClosed, textOpen, textCompleted, locked, completed, isPreview, prereqCount }: {
   isOpen: boolean;
   onClose: () => void;
@@ -1202,7 +1246,6 @@ function LessonModal({ isOpen, onClose, title, textClosed, textOpen, textComplet
 // ========== ОСНОВНОЙ КОМПОНЕНТ ==========
 function App() {
   const [userId, setUserId] = useState('guest');
-  const [userName, setUserName] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
 
   const [programs, setPrograms] = useState<any[]>([]);
@@ -1247,7 +1290,6 @@ function App() {
             last_name: lastName || '',
             username: username || '',
           }, { onConflict: 'telegram_id' });
-        setUserName(`${firstName || ''} ${lastName || ''}`.trim() || id);
       } else {
         const tg = (window as any).Telegram?.WebApp;
         if (tg) {
@@ -1266,7 +1308,6 @@ function App() {
                 last_name: user.last_name || '',
                 username: user.username || '',
               }, { onConflict: 'telegram_id' });
-            setUserName(`${user.first_name || ''} ${user.last_name || ''}`.trim() || id);
           }
         }
       }
@@ -1554,6 +1595,21 @@ function App() {
     const currentProgram = programs.find(p => p.id === currentProgramId);
     const isCreator = currentProgram?.created_by === Number(userId);
 
+    // Объединяем заявки и принятых учеников в один список, помещая заявки вверх
+    const pendingApps = applications.filter(a => a.status === 'pending').map(app => ({
+      ...app,
+      _type: 'pending',
+      _name: app.student_name || app.student_id.toString(),
+    }));
+    const acceptedList = acceptedStudents.map(s => ({
+      id: s.id,
+      student_id: Number(s.id),
+      student_name: s.name,
+      _type: 'accepted',
+      _name: s.name || s.id,
+    }));
+    const combinedList = [...pendingApps, ...acceptedList];
+
     if (selectedStudentId) {
       return (
         <div style={{ width: '100vw', height: '100vh', backgroundColor: '#1a1a2e' }}>
@@ -1624,11 +1680,10 @@ function App() {
           >
             ←
           </button>
-          <h2 style={{ margin: 0, marginLeft: '8px' }}>Панель управления программой</h2>
+          <h2 style={{ margin: 0, marginLeft: '8px' }}>{currentProgram?.name || 'Программа'}</h2>
         </div>
         <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap' }}>
           <div style={{ flex: 1, minWidth: '300px' }}>
-            <h3>Дерево навыков (превью)</h3>
             <div style={{ height: '400px', overflow: 'auto', border: '1px solid #555', borderRadius: '8px', padding: '10px' }}>
               <SkillTreeView
                 structure={structure}
@@ -1651,51 +1706,87 @@ function App() {
             </div>
           </div>
           <div style={{ flex: 1, minWidth: '300px' }}>
-            <h3>Заявки на вступление</h3>
-            {applications.filter(a => a.status === 'pending').map(app => (
-              <div key={app.id} style={{ marginBottom: '10px', backgroundColor: '#333', padding: '10px', borderRadius: '8px' }}>
-                <span>{app.student_name || app.student_id}</span>
-                {isCreator && (
-                  <div>
-                    <button onClick={() => handleAcceptApplication(app.id)} style={{ marginRight: '10px', backgroundColor: '#4CAF50' }}>✅ Принять</button>
-                    <button onClick={() => handleRejectApplication(app.id)} style={{ backgroundColor: '#f44336' }}>❌ Отклонить</button>
+            <h3 style={{ marginTop: 0 }}>Ученики</h3>
+            {combinedList.length === 0 && <p>Нет учеников</p>}
+            {combinedList.map((item) => {
+              const isPending = item._type === 'pending';
+              const studentName = item._name || `ID: ${item.student_id}`;
+              return (
+                <div
+                  key={isPending ? item.id : item.id}
+                  style={{
+                    marginBottom: '10px',
+                    backgroundColor: isPending ? '#4a3a2a' : '#333',
+                    padding: '10px',
+                    borderRadius: '8px',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    cursor: isPending ? 'default' : (isCreator ? 'pointer' : 'default'),
+                    transition: 'background-color 0.2s',
+                  }}
+                  onMouseEnter={(e) => { if (!isPending && isCreator) e.currentTarget.style.backgroundColor = '#444'; }}
+                  onMouseLeave={(e) => { if (!isPending && isCreator) e.currentTarget.style.backgroundColor = '#333'; }}
+                  onClick={() => { if (!isPending && isCreator) handleSelectStudent(item.student_id.toString()); }}
+                >
+                  <span style={{ fontWeight: 'bold', fontSize: '16px' }}>{studentName}</span>
+                  <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                    {isPending && isCreator && (
+                      <>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleAcceptApplication(item.id); }}
+                          style={{
+                            background: 'rgba(76, 175, 80, 0.2)',
+                            border: 'none',
+                            borderRadius: '4px',
+                            padding: '4px 6px',
+                            color: '#4CAF50',
+                            cursor: 'pointer',
+                            fontSize: '18px',
+                            transition: 'background 0.2s',
+                          }}
+                          onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(76, 175, 80, 0.4)'}
+                          onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(76, 175, 80, 0.2)'}
+                        >
+                          ✅
+                        </button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleRejectApplication(item.id); }}
+                          style={{
+                            background: 'rgba(244, 67, 54, 0.2)',
+                            border: 'none',
+                            borderRadius: '4px',
+                            padding: '4px 6px',
+                            color: '#f44336',
+                            cursor: 'pointer',
+                            fontSize: '18px',
+                            transition: 'background 0.2s',
+                          }}
+                          onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(244, 67, 54, 0.4)'}
+                          onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(244, 67, 54, 0.2)'}
+                        >
+                          ❌
+                        </button>
+                      </>
+                    )}
+                    {!isPending && isCreator && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleDeleteStudent(item.student_id.toString(), studentName); }}
+                        style={{
+                          background: 'transparent',
+                          border: 'none',
+                          color: '#f44336',
+                          fontSize: '1.2rem',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        🗑️
+                      </button>
+                    )}
                   </div>
-                )}
-              </div>
-            ))}
-            {applications.filter(a => a.status === 'pending').length === 0 && <p>Нет новых заявок</p>}
-
-            <h3>Принятые ученики</h3>
-            {acceptedStudents.map(student => (
-              <div
-                key={student.id}
-                style={{
-                  marginBottom: '10px',
-                  backgroundColor: '#333',
-                  padding: '10px',
-                  borderRadius: '8px',
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  cursor: isCreator ? 'pointer' : 'default',
-                  transition: 'background-color 0.2s',
-                }}
-                onMouseEnter={(e) => { if (isCreator) e.currentTarget.style.backgroundColor = '#444'; }}
-                onMouseLeave={(e) => { if (isCreator) e.currentTarget.style.backgroundColor = '#333'; }}
-                onClick={() => { if (isCreator) handleSelectStudent(student.id); }}
-              >
-                <span>{student.name}</span>
-                {isCreator && (
-                  <button
-                    onClick={(e) => { e.stopPropagation(); handleDeleteStudent(student.id, student.name); }}
-                    style={{ backgroundColor: 'transparent', border: 'none', color: '#f44336', fontSize: '1.2rem', cursor: 'pointer' }}
-                  >
-                    🗑️
-                  </button>
-                )}
-              </div>
-            ))}
-            {acceptedStudents.length === 0 && <p>Нет принятых учеников</p>}
+                </div>
+              );
+            })}
           </div>
         </div>
       </div>
@@ -1703,9 +1794,11 @@ function App() {
   }
 
   if (!isAdmin && view === 'tree' && currentProgramId) {
+    // Режим ученика
+    const progName = programs.find(p => p.id === currentProgramId)?.name || '';
     return (
       <div style={{ width: '100vw', height: '100vh', backgroundColor: '#1a1a2e' }}>
-        <div style={{ position: 'absolute', top: 10, left: 10, zIndex: 10, display: 'flex', gap: '10px', alignItems: 'center' }}>
+        <div style={{ position: 'absolute', top: 10, left: 10, right: 10, zIndex: 10, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '0 10px' }}>
           <button
             onClick={() => { setView('programs'); setCurrentProgramId(null); }}
             style={{
@@ -1715,6 +1808,8 @@ function App() {
               fontSize: '28px',
               cursor: 'pointer',
               padding: '4px 8px',
+              position: 'absolute',
+              left: 0,
               transition: 'color 0.2s',
             }}
             onMouseEnter={(e) => e.currentTarget.style.color = '#fff'}
@@ -1722,8 +1817,7 @@ function App() {
           >
             ←
           </button>
-          <span style={{ color: '#fff', marginLeft: '8px' }}>Программа: {programs.find(p => p.id === currentProgramId)?.name || ''}</span>
-          <span style={{ color: '#fff', marginLeft: 'auto' }}>Ученик: {userName || userId}</span>
+          <span style={{ color: '#fff', fontWeight: 'bold', fontSize: '18px' }}>{progName}</span>
         </div>
         <SkillTreeView
           structure={structure}
@@ -1758,7 +1852,7 @@ function App() {
                 background: 'transparent',
                 border: 'none',
                 color: 'rgba(255,255,255,0.3)',
-                fontSize: '30px',
+                fontSize: '34px',
                 cursor: 'pointer',
                 padding: '0 12px',
                 lineHeight: 1,
@@ -1801,24 +1895,51 @@ function App() {
                     <button
                       onClick={(e) => { e.stopPropagation(); handleToggleVisibility(prog.id, prog.visible); }}
                       style={{
-                        background: 'transparent',
+                        background: 'rgba(255,255,255,0.1)',
                         border: 'none',
+                        borderRadius: '4px',
+                        padding: '4px 6px',
                         color: prog.visible ? '#4CAF50' : '#f44336',
-                        fontSize: '1.2rem',
                         cursor: 'pointer',
+                        fontSize: '1.2rem',
+                        transition: 'background 0.2s',
                       }}
+                      onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.2)'}
+                      onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
                     >
                       {prog.visible ? '👁️' : '🚫'}
                     </button>
                     <button
                       onClick={(e) => { e.stopPropagation(); startEditingProgram(prog.id); }}
-                      style={{ background: 'transparent', border: 'none', color: '#4CAF50', fontSize: '1.2rem', cursor: 'pointer' }}
+                      style={{
+                        background: 'rgba(255,255,255,0.1)',
+                        border: 'none',
+                        borderRadius: '4px',
+                        padding: '4px 6px',
+                        color: '#4CAF50',
+                        cursor: 'pointer',
+                        fontSize: '1.2rem',
+                        transition: 'background 0.2s',
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.2)'}
+                      onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
                     >
                       ✏️
                     </button>
                     <button
                       onClick={(e) => { e.stopPropagation(); handleDeleteProgram(prog.id, prog.name); }}
-                      style={{ backgroundColor: 'transparent', border: 'none', color: '#f44336', fontSize: '1.2rem', cursor: 'pointer' }}
+                      style={{
+                        background: 'rgba(255,255,255,0.1)',
+                        border: 'none',
+                        borderRadius: '4px',
+                        padding: '4px 6px',
+                        color: '#f44336',
+                        cursor: 'pointer',
+                        fontSize: '1.2rem',
+                        transition: 'background 0.2s',
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.2)'}
+                      onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
                     >
                       🗑️
                     </button>
