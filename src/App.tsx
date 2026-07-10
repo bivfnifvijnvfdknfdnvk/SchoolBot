@@ -802,49 +802,44 @@ function ProgramEditor({ initialStructure, initialName, onSave, onCancel }: {
 
   return (
     <div style={{ padding: 20, color: '#fff', backgroundColor: '#1a1a2e', minHeight: '100vh' }}>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: 20 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: 20 }}>
+        <button
+          onClick={onCancel}
+          style={{
+            background: 'transparent',
+            border: 'none',
+            color: 'rgba(255,255,255,0.3)',
+            fontSize: '28px',
+            cursor: 'pointer',
+            padding: '4px 8px',
+            transition: 'color 0.2s',
+          }}
+          onMouseEnter={(e) => e.currentTarget.style.color = '#fff'}
+          onMouseLeave={(e) => e.currentTarget.style.color = 'rgba(255,255,255,0.3)'}
+        >
+          ←
+        </button>
         <input
           type="text"
           value={programName}
           onChange={(e) => setProgramName(e.target.value)}
-          style={{ background: 'transparent', color: '#fff', border: '1px solid #555', borderRadius: 4, padding: '4px 8px', fontSize: 20, fontWeight: 'bold', width: '100%' }}
+          style={{ background: 'transparent', color: '#fff', border: '1px solid #555', borderRadius: 4, padding: '4px 8px', fontSize: 20, fontWeight: 'bold', flex: 1 }}
           placeholder="Название программы"
         />
-        <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-          <button
-            onClick={onCancel}
-            style={{
-              background: 'transparent',
-              border: 'none',
-              color: 'rgba(255,255,255,0.5)',
-              fontSize: '18px',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              padding: '4px 8px',
-              transition: 'color 0.2s',
-            }}
-            onMouseEnter={(e) => e.currentTarget.style.color = '#fff'}
-            onMouseLeave={(e) => e.currentTarget.style.color = 'rgba(255,255,255,0.5)'}
-          >
-            ← Назад
-          </button>
-          <button
-            onClick={handleSaveProgram}
-            style={{
-              padding: '6px 16px',
-              background: '#4CAF50',
-              border: 'none',
-              borderRadius: '4px',
-              color: '#fff',
-              cursor: 'pointer',
-              fontSize: '14px',
-            }}
-          >
-            Сохранить
-          </button>
-        </div>
+        <button
+          onClick={handleSaveProgram}
+          style={{
+            padding: '6px 16px',
+            background: '#4CAF50',
+            border: 'none',
+            borderRadius: '4px',
+            color: '#fff',
+            cursor: 'pointer',
+            fontSize: '14px',
+          }}
+        >
+          Сохранить
+        </button>
       </div>
       {isSelectingPrerequisites ? (
         <div>
@@ -1562,14 +1557,14 @@ function App() {
     if (selectedStudentId) {
       return (
         <div style={{ width: '100vw', height: '100vh', backgroundColor: '#1a1a2e' }}>
-          <div style={{ position: 'absolute', top: 10, left: 10, zIndex: 10, display: 'flex', gap: '10px', alignItems: 'center' }}>
+          <div style={{ position: 'absolute', top: 10, left: 10, right: 10, zIndex: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0 10px' }}>
             <button
               onClick={backToAdmin}
               style={{
                 background: 'transparent',
                 border: 'none',
                 color: 'rgba(255,255,255,0.3)',
-                fontSize: '24px',
+                fontSize: '28px',
                 cursor: 'pointer',
                 padding: '4px 8px',
                 transition: 'color 0.2s',
@@ -1619,7 +1614,7 @@ function App() {
               background: 'transparent',
               border: 'none',
               color: 'rgba(255,255,255,0.3)',
-              fontSize: '24px',
+              fontSize: '28px',
               cursor: 'pointer',
               padding: '4px 8px',
               transition: 'color 0.2s',
@@ -1717,7 +1712,7 @@ function App() {
               background: 'transparent',
               border: 'none',
               color: 'rgba(255,255,255,0.3)',
-              fontSize: '24px',
+              fontSize: '28px',
               cursor: 'pointer',
               padding: '4px 8px',
               transition: 'color 0.2s',
@@ -1763,9 +1758,10 @@ function App() {
                 background: 'transparent',
                 border: 'none',
                 color: 'rgba(255,255,255,0.3)',
-                fontSize: '24px',
+                fontSize: '30px',
                 cursor: 'pointer',
-                padding: '4px 8px',
+                padding: '0 12px',
+                lineHeight: 1,
                 transition: 'color 0.2s',
               }}
               onMouseEnter={(e) => e.currentTarget.style.color = '#fff'}
