@@ -931,7 +931,13 @@ function recalculateProgress(structure: any, progress: Record<string, boolean>):
   return newProgress;
 }
 
-function buildTreeForDisplay(node: any, progress: Record<string, boolean>, prerequisitesMap: Record<string, string[]>, isPreview: boolean = false): any {
+function buildTreeForDisplay(
+  node: any,
+  progress: Record<string, boolean>,
+  prerequisitesMap: Record<string, string[]>,
+  nodeMap: Record<string, any>,
+  isPreview: boolean = false
+): any {
   const isLesson = node.isLesson === true;
   const completed = isLesson ? (progress[node.id] || false) : false;
   let isLocked = false;
@@ -939,20 +945,10 @@ function buildTreeForDisplay(node: any, progress: Record<string, boolean>, prere
   if (isLesson && !isPreview) {
     const prereqs = prerequisitesMap[node.id] || [];
     isLocked = prereqs.some((id: string) => !progress[id]);
-    // Локальная функция поиска узла по ID
-    function findNodeInTree(currentNode: any, targetId: string): any {
-      if (currentNode.id === targetId) return currentNode;
-      if (currentNode.children) {
-        for (const child of currentNode.children) {
-          const found = findNodeInTree(child, targetId);
-          if (found) return found;
-        }
-      }
-      return null;
-    }
+    // Ищем названия в nodeMap
     prereqNames = prereqs.map((id: string) => {
-      const lessonNode = findNodeInTree(node, id);
-      return lessonNode ? lessonNode.name : id;
+      const foundNode = nodeMap[id];
+      return foundNode ? foundNode.name : id;
     });
   }
   return {
@@ -967,7 +963,9 @@ function buildTreeForDisplay(node: any, progress: Record<string, boolean>, prere
     __textClosed: node.textClosed || '',
     __textOpen: node.textOpen || '',
     __textCompleted: node.textCompleted || '',
-    children: node.children ? node.children.map((child: any) => buildTreeForDisplay(child, progress, prerequisitesMap, isPreview)) : undefined,
+    children: node.children ? node.children.map((child: any) =>
+      buildTreeForDisplay(child, progress, prerequisitesMap, nodeMap, isPreview)
+    ) : undefined,
   };
 }
 
@@ -1093,8 +1091,20 @@ function SkillTreeView({ structure, progress, onLessonClick, onToggleLesson, isP
     return () => window.removeEventListener('resize', updateTranslate);
   }, []);
 
+  // Строим карту всех узлов по ID
+  const nodeMap: Record<string, any> = {};
+  function buildNodeMap(node: any) {
+    nodeMap[node.id] = node;
+    if (node.children) {
+      for (const child of node.children) {
+        buildNodeMap(child);
+      }
+    }
+  }
+  buildNodeMap(structure);
+
   const prerequisitesMap = collectLessonsWithPrerequisites(structure);
-  const treeData = buildTreeForDisplay(structure, progress, prerequisitesMap, isPreview);
+  const treeData = buildTreeForDisplay(structure, progress, prerequisitesMap, nodeMap, isPreview);
   return (
     <div ref={containerRef} style={{ width: '100%', height: '100%', backgroundColor: '#1a1a2e', transform: 'scaleY(-1)' }}>
       <Tree
