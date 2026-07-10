@@ -801,46 +801,50 @@ function ProgramEditor({ initialStructure, initialName, onSave, onCancel }: {
   };
 
   return (
-    <div style={{ padding: 20, color: '#fff', backgroundColor: '#1a1a2e', minHeight: '100vh' }}>
+    <div style={{ padding: 20, color: '#fff', backgroundColor: '#1a1a2e', minHeight: '100vh', overflow: 'hidden' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: 20 }}>
-        <button
-          onClick={onCancel}
-          style={{
-            background: 'transparent',
-            border: 'none',
-            color: 'rgba(255,255,255,0.3)',
-            fontSize: '28px',
-            cursor: 'pointer',
-            padding: '4px 8px',
-            transition: 'color 0.2s',
-          }}
-          onMouseEnter={(e) => e.currentTarget.style.color = '#fff'}
-          onMouseLeave={(e) => e.currentTarget.style.color = 'rgba(255,255,255,0.3)'}
-        >
-          ←
-        </button>
-        <input
-          type="text"
-          value={programName}
-          onChange={(e) => setProgramName(e.target.value)}
-          style={{ background: 'transparent', color: '#fff', border: '1px solid #555', borderRadius: 4, padding: '4px 8px', fontSize: 20, fontWeight: 'bold', flex: 1 }}
-          placeholder="Название программы"
-        />
-        <button
-          onClick={handleSaveProgram}
-          style={{
-            padding: '6px 16px',
-            background: '#4CAF50',
-            border: 'none',
-            borderRadius: '4px',
-            color: '#fff',
-            cursor: 'pointer',
-            fontSize: '14px',
-          }}
-        >
-          Сохранить
-        </button>
-      </div>
+  <button
+    onClick={onCancel}
+    style={{
+      background: 'transparent',
+      border: 'none',
+      color: 'rgba(255,255,255,0.3)',
+      fontSize: '28px',
+      cursor: 'pointer',
+      padding: '4px 8px',
+      transition: 'color 0.2s',
+    }}
+    onMouseEnter={(e) => e.currentTarget.style.color = '#fff'}
+    onMouseLeave={(e) => e.currentTarget.style.color = 'rgba(255,255,255,0.3)'}
+  >
+    ←
+  </button>
+  <input
+    type="text"
+    value={programName}
+    onChange={(e) => setProgramName(e.target.value)}
+    style={{ background: 'transparent', color: '#fff', border: '1px solid #555', borderRadius: 4, padding: '4px 8px', fontSize: 20, fontWeight: 'bold', flex: 1, minWidth: 0 }}
+    placeholder="Название программы"
+  />
+  <button
+    onClick={handleSaveProgram}
+    style={{
+      background: 'rgba(255,255,255,0.1)',
+      border: 'none',
+      borderRadius: '4px',
+      padding: '4px 8px',
+      color: '#fff',
+      cursor: 'pointer',
+      fontSize: '20px',
+      transition: 'background 0.2s',
+      flexShrink: 0,
+    }}
+    onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.2)'}
+    onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
+  >
+    💾
+  </button>
+</div>
       {isSelectingPrerequisites ? (
         <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px', backgroundColor: '#2a2a4e', borderRadius: '8px', marginBottom: '10px' }}>
