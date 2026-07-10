@@ -757,6 +757,23 @@ function buildTreeForDisplay(node: any, progress: Record<string, boolean>): any 
   }
 }
 
+// ========== ВСПОМОГАТЕЛЬНАЯ ФУНКЦИЯ ДЛЯ ПОЛУЧЕНИЯ УРОКОВ В ПОРЯДКЕ ==========
+function getAllLessonsInOrder(node: any): string[] {
+  const result: string[] = [];
+  function traverse(n: any) {
+    if (n.isLesson) {
+      result.push(n.id);
+    }
+    if (n.children) {
+      for (const child of n.children) {
+        traverse(child);
+      }
+    }
+  }
+  traverse(node);
+  return result;
+}
+
 const renderCustomNode = ({ nodeDatum, onLessonClick, onToggleLesson }: any) => {
   const isLesson = nodeDatum.__isLesson;
   const completed = nodeDatum.__completed;
@@ -1181,9 +1198,31 @@ function App() {
     loadProgressForProgram(userId, currentProgramId!).then(p => setProgress(p));
   };
 
+  // ========== ОБНОВЛЁННАЯ ФУНКЦИЯ ПЕРЕКЛЮЧЕНИЯ ПРОГРЕССА С ПОСЛЕДОВАТЕЛЬНОСТЬЮ ==========
   const toggleLessonForStudent = async (lessonId: string) => {
     if (!selectedStudentId || !currentProgramId) return;
-    const newProgress = { ...progress, [lessonId]: !progress[lessonId] };
+    if (!structure) return;
+
+    // Получаем все уроки в порядке следования (DFS слева направо)
+    const allLessons = getAllLessonsInOrder(structure);
+    const index = allLessons.indexOf(lessonId);
+    if (index === -1) return;
+
+    const currentCompleted = progress[lessonId] || false;
+    const newStatus = !currentCompleted;
+    const updates: Record<string, boolean> = {};
+
+    if (newStatus === true) {
+      // Если отмечаем как пройденный – отмечаем все предыдущие уроки
+      for (let i = 0; i <= index; i++) {
+        updates[allLessons[i]] = true;
+      }
+    } else {
+      // Если снимаем отметку – только этот урок становится непройденным
+      updates[lessonId] = false;
+    }
+
+    const newProgress = { ...progress, ...updates };
     setProgress(newProgress);
     await saveProgressForProgram(selectedStudentId, currentProgramId, newProgress);
   };
