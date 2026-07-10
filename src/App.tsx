@@ -1282,38 +1282,49 @@ function LessonModal({ isOpen, onClose, title, textClosed, textOpen, textComplet
   isPreview: boolean;
   prereqNames: string[];
 }) {
-  const [visible, setVisible] = useState(false);
-  const timeoutRef = useRef<number | null>(null);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [modalVisible, setModalVisible] = useState(false);
+  const closeTimeoutRef = useRef<number | null>(null);
 
+  // Синхронизация с isOpen
   useEffect(() => {
     if (isOpen) {
       // Открываем
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-        timeoutRef.current = null;
+      if (closeTimeoutRef.current) {
+        clearTimeout(closeTimeoutRef.current);
+        closeTimeoutRef.current = null;
       }
-      setVisible(true);
+      setModalOpen(true);
+      // Запускаем анимацию появления с небольшой задержкой
+      requestAnimationFrame(() => {
+        setTimeout(() => {
+          setModalVisible(true);
+        }, 10);
+      });
     } else {
       // Закрываем
-      setVisible(false);
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-        timeoutRef.current = null;
+      if (modalOpen) {
+        setModalVisible(false);
+        if (closeTimeoutRef.current) {
+          clearTimeout(closeTimeoutRef.current);
+          closeTimeoutRef.current = null;
+        }
+        closeTimeoutRef.current = window.setTimeout(() => {
+          setModalOpen(false);
+          onClose();
+          closeTimeoutRef.current = null;
+        }, 300);
       }
-      timeoutRef.current = window.setTimeout(() => {
-        onClose();
-        timeoutRef.current = null;
-      }, 300);
     }
     return () => {
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-        timeoutRef.current = null;
+      if (closeTimeoutRef.current) {
+        clearTimeout(closeTimeoutRef.current);
+        closeTimeoutRef.current = null;
       }
     };
-  }, [isOpen, onClose]);
+  }, [isOpen, onClose, modalOpen]);
 
-  if (!isOpen && !visible) return null;
+  if (!modalOpen) return null;
 
   const hasContent = textClosed || textOpen || textCompleted;
 
@@ -1332,11 +1343,11 @@ function LessonModal({ isOpen, onClose, title, textClosed, textOpen, textComplet
         alignItems: 'center',
         zIndex: 999,
         cursor: 'pointer',
-        opacity: visible ? 1 : 0,
+        opacity: modalVisible ? 1 : 0,
         transition: 'opacity 0.25s ease',
       }}
       onClick={() => {
-        if (visible) {
+        if (modalVisible) {
           onClose();
         }
       }}
@@ -1353,9 +1364,9 @@ function LessonModal({ isOpen, onClose, title, textClosed, textOpen, textComplet
           cursor: 'default',
           color: '#fff',
           boxShadow: '0 8px 32px rgba(0,0,0,0.7)',
-          transform: visible ? 'scale(1)' : 'scale(0.95)',
+          transform: modalVisible ? 'scale(1)' : 'scale(0.95)',
           transition: 'transform 0.25s ease, opacity 0.25s ease',
-          opacity: visible ? 1 : 0,
+          opacity: modalVisible ? 1 : 0,
         }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -1393,7 +1404,7 @@ function LessonModal({ isOpen, onClose, title, textClosed, textOpen, textComplet
         </div>
         <button
           onClick={() => {
-            if (visible) {
+            if (modalVisible) {
               onClose();
             }
           }}
