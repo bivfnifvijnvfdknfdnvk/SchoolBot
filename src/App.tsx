@@ -308,9 +308,9 @@ function findNodeAndAddChild(tree: any, parentId: string): { newTree: any; newId
         imageKey: null,
         prerequisites: [],
       };
-      const updatedNode = { ...node, isLesson: false };
-      const newChildren = updatedNode.children ? [...updatedNode.children, newChild] : [newChild];
-      return { found: true, newNode: { ...updatedNode, children: newChildren }, newId };
+      // Не меняем тип родителя – оставляем как есть
+      const newChildren = node.children ? [...node.children, newChild] : [newChild];
+      return { found: true, newNode: { ...node, children: newChildren }, newId };
     }
     if (node.children) {
       for (let i = 0; i < node.children.length; i++) {
@@ -337,7 +337,6 @@ const renderEditorNode = ({ nodeDatum, onNodeClick, isSelectMode, onSelectToggle
   const handleClick = (e: any) => {
     e.stopPropagation();
     if (isSelectMode && isLesson && onSelectToggle) {
-      // В режиме выбора условий: клик по уроку переключает его состояние
       onSelectToggle(nodeDatum.id);
       return;
     }
@@ -539,8 +538,7 @@ function ProgramEditor({ initialStructure, initialName, onSave, onCancel }: {
       imageKey: editImageKey,
       prerequisites: editPrerequisites,
     };
-    if (editIsLesson) {
-    }
+    // Не удаляем детей, даже если это урок – оставляем как есть
     setTree((prev: any) => updateNodeInTree(prev, selectedNodeId, updates));
     closeEditor();
   };
@@ -831,23 +829,6 @@ function ProgramEditor({ initialStructure, initialName, onSave, onCancel }: {
 // ========== КОМПОНЕНТЫ ДЛЯ ОТОБРАЖЕНИЯ ==========
 
 // Функция для сбора всех уроков с их prerequisites
-function buildTreeForDisplay(node: any, progress: Record<string, boolean>, prerequisitesMap: Record<string, string[]>): any {
-  const isLesson = node.isLesson === true;
-  const completed = isLesson ? (progress[node.id] || false) : false;
-  const isLocked = isLesson ? (prerequisitesMap[node.id] || []).some(id => !progress[id]) : false;
-  return {
-    name: node.name,
-    __id: node.id,
-    __isLesson: isLesson,
-    __completed: completed,
-    __locked: isLocked,
-    __imageUrl: node.imageKey ? `${STORAGE_URL}${node.imageKey}` : null,
-    __imageKey: node.imageKey || null,
-    __content: node.content || null,
-    children: node.children ? node.children.map((child: any) => buildTreeForDisplay(child, progress, prerequisitesMap)) : undefined,
-  };
-}
-
 function collectLessonsWithPrerequisites(node: any): Record<string, string[]> {
   const map: Record<string, string[]> = {};
   function traverse(n: any) {
@@ -862,6 +843,62 @@ function collectLessonsWithPrerequisites(node: any): Record<string, string[]> {
   }
   traverse(node);
   return map;
+}
+
+// Функция рекурсивного пересчёта прогресса: если урок заблокирован, он становится непройденным
+function recalculateProgress(structure: any, progress: Record<string, boolean>): Record<string, boolean> {
+  const newProgress = { ...progress };
+  // Получаем все уроки
+  const lessons: any[] = [];
+  function traverse(node: any) {
+    if (node.isLesson === true) {
+      lessons.push(node);
+    }
+    if (node.children) {
+      for (const child of node.children) {
+        traverse(child);
+      }
+    }
+  }
+  traverse(structure);
+
+  // Повторяем обход, чтобы учесть цепочки (максимум количество уроков)
+  for (let iter = 0; iter < lessons.length; iter++) {
+    let changed = false;
+    for (const lesson of lessons) {
+      const prereqs = lesson.prerequisites || [];
+      const isLocked = prereqs.some((id: string) => !newProgress[id]);
+      if (isLocked) {
+        if (newProgress[lesson.id] === true) {
+          newProgress[lesson.id] = false;
+          changed = true;
+        }
+      }
+    }
+    if (!changed) break;
+  }
+  return newProgress;
+}
+
+function buildTreeForDisplay(node: any, progress: Record<string, boolean>, prerequisitesMap: Record<string, string[]>, isPreview: boolean = false): any {
+  const isLesson = node.isLesson === true;
+  const completed = isLesson ? (progress[node.id] || false) : false;
+  let isLocked = false;
+  if (isLesson && !isPreview) {
+    const prereqs = prerequisitesMap[node.id] || [];
+    isLocked = prereqs.some(id => !progress[id]);
+  }
+  return {
+    name: node.name,
+    __id: node.id,
+    __isLesson: isLesson,
+    __completed: completed,
+    __locked: isLocked,
+    __imageUrl: node.imageKey ? `${STORAGE_URL}${node.imageKey}` : null,
+    __imageKey: node.imageKey || null,
+    __content: node.content || null,
+    children: node.children ? node.children.map((child: any) => buildTreeForDisplay(child, progress, prerequisitesMap, isPreview)) : undefined,
+  };
 }
 
 const renderCustomNode = ({ nodeDatum, onLessonClick, onToggleLesson }: any) => {
@@ -942,11 +979,12 @@ const renderCustomNode = ({ nodeDatum, onLessonClick, onToggleLesson }: any) => 
   );
 };
 
-function SkillTreeView({ structure, progress, onLessonClick, onToggleLesson }: {
+function SkillTreeView({ structure, progress, onLessonClick, onToggleLesson, isPreview = false }: {
   structure: any;
   progress: Record<string, boolean>;
   onLessonClick?: (content: string | null, lessonName: string) => void;
   onToggleLesson?: (lessonId: string) => void;
+  isPreview?: boolean;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [translate, setTranslate] = useState({ x: 400, y: 100 });
@@ -965,7 +1003,7 @@ function SkillTreeView({ structure, progress, onLessonClick, onToggleLesson }: {
   }, []);
 
   const prerequisitesMap = collectLessonsWithPrerequisites(structure);
-  const treeData = buildTreeForDisplay(structure, progress, prerequisitesMap);
+  const treeData = buildTreeForDisplay(structure, progress, prerequisitesMap, isPreview);
   return (
     <div ref={containerRef} style={{ width: '100%', height: '100%', backgroundColor: '#1a1a2e', transform: 'scaleY(-1)' }}>
       <Tree
@@ -1292,7 +1330,6 @@ function App() {
     loadProgressForProgram(userId, currentProgramId!).then(p => setProgress(p));
   };
 
-  // ========== ОБНОВЛЁННАЯ ФУНКЦИЯ ПЕРЕКЛЮЧЕНИЯ ПРОГРЕССА С УСЛОВИЯМИ ==========
   const toggleLessonForStudent = async (lessonId: string) => {
     if (!selectedStudentId || !currentProgramId) return;
     if (!structure) return;
@@ -1306,8 +1343,13 @@ function App() {
       return;
     }
 
-    const newProgress = { ...progress };
+    // Переключаем состояние
+    let newProgress = { ...progress };
     newProgress[lessonId] = !progress[lessonId];
+
+    // Пересчитываем все уроки (каскадное обновление)
+    newProgress = recalculateProgress(structure, newProgress);
+
     setProgress(newProgress);
     await saveProgressForProgram(selectedStudentId, currentProgramId, newProgress);
   };
@@ -1424,6 +1466,7 @@ function App() {
                 structure={structure}
                 progress={progress}
                 onLessonClick={handleLessonClick}
+                isPreview={true}
               />
               <LessonModal isOpen={modalOpen} onClose={closeModal} title={modalTitle} content={modalContent} />
             </div>
