@@ -1731,7 +1731,7 @@ function App() {
             </div>
           </div>
           <div style={{ flex: 1, minWidth: '300px' }}>
-            <h3 style={{ marginTop: 0 }}>Ученики</h3>
+            <h3 style={{ marginTop: 0, marginBottom: '16px' }}>Ученики</h3>
             {combinedList.length === 0 && <p>Нет учеников</p>}
             {combinedList.map((item) => {
               const isPending = item._type === 'pending';
@@ -1888,7 +1888,7 @@ function App() {
               +
             </button>
           </div>
-          {programs.length === 0 && <p>Программ пока нет.</p>}
+          {programs.length === 0 && <p>Программ пока нет</p>}
           {programs.map(prog => {
             const isCreator = prog.created_by === Number(userId);
             return (
