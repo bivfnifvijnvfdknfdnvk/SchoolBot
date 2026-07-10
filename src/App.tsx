@@ -1282,23 +1282,38 @@ function LessonModal({ isOpen, onClose, title, textClosed, textOpen, textComplet
   isPreview: boolean;
   prereqNames: string[];
 }) {
-  const [modalOpen, setModalOpen] = useState(false);
-  const [modalVisible, setModalVisible] = useState(false);
+  const [visible, setVisible] = useState(false);
+  const timeoutRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (isOpen) {
-      setModalOpen(true);
-      setTimeout(() => setModalVisible(true), 10);
+      // Открываем
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
+      }
+      setVisible(true);
     } else {
-      setModalVisible(false);
-      setTimeout(() => {
-        setModalOpen(false);
+      // Закрываем
+      setVisible(false);
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
+      }
+      timeoutRef.current = window.setTimeout(() => {
         onClose();
+        timeoutRef.current = null;
       }, 300);
     }
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
+      }
+    };
   }, [isOpen, onClose]);
 
-  if (!modalOpen) return null;
+  if (!isOpen && !visible) return null;
 
   const hasContent = textClosed || textOpen || textCompleted;
 
@@ -1317,16 +1332,12 @@ function LessonModal({ isOpen, onClose, title, textClosed, textOpen, textComplet
         alignItems: 'center',
         zIndex: 999,
         cursor: 'pointer',
-        opacity: modalVisible ? 1 : 0,
-        transition: 'opacity 0.3s ease',
+        opacity: visible ? 1 : 0,
+        transition: 'opacity 0.25s ease',
       }}
       onClick={() => {
-        if (modalVisible) {
-          setModalVisible(false);
-          setTimeout(() => {
-            setModalOpen(false);
-            onClose();
-          }, 300);
+        if (visible) {
+          onClose();
         }
       }}
     >
@@ -1342,9 +1353,9 @@ function LessonModal({ isOpen, onClose, title, textClosed, textOpen, textComplet
           cursor: 'default',
           color: '#fff',
           boxShadow: '0 8px 32px rgba(0,0,0,0.7)',
-          transform: modalVisible ? 'scale(1)' : 'scale(0.95)',
-          transition: 'transform 0.3s ease, opacity 0.3s ease',
-          opacity: modalVisible ? 1 : 0,
+          transform: visible ? 'scale(1)' : 'scale(0.95)',
+          transition: 'transform 0.25s ease, opacity 0.25s ease',
+          opacity: visible ? 1 : 0,
         }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -1382,12 +1393,8 @@ function LessonModal({ isOpen, onClose, title, textClosed, textOpen, textComplet
         </div>
         <button
           onClick={() => {
-            if (modalVisible) {
-              setModalVisible(false);
-              setTimeout(() => {
-                setModalOpen(false);
-                onClose();
-              }, 300);
+            if (visible) {
+              onClose();
             }
           }}
           className="hover-scale"
@@ -1688,16 +1695,34 @@ function App() {
   };
 
   const handleLessonClick = (name: string, textClosed: string, textOpen: string, textCompleted: string, locked: boolean, completed: boolean, isPreview: boolean, prereqNames: string[]) => {
-    setLessonModalTitle(name);
-    setLessonModalTextClosed(textClosed);
-    setLessonModalTextOpen(textOpen);
-    setLessonModalTextCompleted(textCompleted);
-    setLessonModalLocked(locked);
-    setLessonModalCompleted(completed);
-    setLessonModalIsPreview(isPreview);
-    setLessonModalPrereqNames(prereqNames);
-    setLessonModalOpen(true);
-  };
+  // Если модалка уже открыта – закрываем её и открываем заново? Лучше просто закрыть.
+  // Но для простоты, если открыта – не открываем новую
+  if (lessonModalOpen) {
+    closeLessonModal();
+    // Небольшая задержка, чтобы анимация закрытия успела завершиться
+    setTimeout(() => {
+      setLessonModalTitle(name);
+      setLessonModalTextClosed(textClosed);
+      setLessonModalTextOpen(textOpen);
+      setLessonModalTextCompleted(textCompleted);
+      setLessonModalLocked(locked);
+      setLessonModalCompleted(completed);
+      setLessonModalIsPreview(isPreview);
+      setLessonModalPrereqNames(prereqNames);
+      setLessonModalOpen(true);
+    }, 300);
+    return;
+  }
+  setLessonModalTitle(name);
+  setLessonModalTextClosed(textClosed);
+  setLessonModalTextOpen(textOpen);
+  setLessonModalTextCompleted(textCompleted);
+  setLessonModalLocked(locked);
+  setLessonModalCompleted(completed);
+  setLessonModalIsPreview(isPreview);
+  setLessonModalPrereqNames(prereqNames);
+  setLessonModalOpen(true);
+};
 
   const closeLessonModal = () => {
     setLessonModalOpen(false);
