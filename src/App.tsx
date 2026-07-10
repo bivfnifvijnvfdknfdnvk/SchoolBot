@@ -1282,7 +1282,19 @@ function LessonModal({ isOpen, onClose, title, textClosed, textOpen, textComplet
   isPreview: boolean;
   prereqNames: string[];
 }) {
-  if (!isOpen) return null;
+  const [closing, setClosing] = useState(false);
+
+  useEffect(() => {
+    if (!isOpen) {
+      setClosing(true);
+      const timer = setTimeout(() => setClosing(false), 300);
+      return () => clearTimeout(timer);
+    } else {
+      setClosing(false);
+    }
+  }, [isOpen]);
+
+  if (!isOpen && !closing) return null;
 
   const hasContent = textClosed || textOpen || textCompleted;
 
@@ -1302,6 +1314,7 @@ function LessonModal({ isOpen, onClose, title, textClosed, textOpen, textComplet
         zIndex: 999,
         cursor: 'pointer',
         opacity: isOpen ? 1 : 0,
+        transition: 'opacity 0.25s ease',
       }}
       onClick={onClose}
     >
@@ -1318,6 +1331,8 @@ function LessonModal({ isOpen, onClose, title, textClosed, textOpen, textComplet
           color: '#fff',
           boxShadow: '0 8px 32px rgba(0,0,0,0.7)',
           transform: isOpen ? 'scale(1)' : 'scale(0.95)',
+          transition: 'transform 0.25s ease, opacity 0.25s ease',
+          opacity: isOpen ? 1 : 0,
         }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -1353,7 +1368,13 @@ function LessonModal({ isOpen, onClose, title, textClosed, textOpen, textComplet
             <div style={{ color: '#aaa' }}>Нет содержимого</div>
           )}
         </div>
-        <button onClick={onClose} className="hover-scale" style={{ marginTop: '20px', padding: '8px 20px', backgroundColor: '#4CAF50', border: 'none', borderRadius: '6px', color: '#fff', cursor: 'pointer' }}>Закрыть</button>
+        <button
+          onClick={onClose}
+          className="hover-scale"
+          style={{ marginTop: '20px', padding: '8px 20px', backgroundColor: '#4CAF50', border: 'none', borderRadius: '6px', color: '#fff', cursor: 'pointer' }}
+        >
+          Закрыть
+        </button>
       </div>
     </div>
   );

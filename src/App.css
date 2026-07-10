@@ -102,3 +102,9 @@ button:active,
 .tree-node-ring {
   transition: stroke 0.25s ease;
 }
+.modal-overlay {
+  transition: opacity 0.25s ease;
+}
+.modal-content {
+  transition: transform 0.25s ease, opacity 0.25s ease;
+}
