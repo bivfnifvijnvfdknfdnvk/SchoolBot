@@ -812,8 +812,39 @@ function ProgramEditor({ initialStructure, initialName, onSave, onCancel }: {
           placeholder="Название программы"
         />
         <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-          <button onClick={onCancel} style={{ padding: '6px 12px', background: '#555', border: 'none', borderRadius: 4, color: '#fff', cursor: 'pointer' }}>Отмена</button>
-          <button onClick={handleSaveProgram} style={{ padding: '6px 12px', background: '#4CAF50', border: 'none', borderRadius: 4, color: '#fff', cursor: 'pointer' }}>Сохранить</button>
+          <button
+  onClick={onCancel}
+  style={{
+    background: 'transparent',
+    border: 'none',
+    color: 'rgba(255,255,255,0.5)',
+    fontSize: '18px',
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '6px',
+    padding: '4px 8px',
+    transition: 'color 0.2s',
+  }}
+  onMouseEnter={(e) => e.currentTarget.style.color = '#fff'}
+  onMouseLeave={(e) => e.currentTarget.style.color = 'rgba(255,255,255,0.5)'}
+>
+  ← Назад
+</button>
+<button
+  onClick={handleSaveProgram}
+  style={{
+    padding: '6px 16px',
+    background: '#4CAF50',
+    border: 'none',
+    borderRadius: '4px',
+    color: '#fff',
+    cursor: 'pointer',
+    fontSize: '14px',
+  }}
+>
+  Сохранить
+</button>
         </div>
       </div>
       {isSelectingPrerequisites ? (
@@ -1534,7 +1565,25 @@ function App() {
       return (
         <div style={{ width: '100vw', height: '100vh', backgroundColor: '#1a1a2e' }}>
           <div style={{ position: 'absolute', top: 10, left: 10, zIndex: 10, display: 'flex', gap: '10px' }}>
-            <button onClick={backToAdmin}>⬅ Назад к админке</button>
+            <button
+  onClick={backToAdmin}
+  style={{
+    background: 'transparent',
+    border: 'none',
+    color: 'rgba(255,255,255,0.5)',
+    fontSize: '18px',
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '6px',
+    padding: '4px 8px',
+    transition: 'color 0.2s',
+  }}
+  onMouseEnter={(e) => e.currentTarget.style.color = '#fff'}
+  onMouseLeave={(e) => e.currentTarget.style.color = 'rgba(255,255,255,0.5)'}
+>
+  ← Назад к админке
+</button>
             <span style={{ color: '#fff' }}>Редактирование ученика: {selectedStudentName || '...'}</span>
           </div>
           {isCreator ? (
@@ -1568,7 +1617,25 @@ function App() {
 
     return (
       <div style={{ padding: '20px', color: '#fff', backgroundColor: '#1a1a2e', minHeight: '100vh' }}>
-        <button onClick={() => { setView('programs'); setCurrentProgramId(null); }}>⬅ Назад к программам</button>
+        <button
+  onClick={() => { setView('programs'); setCurrentProgramId(null); }}
+  style={{
+    background: 'transparent',
+    border: 'none',
+    color: 'rgba(255,255,255,0.5)',
+    fontSize: '18px',
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '6px',
+    padding: '4px 8px',
+    transition: 'color 0.2s',
+  }}
+  onMouseEnter={(e) => e.currentTarget.style.color = '#fff'}
+  onMouseLeave={(e) => e.currentTarget.style.color = 'rgba(255,255,255,0.5)'}
+>
+  ← Назад к программам
+</button>
         <h2>Панель управления программой</h2>
         <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap' }}>
           <div style={{ flex: 1, minWidth: '300px' }}>
@@ -1655,7 +1722,25 @@ function App() {
     return (
       <div style={{ width: '100vw', height: '100vh', backgroundColor: '#1a1a2e' }}>
         <div style={{ position: 'absolute', top: 10, left: 10, zIndex: 10, display: 'flex', gap: '10px', alignItems: 'center' }}>
-          <button onClick={() => { setView('programs'); setCurrentProgramId(null); }}>⬅ Сменить программу</button>
+          <button
+  onClick={() => { setView('programs'); setCurrentProgramId(null); }}
+  style={{
+    background: 'transparent',
+    border: 'none',
+    color: 'rgba(255,255,255,0.5)',
+    fontSize: '18px',
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '6px',
+    padding: '4px 8px',
+    transition: 'color 0.2s',
+  }}
+  onMouseEnter={(e) => e.currentTarget.style.color = '#fff'}
+  onMouseLeave={(e) => e.currentTarget.style.color = 'rgba(255,255,255,0.5)'}
+>
+  ← Сменить программу
+</button>
           <span style={{ color: '#fff' }}>Программа: {programs.find(p => p.id === currentProgramId)?.name || ''}</span>
           <span style={{ color: '#fff' }}>Ученик: {userName || userId}</span>
         </div>
