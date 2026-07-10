@@ -1018,6 +1018,7 @@ const renderCustomNode = ({ nodeDatum, onLessonClick, onToggleLesson, isPreview 
           clipPath={`url(#${clipId})`}
           preserveAspectRatio="xMidYMid slice"
           onClick={handleClick}
+          className="tree-node-image"
           style={{ cursor: isLesson && !locked ? 'pointer' : 'default', transform: 'scaleY(-1)', opacity: locked ? 0.5 : 1 }}
         />
       ) : (
@@ -1026,24 +1027,84 @@ const renderCustomNode = ({ nodeDatum, onLessonClick, onToggleLesson, isPreview 
           fill={isLesson ? (completed ? '#4CAF50' : (locked ? '#555' : '#FF9800')) : '#2196F3'}
           stroke="none"
           onClick={handleClick}
+          className="tree-node-circle"
           style={{ cursor: isLesson && !locked ? 'pointer' : 'default' }}
         />
       )}
 
-      <circle cx="0" cy="0" r={radius} fill="none" stroke="#fff" strokeWidth="2" onClick={handleClick} style={{ pointerEvents: 'none' }} />
+      <circle
+        cx="0"
+        cy="0"
+        r={radius}
+        fill="none"
+        stroke="#fff"
+        strokeWidth="2"
+        onClick={handleClick}
+        className="tree-node-ring"
+        style={{ pointerEvents: 'none' }}
+      />
 
       {isLesson && completed && (
         <>
-          <circle cx="0" cy="0" r={radius} fill="rgba(76, 175, 80, 0.4)" stroke="none" onClick={handleClick} style={{ cursor: 'pointer' }} />
-          <text x="0" y="2" fontSize={radius * 0.9} fill="rgba(255,255,255,0.8)" stroke="none" textAnchor="middle" dominantBaseline="central" fontWeight="bold" onClick={handleClick} style={{ cursor: 'pointer', transform: 'scaleY(-1)' }}>✓</text>
+          <circle
+            cx="0"
+            cy="0"
+            r={radius}
+            fill="rgba(76, 175, 80, 0.4)"
+            stroke="none"
+            onClick={handleClick}
+            className="tree-node-check-bg"
+            style={{ cursor: 'pointer' }}
+          />
+          <text
+            x="0"
+            y="2"
+            fontSize={radius * 0.9}
+            fill="rgba(255,255,255,0.8)"
+            stroke="none"
+            textAnchor="middle"
+            dominantBaseline="central"
+            fontWeight="bold"
+            onClick={handleClick}
+            className="tree-node-check"
+            style={{ cursor: 'pointer', transform: 'scaleY(-1)' }}
+          >
+            ✓
+          </text>
         </>
       )}
 
       {isLesson && locked && !completed && (
         <>
-          <text x="0" y="2" fontSize={radius * 0.7} fill="#fff" stroke="none" textAnchor="middle" dominantBaseline="central" fontWeight="bold" onClick={handleClick} style={{ cursor: 'default', transform: 'scaleY(-1)' }}>🔒</text>
+          <text
+            x="0"
+            y="2"
+            fontSize={radius * 0.7}
+            fill="#fff"
+            stroke="none"
+            textAnchor="middle"
+            dominantBaseline="central"
+            fontWeight="bold"
+            onClick={handleClick}
+            className="tree-node-lock"
+            style={{ cursor: 'default', transform: 'scaleY(-1)' }}
+          >
+            🔒
+          </text>
           {prereqNames.length > 1 && (
-            <text x={radius + 6} y="0" fontSize={12} fill="#ffa500" stroke="none" textAnchor="start" dominantBaseline="central" fontWeight="bold" onClick={handleClick}>
+            <text
+              x={radius + 6}
+              y="0"
+              fontSize={12}
+              fill="#ffa500"
+              stroke="none"
+              textAnchor="start"
+              dominantBaseline="central"
+              fontWeight="bold"
+              onClick={handleClick}
+              className="tree-node-prereq-count"
+              style={{ cursor: 'default' }}
+            >
               🔗{prereqNames.length}
             </text>
           )}
@@ -1059,6 +1120,7 @@ const renderCustomNode = ({ nodeDatum, onLessonClick, onToggleLesson, isPreview 
         fontSize={isLesson ? 14 : 16}
         fontFamily="Arial, sans-serif"
         textAnchor="start"
+        className="tree-node-text"
         style={{ fontWeight: isLesson ? 'normal' : 'bold', transform: 'scaleY(-1)', opacity: locked ? 0.5 : 1 }}
         onClick={handleClick}
       >

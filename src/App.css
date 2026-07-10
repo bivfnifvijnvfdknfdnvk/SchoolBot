@@ -77,3 +77,28 @@ button:active,
   from { opacity: 0; }
   to { opacity: 1; }
 }
+/* ===== АНИМАЦИИ ДЛЯ УЗЛОВ ДЕРЕВА ===== */
+.tree-node-circle {
+  transition: fill 0.25s ease, opacity 0.25s ease;
+}
+.tree-node-text {
+  transition: fill 0.25s ease, opacity 0.25s ease;
+}
+.tree-node-image {
+  transition: opacity 0.25s ease;
+}
+.tree-node-check-bg {
+  transition: fill 0.25s ease, opacity 0.25s ease;
+}
+.tree-node-check {
+  transition: opacity 0.25s ease;
+}
+.tree-node-lock {
+  transition: opacity 0.25s ease;
+}
+.tree-node-prereq-count {
+  transition: opacity 0.25s ease;
+}
+.tree-node-ring {
+  transition: stroke 0.25s ease;
+}
