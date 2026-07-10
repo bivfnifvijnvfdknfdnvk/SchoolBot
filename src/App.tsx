@@ -1,5 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
-import Tree from 'react-d3-tree';
+import React, { useState, useEffect, useRef } from 'react';import Tree from 'react-d3-tree';
 import { supabase } from './supabaseClient';
 import './App.css';
 
@@ -258,6 +257,35 @@ async function getApplicationStatus(studentId: string, programId: string) {
   return data;
 }
 
+// ========== ФУНКЦИИ ДЛЯ РАБОТЫ С ДЕРЕВОМ (исправлены) ==========
+
+function collectLessonsWithPrerequisites(node: any): Record<string, string[]> {
+  const map: Record<string, string[]> = {};
+  function traverse(n: any) {
+    if (!n || typeof n !== 'object' || !n.id) return;
+    if (n.isLesson === true) {
+      map[n.id] = Array.isArray(n.prerequisites) ? n.prerequisites : [];
+    }
+    if (n.children && Array.isArray(n.children)) {
+      for (const child of n.children) {
+        traverse(child);
+      }
+    }
+  }
+  traverse(node);
+  return map;
+}
+
+function buildNodeMap(node: any, map: Record<string, any>) {
+  if (!node || typeof node !== 'object' || !node.id) return;
+  map[node.id] = node;
+  if (node.children && Array.isArray(node.children)) {
+    for (const child of node.children) {
+      buildNodeMap(child, map);
+    }
+  }
+}
+
 // ========== КОМПОНЕНТЫ ДЛЯ РЕДАКТОРА ==========
 
 function updateNodeInTree(tree: any, id: string, updates: any): any {
@@ -329,7 +357,7 @@ function findNodeAndAddChild(tree: any, parentId: string): { newTree: any; newId
   return { newTree: result.newNode, newId: result.newId };
 }
 
-// Рендер узла для редактора (в обычном режиме)
+// Рендер узла для редактора
 const renderEditorNode = ({ nodeDatum, onNodeClick, isSelectMode, onSelectToggle }: any) => {
   const isLesson = nodeDatum.isLesson || false;
   const imageUrl = nodeDatum.imageKey ? `${STORAGE_URL}${nodeDatum.imageKey}` : null;
@@ -414,7 +442,7 @@ function buildEditorTree(node: any, selectedIds?: string[]): any {
   };
 }
 
-// Компонент дерева для редактора (ветви вверх)
+// Компонент дерева для редактора
 function EditableTreeView({ structure, onNodeClick, isSelectMode, onSelectToggle, selectedIds }: {
   structure: any;
   onNodeClick: (nodeId: string) => void;
@@ -457,7 +485,7 @@ function EditableTreeView({ structure, onNodeClick, isSelectMode, onSelectToggle
   );
 }
 
-// ========== ВИЗУАЛЬНЫЙ РЕДАКТОР ПРОГРАММ ==========
+// ========== ВИЗУАЛЬНЫЙ РЕДАКТОР ПРОГРАММ (полный) ==========
 function ProgramEditor({ initialStructure, initialName, onSave, onCancel }: {
   initialStructure?: any;
   initialName?: string;
@@ -495,7 +523,6 @@ function ProgramEditor({ initialStructure, initialName, onSave, onCancel }: {
   const [isSelectingPrerequisites, setIsSelectingPrerequisites] = useState(false);
   const [tempSelectedIds, setTempSelectedIds] = useState<string[]>([]);
 
-  // Состояние для анимации появления редактора
   const [editorVisible, setEditorVisible] = useState(false);
 
   useEffect(() => {
@@ -511,8 +538,8 @@ function ProgramEditor({ initialStructure, initialName, onSave, onCancel }: {
         if (error) throw error;
         const files = data.map(f => f.name);
         setIconList(files);
-      } catch (e) {
-        console.error('Не удалось загрузить иконки:', e);
+      } catch (_) {
+        console.error('Не удалось загрузить иконки');
       }
       setLoadingIcons(false);
     };
@@ -892,22 +919,6 @@ function ProgramEditor({ initialStructure, initialName, onSave, onCancel }: {
 
 // ========== КОМПОНЕНТЫ ДЛЯ ОТОБРАЖЕНИЯ ==========
 
-function collectLessonsWithPrerequisites(node: any): Record<string, string[]> {
-  const map: Record<string, string[]> = {};
-  function traverse(n: any) {
-    if (n.isLesson === true) {
-      map[n.id] = n.prerequisites || [];
-    }
-    if (n.children) {
-      for (const child of n.children) {
-        traverse(child);
-      }
-    }
-  }
-  traverse(node);
-  return map;
-}
-
 function recalculateProgress(structure: any, progress: Record<string, boolean>): Record<string, boolean> {
   const newProgress = { ...progress };
   const lessons: any[] = [];
@@ -948,7 +959,6 @@ function buildTreeForDisplay(
   isPreview: boolean = false
 ): any {
   const isLesson = node.isLesson === true;
-  // Если isPreview, то completed всегда false (чтобы не показывать галочки для учителя)
   const completed = isLesson && !isPreview ? (progress[node.id] || false) : false;
   let isLocked = false;
   let prereqNames: string[] = [];
@@ -978,11 +988,12 @@ function buildTreeForDisplay(
   };
 }
 
+// ИСПРАВЛЕННЫЙ renderCustomNode
 const renderCustomNode = ({ nodeDatum, onLessonClick, onToggleLesson, isPreview }: any) => {
   const isLesson = nodeDatum.__isLesson;
   const completed = nodeDatum.__completed;
   const locked = nodeDatum.__locked || false;
-  const prereqNames = nodeDatum.__prereqNames || [];
+  const prereqNames = Array.isArray(nodeDatum.__prereqNames) ? nodeDatum.__prereqNames : [];
   const imageUrl = nodeDatum.__imageUrl;
   const textClosed = nodeDatum.__textClosed || '';
   const textOpen = nodeDatum.__textOpen || '';
@@ -1139,6 +1150,7 @@ const renderCustomNode = ({ nodeDatum, onLessonClick, onToggleLesson, isPreview 
   );
 };
 
+// ИСПРАВЛЕННЫЙ SkillTreeView (с ResizeObserver)
 function SkillTreeView({ structure, progress, onLessonClick, onToggleLesson, isPreview = false }: {
   structure: any;
   progress: Record<string, boolean>;
@@ -1149,30 +1161,31 @@ function SkillTreeView({ structure, progress, onLessonClick, onToggleLesson, isP
   const containerRef = useRef<HTMLDivElement>(null);
   const [translate, setTranslate] = useState({ x: 400, y: 100 });
 
+  const updateTranslate = () => {
+    if (containerRef.current) {
+      const width = containerRef.current.clientWidth;
+      const height = containerRef.current.clientHeight;
+      setTranslate({ x: width / 2, y: height - 150 });
+    }
+  };
+
   useEffect(() => {
-    const updateTranslate = () => {
-      if (containerRef.current) {
-        const width = containerRef.current.clientWidth;
-        const height = containerRef.current.clientHeight;
-        setTranslate({ x: width / 2, y: height - 150 });
-      }
-    };
     updateTranslate();
     window.addEventListener('resize', updateTranslate);
     return () => window.removeEventListener('resize', updateTranslate);
   }, []);
 
-  // Строим карту всех узлов по ID
+  useEffect(() => {
+    if (!containerRef.current) return;
+    const observer = new ResizeObserver(() => {
+      updateTranslate();
+    });
+    observer.observe(containerRef.current);
+    return () => observer.disconnect();
+  }, []);
+
   const nodeMap: Record<string, any> = {};
-  function buildNodeMap(node: any) {
-    nodeMap[node.id] = node;
-    if (node.children) {
-      for (const child of node.children) {
-        buildNodeMap(child);
-      }
-    }
-  }
-  buildNodeMap(structure);
+  buildNodeMap(structure, nodeMap);
 
   const prerequisitesMap = collectLessonsWithPrerequisites(structure);
   const treeData = buildTreeForDisplay(structure, progress, prerequisitesMap, nodeMap, isPreview);
@@ -1194,7 +1207,7 @@ function SkillTreeView({ structure, progress, onLessonClick, onToggleLesson, isP
   );
 }
 
-// ========== КОМПОНЕНТ СПИСКА ПРОГРАММ ДЛЯ УЧЕНИКА (исправлен) ==========
+// ========== КОМПОНЕНТ СПИСКА ПРОГРАММ ДЛЯ УЧЕНИКА ==========
 function StudentProgramList({ userId, onApply, existingProgramIds, refreshKey }: {
   userId: string;
   onApply: (programId: string) => void;
@@ -1218,8 +1231,7 @@ function StudentProgramList({ userId, onApply, existingProgramIds, refreshKey }:
           } else if (!status) {
             filtered.push({ ...prog, appStatus: null });
           }
-        } catch (e) {
-          // Если ошибка, считаем что заявки нет
+        } catch (_) {
           filtered.push({ ...prog, appStatus: null });
         }
       }
@@ -1263,7 +1275,6 @@ function StudentProgramList({ userId, onApply, existingProgramIds, refreshKey }:
               📩
             </button>
           )}
-          {/* Убраны дублирующие эмодзи */}
         </div>
       ))}
     </div>
@@ -1287,23 +1298,19 @@ function LessonModal({ isOpen, onClose, title, textClosed, textOpen, textComplet
   const [modalVisible, setModalVisible] = useState(false);
   const closeTimeoutRef = useRef<number | null>(null);
 
-  // Синхронизация с isOpen
   useEffect(() => {
     if (isOpen) {
-      // Открываем
       if (closeTimeoutRef.current) {
         clearTimeout(closeTimeoutRef.current);
         closeTimeoutRef.current = null;
       }
       setModalOpen(true);
-      // Запускаем анимацию появления с небольшой задержкой
       requestAnimationFrame(() => {
         setTimeout(() => {
           setModalVisible(true);
         }, 10);
       });
     } else {
-      // Закрываем
       if (modalOpen) {
         setModalVisible(false);
         if (closeTimeoutRef.current) {
@@ -1419,7 +1426,7 @@ function LessonModal({ isOpen, onClose, title, textClosed, textOpen, textComplet
   );
 }
 
-// ========== ОСНОВНОЙ КОМПОНЕНТ ==========
+// ========== ОСНОВНОЙ КОМПОНЕНТ APP ==========
 function App() {
   const [userId, setUserId] = useState('guest');
   const [isAdmin, setIsAdmin] = useState(false);
@@ -1451,7 +1458,7 @@ function App() {
   const [lessonModalIsPreview, setLessonModalIsPreview] = useState(false);
   const [lessonModalPrereqNames, setLessonModalPrereqNames] = useState<string[]>([]);
 
-  const [refreshKey, setRefreshKey] = useState(0); // <-- добавлено
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
     const init = async () => {
@@ -1496,7 +1503,14 @@ function App() {
   useEffect(() => {
     if (userId === 'guest') return;
     loadPrograms();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId, isAdmin]);
+
+  useEffect(() => {
+    if (userId === 'guest' || isAdmin) return;
+    loadPrograms();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshKey]);
 
   const loadPrograms = async () => {
     if (isAdmin) {
@@ -1642,6 +1656,7 @@ function App() {
     setApplications(apps);
     const accepted = await getAcceptedStudents(currentProgramId!);
     setAcceptedStudents(accepted);
+    setRefreshKey(prev => prev + 1);
   };
 
   const handleRejectApplication = async (appId: string) => {
@@ -1655,7 +1670,6 @@ function App() {
     if (success) {
       alert('Заявка отправлена!');
       setRefreshKey(prev => prev + 1);
-      // Не вызываем loadPrograms(), чтобы не сбить список принятых программ
     } else {
       alert('Ошибка отправки заявки');
     }
@@ -1773,7 +1787,6 @@ function App() {
     };
   }, [userId, currentProgramId]);
 
-  // Защита от серого экрана (для ученика)
   useEffect(() => {
     if (currentProgramId && view === 'tree') {
       const prog = programs.find(p => p.id === currentProgramId);
@@ -2013,6 +2026,7 @@ function App() {
     );
   }
 
+  // ===== УЧЕНИЧЕСКИЙ ЭКРАН (ИСПРАВЛЕН) =====
   if (!isAdmin && view === 'tree' && currentProgramId) {
     const progName = programs.find(p => p.id === currentProgramId)?.name || '';
     const [studentViewVisible, setStudentViewVisible] = useState(false);
@@ -2047,11 +2061,13 @@ function App() {
           </button>
           <span style={{ color: '#fff', fontWeight: 'bold', fontSize: '18px' }}>{progName}</span>
         </div>
-        <SkillTreeView
-          structure={structure}
-          progress={progress}
-          onLessonClick={handleLessonClick}
-        />
+        {studentViewVisible && (
+          <SkillTreeView
+            structure={structure}
+            progress={progress}
+            onLessonClick={handleLessonClick}
+          />
+        )}
         <LessonModal
           isOpen={lessonModalOpen}
           onClose={closeLessonModal}
@@ -2210,4 +2226,41 @@ function App() {
   return <div style={{ color: '#fff', padding: '20px', backgroundColor: '#1a1a2e', minHeight: '100vh' }}>Неизвестный экран</div>;
 }
 
-export default App;
+// ========== ERROR BOUNDARY ==========
+class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean }> {
+  constructor(props: any) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError(_error: any) {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: any, errorInfo: any) {
+    console.error('ErrorBoundary поймал ошибку:', error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ color: '#fff', padding: '20px', backgroundColor: '#1a1a2e', minHeight: '100vh', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>
+          <h2>Что-то пошло не так 😢</h2>
+          <p>Попробуйте перезагрузить страницу или обратитесь к администратору.</p>
+          <button onClick={() => window.location.reload()} style={{ marginTop: '20px', padding: '10px 20px', background: '#4CAF50', border: 'none', borderRadius: '6px', color: '#fff', cursor: 'pointer' }}>
+            Перезагрузить
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+export default function AppWithErrorBoundary() {
+  return (
+    <ErrorBoundary>
+      <App />
+    </ErrorBoundary>
+  );
+}
