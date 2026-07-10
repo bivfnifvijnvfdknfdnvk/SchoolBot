@@ -582,7 +582,6 @@ function ProgramEditor({ initialStructure, initialName, onSave, onCancel }: {
     setModalVisible(false);
     setTimeout(() => {
       setModalOpen(false);
-      setSelectedNodeId(null);
       setIsSelectingPrerequisites(true);
       setTempSelectedIds([...editPrerequisites]);
     }, 200);
