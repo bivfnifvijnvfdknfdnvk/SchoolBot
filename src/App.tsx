@@ -834,7 +834,7 @@ function ProgramEditor({ initialStructure, initialName, onSave, onCancel }: {
 function collectLessonsWithPrerequisites(node: any): Record<string, string[]> {
   const map: Record<string, string[]> = {};
   function traverse(n: any) {
-    if (n.isLesson && (!n.children || n.children.length === 0)) {
+    if (n.isLesson === true) {
       map[n.id] = n.prerequisites || [];
     }
     if (n.children) {
@@ -848,10 +848,9 @@ function collectLessonsWithPrerequisites(node: any): Record<string, string[]> {
 }
 
 function buildTreeForDisplay(node: any, progress: Record<string, boolean>, prerequisitesMap: Record<string, string[]>): any {
-  const isLesson = node.isLesson === true && (!node.children || node.children.length === 0);
+  const isLesson = node.isLesson === true;
   if (isLesson) {
     const completed = progress[node.id] || false;
-    // Проверяем, доступен ли урок: все prerequisites должны быть пройдены
     const prereqs = prerequisitesMap[node.id] || [];
     const isLocked = prereqs.some(id => !progress[id]);
     return {
