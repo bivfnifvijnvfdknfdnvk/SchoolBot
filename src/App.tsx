@@ -5,7 +5,7 @@ import './App.css';
 
 // ========== КОНСТАНТЫ ==========
 const STORAGE_URL = 'https://wmfjjpsakhmwwyvimqwx.supabase.co/storage/v1/object/public/icons/';
-const ADMIN_IDS: number[] = [139489115]; // ID учителей
+const ADMIN_IDS: number[] = [1394891154]; // ID учителей
 
 // ========== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ==========
 function extractUserInfoFromHash(): { id: string | null, firstName: string | null, lastName: string | null, username: string | null } {
@@ -1194,7 +1194,7 @@ function SkillTreeView({ structure, progress, onLessonClick, onToggleLesson, isP
   );
 }
 
-// ========== КОМПОНЕНТ СПИСКА ПРОГРАММ ДЛЯ УЧЕНИКА (с исправлениями) ==========
+// ========== КОМПОНЕНТ СПИСКА ПРОГРАММ ДЛЯ УЧЕНИКА (исправлен) ==========
 function StudentProgramList({ userId, onApply, existingProgramIds, refreshKey }: {
   userId: string;
   onApply: (programId: string) => void;
@@ -1206,14 +1206,20 @@ function StudentProgramList({ userId, onApply, existingProgramIds, refreshKey }:
 
   useEffect(() => {
     const load = async () => {
+      setLoading(true);
       const all = await getVisiblePrograms();
       const filtered = [];
       for (const prog of all) {
         if (existingProgramIds.includes(prog.id)) continue;
-        const status = await getApplicationStatus(userId, prog.id);
-        if (status && (status.status === 'pending' || status.status === 'rejected')) {
-          filtered.push({ ...prog, appStatus: status.status, appId: status.id });
-        } else if (!status) {
+        try {
+          const status = await getApplicationStatus(userId, prog.id);
+          if (status && (status.status === 'pending' || status.status === 'rejected')) {
+            filtered.push({ ...prog, appStatus: status.status, appId: status.id });
+          } else if (!status) {
+            filtered.push({ ...prog, appStatus: null });
+          }
+        } catch (e) {
+          // Если ошибка, считаем что заявки нет
           filtered.push({ ...prog, appStatus: null });
         }
       }
@@ -1257,7 +1263,7 @@ function StudentProgramList({ userId, onApply, existingProgramIds, refreshKey }:
               📩
             </button>
           )}
-          {/* Убран дублирующий эмодзи часов */}
+          {/* Убраны дублирующие эмодзи */}
         </div>
       ))}
     </div>
@@ -1645,15 +1651,17 @@ function App() {
   };
 
   const handleApply = async (programId: string) => {
-    const success = await createApplication(programId, userId);
-    if (success) {
-      alert('Заявка отправлена!');
-      setRefreshKey(prev => prev + 1);
-      loadPrograms();
-    } else {
-      alert('Ошибка отправки заявки');
-    }
-  };
+  const success = await createApplication(programId, userId);
+  if (success) {
+    alert('Заявка отправлена!');
+    setRefreshKey(prev => prev + 1);
+    loadPrograms(); // обновляем список принятых программ
+    // Дополнительно обновим список доступных через refreshKey
+    setRefreshKey(prev => prev + 1); // дважды для надёжности
+  } else {
+    alert('Ошибка отправки заявки');
+  }
+};
 
   const handleSelectStudent = async (studentId: string) => {
     setSelectedStudentId(studentId);
@@ -1979,48 +1987,55 @@ function App() {
   }
 
   if (!isAdmin && view === 'tree' && currentProgramId) {
-    const progName = programs.find(p => p.id === currentProgramId)?.name || '';
-    return (
-      <div style={{ width: '100vw', height: '100vh', backgroundColor: '#1a1a2e' }}>
-        <div style={{ position: 'absolute', top: 10, left: 10, right: 10, zIndex: 10, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '0 10px' }}>
-          <button
-            onClick={() => { setView('programs'); setCurrentProgramId(null); }}
-            className="hover-scale"
-            style={{
-              background: 'transparent',
-              border: 'none',
-              color: 'rgba(255,255,255,0.3)',
-              fontSize: '28px',
-              cursor: 'pointer',
-              padding: '4px 8px',
-              position: 'absolute',
-              left: 0,
-            }}
-          >
-            ←
-          </button>
-          <span style={{ color: '#fff', fontWeight: 'bold', fontSize: '18px' }}>{progName}</span>
-        </div>
-        <SkillTreeView
-          structure={structure}
-          progress={progress}
-          onLessonClick={handleLessonClick}
-        />
-        <LessonModal
-          isOpen={lessonModalOpen}
-          onClose={closeLessonModal}
-          title={lessonModalTitle}
-          textClosed={lessonModalTextClosed}
-          textOpen={lessonModalTextOpen}
-          textCompleted={lessonModalTextCompleted}
-          locked={lessonModalLocked}
-          completed={lessonModalCompleted}
-          isPreview={lessonModalIsPreview}
-          prereqNames={lessonModalPrereqNames}
-        />
+  const progName = programs.find(p => p.id === currentProgramId)?.name || '';
+  const [visible, setVisible] = useState(false);
+  
+  useEffect(() => {
+    const timer = setTimeout(() => setVisible(true), 10);
+    return () => clearTimeout(timer);
+  }, []);
+
+  return (
+    <div className={`fade-slide ${visible ? 'fade-slide-visible' : ''}`} style={{ width: '100vw', height: '100vh', backgroundColor: '#1a1a2e' }}>
+      <div style={{ position: 'absolute', top: 10, left: 10, right: 10, zIndex: 10, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '0 10px' }}>
+        <button
+          onClick={() => { setView('programs'); setCurrentProgramId(null); }}
+          className="hover-scale"
+          style={{
+            background: 'transparent',
+            border: 'none',
+            color: 'rgba(255,255,255,0.3)',
+            fontSize: '28px',
+            cursor: 'pointer',
+            padding: '4px 8px',
+            position: 'absolute',
+            left: 0,
+          }}
+        >
+          ←
+        </button>
+        <span style={{ color: '#fff', fontWeight: 'bold', fontSize: '18px' }}>{progName}</span>
       </div>
-    );
-  }
+      <SkillTreeView
+        structure={structure}
+        progress={progress}
+        onLessonClick={handleLessonClick}
+      />
+      <LessonModal
+        isOpen={lessonModalOpen}
+        onClose={closeLessonModal}
+        title={lessonModalTitle}
+        textClosed={lessonModalTextClosed}
+        textOpen={lessonModalTextOpen}
+        textCompleted={lessonModalTextCompleted}
+        locked={lessonModalLocked}
+        completed={lessonModalCompleted}
+        isPreview={lessonModalIsPreview}
+        prereqNames={lessonModalPrereqNames}
+      />
+    </div>
+  );
+}
 
   if (view === 'programs') {
     if (isAdmin) {
