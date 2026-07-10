@@ -5,7 +5,7 @@ import './App.css';
 
 // ========== КОНСТАНТЫ ==========
 const STORAGE_URL = 'https://wmfjjpsakhmwwyvimqwx.supabase.co/storage/v1/object/public/icons/';
-const ADMIN_IDS: number[] = [139489115]; // ID учителей
+const ADMIN_IDS: number[] = [1394891154]; // ID учителей
 
 // ========== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ==========
 function extractUserInfoFromHash(): { id: string | null, firstName: string | null, lastName: string | null, username: string | null } {
@@ -1527,34 +1527,35 @@ function App() {
   };
 
   const selectProgram = async (programId: string) => {
-    setCurrentProgramId(programId);
-    const prog = programs.find(p => p.id === programId);
-    if (!prog) {
-      alert('Программа не найдена');
-      setView('programs');
-      return;
-    }
-    if (!isAdmin && !prog.visible) {
-      alert('Эта программа временно недоступна.');
-      setView('programs');
-      setCurrentProgramId(null);
-      return;
-    }
-    setStructure(prog.structure);
-    const progData = await loadProgressForProgram(userId, programId);
-    setProgress(progData);
-    if (isAdmin) {
-      const apps = await getApplicationsForProgram(programId);
-      setApplications(apps);
-      const accepted = await getAcceptedStudents(programId);
-      setAcceptedStudents(accepted);
-      setView('admin');
-      setSelectedStudentId(null);
-      setSelectedStudentName(null);
-    } else {
-      setView('tree');
-    }
-  };
+  const prog = programs.find(p => p.id === programId);
+  if (!prog) {
+    alert('Программа не найдена. Попробуйте обновить страницу.');
+    setView('programs');
+    setCurrentProgramId(null);
+    return;
+  }
+  setCurrentProgramId(programId);
+  if (!isAdmin && !prog.visible) {
+    alert('Эта программа временно недоступна.');
+    setView('programs');
+    setCurrentProgramId(null);
+    return;
+  }
+  setStructure(prog.structure);
+  const progData = await loadProgressForProgram(userId, programId);
+  setProgress(progData);
+  if (isAdmin) {
+    const apps = await getApplicationsForProgram(programId);
+    setApplications(apps);
+    const accepted = await getAcceptedStudents(programId);
+    setAcceptedStudents(accepted);
+    setView('admin');
+    setSelectedStudentId(null);
+    setSelectedStudentName(null);
+  } else {
+    setView('tree');
+  }
+};
 
   const startEditingProgram = (programId: string) => {
     const prog = programs.find(p => p.id === programId);
@@ -1654,10 +1655,7 @@ function App() {
   const success = await createApplication(programId, userId);
   if (success) {
     alert('Заявка отправлена!');
-    setRefreshKey(prev => prev + 1);
-    loadPrograms(); // обновляем список принятых программ
-    // Дополнительно обновим список доступных через refreshKey
-    setRefreshKey(prev => prev + 1); // дважды для надёжности
+    setRefreshKey(prev => prev + 1); // <-- добавьте эту строку
   } else {
     alert('Ошибка отправки заявки');
   }
@@ -1770,6 +1768,17 @@ function App() {
       supabase.removeChannel(channel);
     };
   }, [userId, currentProgramId]);
+
+  useEffect(() => {
+  if (currentProgramId && view === 'tree') {
+    const prog = programs.find(p => p.id === currentProgramId);
+    if (!prog) {
+      setView('programs');
+      setCurrentProgramId(null);
+      alert('Программа временно недоступна');
+    }
+  }
+}, [programs, currentProgramId, view]);
 
   // ========== ОТРИСОВКА ==========
 
@@ -2175,11 +2184,11 @@ if (isAdmin && view === 'create') {
           <hr style={{ margin: '30px 0' }} />
           <h3>Доступные программы</h3>
           <StudentProgramList
-            userId={userId}
-            onApply={handleApply}
-            existingProgramIds={programs.map(p => p.id)}
-            refreshKey={refreshKey}
-          />
+  userId={userId}
+  onApply={handleApply}
+  existingProgramIds={programs.map(p => p.id)}
+  refreshKey={refreshKey}
+/>
         </div>
       );
     }
