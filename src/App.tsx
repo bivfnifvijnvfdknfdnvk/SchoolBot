@@ -307,8 +307,10 @@ function findNodeAndAddChild(tree: any, parentId: string): { newTree: any; newId
         content: '',
         imageKey: null,
         prerequisites: [],
+        textClosed: '',
+        textOpen: '',
+        textCompleted: '',
       };
-      // Не меняем тип родителя – оставляем как есть
       const newChildren = node.children ? [...node.children, newChild] : [newChild];
       return { found: true, newNode: { ...node, children: newChildren }, newId };
     }
@@ -406,6 +408,9 @@ function buildEditorTree(node: any, selectedIds?: string[]): any {
     imageKey: node.imageKey || null,
     content: node.content || null,
     prerequisites: node.prerequisites || [],
+    textClosed: node.textClosed || '',
+    textOpen: node.textOpen || '',
+    textCompleted: node.textCompleted || '',
     _selected: selectedIds ? selectedIds.includes(node.id) : false,
     children: node.children ? node.children.map((child: any) => buildEditorTree(child, selectedIds)) : undefined,
   };
@@ -483,6 +488,9 @@ function ProgramEditor({ initialStructure, initialName, onSave, onCancel }: {
   const [editContent, setEditContent] = useState('');
   const [editImageKey, setEditImageKey] = useState<string | null>(null);
   const [editPrerequisites, setEditPrerequisites] = useState<string[]>([]);
+  const [editTextClosed, setEditTextClosed] = useState('');
+  const [editTextOpen, setEditTextOpen] = useState('');
+  const [editTextCompleted, setEditTextCompleted] = useState('');
   const [iconList, setIconList] = useState<string[]>([]);
   const [loadingIcons, setLoadingIcons] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
@@ -516,6 +524,9 @@ function ProgramEditor({ initialStructure, initialName, onSave, onCancel }: {
       setEditContent(node.content || '');
       setEditImageKey(node.imageKey || null);
       setEditPrerequisites(node.prerequisites || []);
+      setEditTextClosed(node.textClosed || '');
+      setEditTextOpen(node.textOpen || '');
+      setEditTextCompleted(node.textCompleted || '');
       setModalOpen(true);
       setTimeout(() => setModalVisible(true), 10);
     }
@@ -537,8 +548,10 @@ function ProgramEditor({ initialStructure, initialName, onSave, onCancel }: {
       content: editContent,
       imageKey: editImageKey,
       prerequisites: editPrerequisites,
+      textClosed: editTextClosed,
+      textOpen: editTextOpen,
+      textCompleted: editTextCompleted,
     };
-    // Не удаляем детей, даже если это урок – оставляем как есть
     setTree((prev: any) => updateNodeInTree(prev, selectedNodeId, updates));
     closeEditor();
   };
@@ -698,11 +711,38 @@ function ProgramEditor({ initialStructure, initialName, onSave, onCancel }: {
           {editIsLesson && (
             <>
               <div style={{ marginBottom: '12px' }}>
-                <label>Содержимое урока</label>
+                <label>Содержимое урока (старое, для совместимости)</label>
                 <textarea
                   value={editContent}
                   onChange={(e) => setEditContent(e.target.value)}
-                  rows={4}
+                  rows={2}
+                  style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #555', background: '#1a1a2e', color: '#fff', resize: 'vertical' }}
+                />
+              </div>
+              <div style={{ marginBottom: '12px' }}>
+                <label>Текст в закрытом состоянии (краткое описание)</label>
+                <textarea
+                  value={editTextClosed}
+                  onChange={(e) => setEditTextClosed(e.target.value)}
+                  rows={3}
+                  style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #555', background: '#1a1a2e', color: '#fff', resize: 'vertical' }}
+                />
+              </div>
+              <div style={{ marginBottom: '12px' }}>
+                <label>Текст в открытом состоянии (задания)</label>
+                <textarea
+                  value={editTextOpen}
+                  onChange={(e) => setEditTextOpen(e.target.value)}
+                  rows={3}
+                  style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #555', background: '#1a1a2e', color: '#fff', resize: 'vertical' }}
+                />
+              </div>
+              <div style={{ marginBottom: '12px' }}>
+                <label>Текст после прохождения (материалы)</label>
+                <textarea
+                  value={editTextCompleted}
+                  onChange={(e) => setEditTextCompleted(e.target.value)}
+                  rows={3}
                   style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #555', background: '#1a1a2e', color: '#fff', resize: 'vertical' }}
                 />
               </div>
@@ -845,10 +885,9 @@ function collectLessonsWithPrerequisites(node: any): Record<string, string[]> {
   return map;
 }
 
-// Функция рекурсивного пересчёта прогресса: если урок заблокирован, он становится непройденным
+// Функция рекурсивного пересчёта прогресса
 function recalculateProgress(structure: any, progress: Record<string, boolean>): Record<string, boolean> {
   const newProgress = { ...progress };
-  // Получаем все уроки
   const lessons: any[] = [];
   function traverse(node: any) {
     if (node.isLesson === true) {
@@ -862,7 +901,6 @@ function recalculateProgress(structure: any, progress: Record<string, boolean>):
   }
   traverse(structure);
 
-  // Повторяем обход, чтобы учесть цепочки (максимум количество уроков)
   for (let iter = 0; iter < lessons.length; iter++) {
     let changed = false;
     for (const lesson of lessons) {
@@ -886,7 +924,7 @@ function buildTreeForDisplay(node: any, progress: Record<string, boolean>, prere
   let isLocked = false;
   if (isLesson && !isPreview) {
     const prereqs = prerequisitesMap[node.id] || [];
-    isLocked = prereqs.some(id => !progress[id]);
+    isLocked = prereqs.some((id: string) => !progress[id]);
   }
   return {
     name: node.name,
@@ -896,7 +934,9 @@ function buildTreeForDisplay(node: any, progress: Record<string, boolean>, prere
     __locked: isLocked,
     __imageUrl: node.imageKey ? `${STORAGE_URL}${node.imageKey}` : null,
     __imageKey: node.imageKey || null,
-    __content: node.content || null,
+    __textClosed: node.textClosed || '',
+    __textOpen: node.textOpen || '',
+    __textCompleted: node.textCompleted || '',
     children: node.children ? node.children.map((child: any) => buildTreeForDisplay(child, progress, prerequisitesMap, isPreview)) : undefined,
   };
 }
@@ -906,14 +946,26 @@ const renderCustomNode = ({ nodeDatum, onLessonClick, onToggleLesson }: any) => 
   const completed = nodeDatum.__completed;
   const locked = nodeDatum.__locked || false;
   const imageUrl = nodeDatum.__imageUrl;
-  const content = nodeDatum.__content;
+  const textClosed = nodeDatum.__textClosed || '';
+  const textOpen = nodeDatum.__textOpen || '';
+  const textCompleted = nodeDatum.__textCompleted || '';
   const radius = 24;
 
   const handleClick = () => {
-    if (isLesson && !locked && onToggleLesson) {
-      onToggleLesson(nodeDatum.__id);
-    } else if (isLesson && onLessonClick) {
-      onLessonClick(content, nodeDatum.name);
+    if (isLesson) {
+      if (onToggleLesson && !locked) {
+        onToggleLesson(nodeDatum.__id);
+      } else if (onLessonClick) {
+        // Передаём все тексты и статусы
+        onLessonClick(
+          nodeDatum.name,
+          textClosed,
+          textOpen,
+          textCompleted,
+          locked,
+          completed
+        );
+      }
     }
   };
 
@@ -982,7 +1034,7 @@ const renderCustomNode = ({ nodeDatum, onLessonClick, onToggleLesson }: any) => 
 function SkillTreeView({ structure, progress, onLessonClick, onToggleLesson, isPreview = false }: {
   structure: any;
   progress: Record<string, boolean>;
-  onLessonClick?: (content: string | null, lessonName: string) => void;
+  onLessonClick?: (name: string, textClosed: string, textOpen: string, textCompleted: string, locked: boolean, completed: boolean) => void;
   onToggleLesson?: (lessonId: string) => void;
   isPreview?: boolean;
 }) {
@@ -1067,14 +1119,48 @@ function StudentProgramList({ userId, onApply, existingProgramIds }: { userId: s
   );
 }
 
-function LessonModal({ isOpen, onClose, title, content }: { isOpen: boolean; onClose: () => void; title: string; content: string | null }) {
+function LessonModal({ isOpen, onClose, title, textClosed, textOpen, textCompleted, locked, completed }: {
+  isOpen: boolean;
+  onClose: () => void;
+  title: string;
+  textClosed: string;
+  textOpen: string;
+  textCompleted: string;
+  locked: boolean;
+  completed: boolean;
+}) {
   if (!isOpen) return null;
 
   return (
     <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 999, cursor: 'pointer' }} onClick={onClose}>
       <div style={{ backgroundColor: '#2a2a4e', padding: '30px', borderRadius: '12px', maxWidth: '80%', maxHeight: '80%', overflow: 'auto', cursor: 'default', color: '#fff', boxShadow: '0 8px 32px rgba(0,0,0,0.7)' }} onClick={(e) => e.stopPropagation()}>
         <h2 style={{ marginBottom: '16px', borderBottom: '1px solid #555', paddingBottom: '8px' }}>{title}</h2>
-        <div style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', lineHeight: '1.6' }}>{content || 'Нет содержимого'}</div>
+        <div style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', lineHeight: '1.6' }}>
+          {/* Всегда показываем текст3 (закрытое состояние) */}
+          {textClosed && (
+            <div style={{ marginBottom: '12px' }}>
+              <strong>📖 Описание:</strong>
+              <div>{textClosed}</div>
+            </div>
+          )}
+          {/* Если открыт (не заблокирован), показываем текст1 (задания) */}
+          {!locked && textOpen && (
+            <div style={{ marginBottom: '12px' }}>
+              <strong>📝 Задания:</strong>
+              <div>{textOpen}</div>
+            </div>
+          )}
+          {/* Если пройден, показываем текст2 (материалы) */}
+          {completed && textCompleted && (
+            <div style={{ marginBottom: '12px' }}>
+              <strong>📚 Материалы:</strong>
+              <div>{textCompleted}</div>
+            </div>
+          )}
+          {!textClosed && !textOpen && !textCompleted && (
+            <div style={{ color: '#aaa' }}>Нет содержимого</div>
+          )}
+        </div>
         <button onClick={onClose} style={{ marginTop: '20px', padding: '8px 20px', backgroundColor: '#4CAF50', border: 'none', borderRadius: '6px', color: '#fff', cursor: 'pointer' }}>Закрыть</button>
       </div>
     </div>
@@ -1104,9 +1190,14 @@ function App() {
   const [editingProgramName, setEditingProgramName] = useState('');
   const [editingProgramVisible, setEditingProgramVisible] = useState(true);
 
-  const [modalOpen, setModalOpen] = useState(false);
-  const [modalTitle, setModalTitle] = useState('');
-  const [modalContent, setModalContent] = useState<string | null>(null);
+  // Состояние для модалки урока
+  const [lessonModalOpen, setLessonModalOpen] = useState(false);
+  const [lessonModalTitle, setLessonModalTitle] = useState('');
+  const [lessonModalTextClosed, setLessonModalTextClosed] = useState('');
+  const [lessonModalTextOpen, setLessonModalTextOpen] = useState('');
+  const [lessonModalTextCompleted, setLessonModalTextCompleted] = useState('');
+  const [lessonModalLocked, setLessonModalLocked] = useState(false);
+  const [lessonModalCompleted, setLessonModalCompleted] = useState(false);
 
   useEffect(() => {
     const init = async () => {
@@ -1334,20 +1425,16 @@ function App() {
     if (!selectedStudentId || !currentProgramId) return;
     if (!structure) return;
 
-    // Проверяем, доступен ли урок
     const prerequisitesMap = collectLessonsWithPrerequisites(structure);
     const prereqs = prerequisitesMap[lessonId] || [];
-    const isLocked = prereqs.some(id => !progress[id]);
+    const isLocked = prereqs.some((id: string) => !progress[id]);
     if (isLocked) {
       alert('Этот урок ещё не открыт. Пройдите предыдущие уроки.');
       return;
     }
 
-    // Переключаем состояние
     let newProgress = { ...progress };
     newProgress[lessonId] = !progress[lessonId];
-
-    // Пересчитываем все уроки (каскадное обновление)
     newProgress = recalculateProgress(structure, newProgress);
 
     setProgress(newProgress);
@@ -1369,16 +1456,19 @@ function App() {
     }
   };
 
-  const handleLessonClick = (content: string | null, lessonName: string) => {
-    setModalTitle(lessonName);
-    setModalContent(content);
-    setModalOpen(true);
+  // Обработчик клика по уроку – открывает модалку с текстами
+  const handleLessonClick = (name: string, textClosed: string, textOpen: string, textCompleted: string, locked: boolean, completed: boolean) => {
+    setLessonModalTitle(name);
+    setLessonModalTextClosed(textClosed);
+    setLessonModalTextOpen(textOpen);
+    setLessonModalTextCompleted(textCompleted);
+    setLessonModalLocked(locked);
+    setLessonModalCompleted(completed);
+    setLessonModalOpen(true);
   };
 
-  const closeModal = () => {
-    setModalOpen(false);
-    setModalTitle('');
-    setModalContent(null);
+  const closeLessonModal = () => {
+    setLessonModalOpen(false);
   };
 
   useEffect(() => {
@@ -1442,14 +1532,24 @@ function App() {
               structure={structure}
               progress={progress}
               onToggleLesson={toggleLessonForStudent}
+              onLessonClick={handleLessonClick}
             />
           ) : (
             <div style={{ color: '#fff', padding: '20px', textAlign: 'center' }}>
               <h3>Только для просмотра</h3>
-              <SkillTreeView structure={structure} progress={progress} />
+              <SkillTreeView structure={structure} progress={progress} onLessonClick={handleLessonClick} />
             </div>
           )}
-          <LessonModal isOpen={modalOpen} onClose={closeModal} title={modalTitle} content={modalContent} />
+          <LessonModal
+            isOpen={lessonModalOpen}
+            onClose={closeLessonModal}
+            title={lessonModalTitle}
+            textClosed={lessonModalTextClosed}
+            textOpen={lessonModalTextOpen}
+            textCompleted={lessonModalTextCompleted}
+            locked={lessonModalLocked}
+            completed={lessonModalCompleted}
+          />
         </div>
       );
     }
@@ -1468,7 +1568,16 @@ function App() {
                 onLessonClick={handleLessonClick}
                 isPreview={true}
               />
-              <LessonModal isOpen={modalOpen} onClose={closeModal} title={modalTitle} content={modalContent} />
+              <LessonModal
+                isOpen={lessonModalOpen}
+                onClose={closeLessonModal}
+                title={lessonModalTitle}
+                textClosed={lessonModalTextClosed}
+                textOpen={lessonModalTextOpen}
+                textCompleted={lessonModalTextCompleted}
+                locked={lessonModalLocked}
+                completed={lessonModalCompleted}
+              />
             </div>
           </div>
           <div style={{ flex: 1, minWidth: '300px' }}>
@@ -1541,7 +1650,16 @@ function App() {
           progress={progress}
           onLessonClick={handleLessonClick}
         />
-        <LessonModal isOpen={modalOpen} onClose={closeModal} title={modalTitle} content={modalContent} />
+        <LessonModal
+          isOpen={lessonModalOpen}
+          onClose={closeLessonModal}
+          title={lessonModalTitle}
+          textClosed={lessonModalTextClosed}
+          textOpen={lessonModalTextOpen}
+          textCompleted={lessonModalTextCompleted}
+          locked={lessonModalLocked}
+          completed={lessonModalCompleted}
+        />
       </div>
     );
   }
