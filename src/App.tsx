@@ -5,7 +5,7 @@ import './App.css';
 
 // ========== КОНСТАНТЫ ==========
 const STORAGE_URL = 'https://wmfjjpsakhmwwyvimqwx.supabase.co/storage/v1/object/public/icons/';
-const ADMIN_IDS: number[] = [1394891154]; // ID учителей
+const ADMIN_IDS: number[] = [139489115]; // ID учителей
 
 // ========== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ==========
 function extractUserInfoFromHash(): { id: string | null, firstName: string | null, lastName: string | null, username: string | null } {
@@ -495,6 +495,14 @@ function ProgramEditor({ initialStructure, initialName, onSave, onCancel }: {
   const [isSelectingPrerequisites, setIsSelectingPrerequisites] = useState(false);
   const [tempSelectedIds, setTempSelectedIds] = useState<string[]>([]);
 
+  // Состояние для анимации появления редактора
+  const [editorVisible, setEditorVisible] = useState(false);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setEditorVisible(true), 10);
+    return () => clearTimeout(timer);
+  }, []);
+
   useEffect(() => {
     const fetchIcons = async () => {
       setLoadingIcons(true);
@@ -806,7 +814,7 @@ function ProgramEditor({ initialStructure, initialName, onSave, onCancel }: {
   };
 
   return (
-    <div className="fade-slide" style={{ padding: 20, color: '#fff', backgroundColor: '#1a1a2e', minHeight: '100vh', overflow: 'hidden' }}>
+    <div className={`fade-slide ${editorVisible ? 'fade-slide-visible' : ''}`} style={{ padding: 20, color: '#fff', backgroundColor: '#1a1a2e', minHeight: '100vh', overflow: 'hidden' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: 20 }}>
         <button
           onClick={onCancel}

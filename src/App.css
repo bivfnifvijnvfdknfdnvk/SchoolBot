@@ -108,3 +108,12 @@ button:active,
 .modal-content {
   transition: transform 0.25s ease, opacity 0.25s ease;
 }
+.fade-slide {
+  opacity: 0;
+  transform: translateY(10px);
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+.fade-slide-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
