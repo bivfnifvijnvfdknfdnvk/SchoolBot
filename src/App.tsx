@@ -939,8 +939,19 @@ function buildTreeForDisplay(node: any, progress: Record<string, boolean>, prere
   if (isLesson && !isPreview) {
     const prereqs = prerequisitesMap[node.id] || [];
     isLocked = prereqs.some((id: string) => !progress[id]);
+    // Локальная функция поиска узла по ID
+    function findNodeInTree(currentNode: any, targetId: string): any {
+      if (currentNode.id === targetId) return currentNode;
+      if (currentNode.children) {
+        for (const child of currentNode.children) {
+          const found = findNodeInTree(child, targetId);
+          if (found) return found;
+        }
+      }
+      return null;
+    }
     prereqNames = prereqs.map((id: string) => {
-      const lessonNode = findNode(node, id);
+      const lessonNode = findNodeInTree(node, id);
       return lessonNode ? lessonNode.name : id;
     });
   }
