@@ -33,7 +33,6 @@ function extractUserInfoFromHash(): { id: string | null, firstName: string | nul
 
 // ========== ФУНКЦИИ ДЛЯ РАБОТЫ С БАЗОЙ ==========
 
-// Получить все программы (для учителей)
 async function getAllPrograms() {
   const { data, error } = await supabase
     .from('programs')
@@ -45,7 +44,6 @@ async function getAllPrograms() {
   return data || [];
 }
 
-// Получить программы, видимые ученикам (visible = true)
 async function getVisiblePrograms() {
   const { data, error } = await supabase
     .from('programs')
@@ -58,7 +56,6 @@ async function getVisiblePrograms() {
   return data || [];
 }
 
-// Получить имена пользователей по их ID
 async function getUsersByIds(userIds: number[]): Promise<Record<number, string>> {
   if (userIds.length === 0) return {};
   const { data, error } = await supabase
@@ -77,7 +74,6 @@ async function getUsersByIds(userIds: number[]): Promise<Record<number, string>>
   return result;
 }
 
-// Создать программу (по умолчанию скрыта)
 async function createProgram(name: string, teacherId: string, structure: any) {
   const { data, error } = await supabase
     .from('programs')
@@ -97,7 +93,6 @@ async function createProgram(name: string, teacherId: string, structure: any) {
   return data.id;
 }
 
-// Обновить программу (имя, структура, видимость)
 async function updateProgram(programId: string, updates: { name?: string; structure?: any; visible?: boolean }) {
   const { error } = await supabase
     .from('programs')
@@ -110,12 +105,10 @@ async function updateProgram(programId: string, updates: { name?: string; struct
   return true;
 }
 
-// Переключить видимость программы
 async function toggleProgramVisibility(programId: string, currentVisible: boolean) {
   return updateProgram(programId, { visible: !currentVisible });
 }
 
-// Удалить программу
 async function deleteProgram(programId: string) {
   const { error } = await supabase
     .from('programs')
@@ -127,8 +120,6 @@ async function deleteProgram(programId: string) {
   }
   return true;
 }
-
-// ========== ФУНКЦИИ ДЛЯ РАБОТЫ С ЗАЯВКАМИ И ПРОГРЕССОМ ==========
 
 async function getApplicationsForProgram(programId: string) {
   const { data, error } = await supabase
@@ -315,10 +306,44 @@ function findNodeAndAddChild(tree: any, parentId: string): { newTree: any; newId
         isLesson: false,
         content: '',
         imageKey: null,
+        prerequisites: [],
       };
       const updatedNode = { ...node, isLesson: false };
       const newChildren = updatedNode.children ? [...updatedNode.children, newChild] : [newChild];
       return { found: true, newNode: { ...updatedNode, children: newChildren }, newId };
+    }
+    if (node.children) {
+      for (let i = 0; i < node.children.length; i++) {
+        const result = traverse(node.children[i]);
+        if (result.found) {
+          const newChildren = [...node.children];
+          newChildren[i] = result.newNode;
+          return { found: true, newNode: { ...node, children: newChildren }, newId: result.newId };
+        }
+      }
+    }
+    return { found: false, newNode: node, newId: '' };
+  }
+  const result = traverse(tree);
+  return { newTree: result.newNode, newId: result.newId };
+}
+
+function addLessonAfter(tree: any, afterId: string): { newTree: any; newId: string } {
+  // Находим узел с id afterId и добавляем после него новый урок
+  function traverse(node: any): { found: boolean; newNode: any; newId: string } {
+    if (node.id === afterId) {
+      const newId = Date.now().toString() + Math.random().toString(36).substring(2, 6);
+      const newLesson = {
+        id: newId,
+        name: 'Новый урок',
+        children: [],
+        isLesson: true,
+        content: '',
+        imageKey: null,
+        prerequisites: [],
+      };
+      // Добавляем после текущего узла в родительском массиве
+      return { found: true, newNode: { ...node, children: [...(node.children || []), newLesson] }, newId };
     }
     if (node.children) {
       for (let i = 0; i < node.children.length; i++) {
@@ -406,6 +431,7 @@ function buildEditorTree(node: any): any {
     isLesson: node.isLesson || false,
     imageKey: node.imageKey || null,
     content: node.content || null,
+    prerequisites: node.prerequisites || [],
     children: node.children ? node.children.map((child: any) => buildEditorTree(child)) : undefined,
   };
 }
@@ -475,6 +501,7 @@ function ProgramEditor({ initialStructure, initialName, onSave, onCancel }: {
   const [editIsLesson, setEditIsLesson] = useState(false);
   const [editContent, setEditContent] = useState('');
   const [editImageKey, setEditImageKey] = useState<string | null>(null);
+  const [editPrerequisites, setEditPrerequisites] = useState<string[]>([]);
   const [iconList, setIconList] = useState<string[]>([]);
   const [loadingIcons, setLoadingIcons] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
@@ -504,6 +531,7 @@ function ProgramEditor({ initialStructure, initialName, onSave, onCancel }: {
       setEditIsLesson(node.isLesson || false);
       setEditContent(node.content || '');
       setEditImageKey(node.imageKey || null);
+      setEditPrerequisites(node.prerequisites || []);
       setModalOpen(true);
       setTimeout(() => setModalVisible(true), 10);
     }
@@ -524,6 +552,7 @@ function ProgramEditor({ initialStructure, initialName, onSave, onCancel }: {
       isLesson: editIsLesson,
       content: editContent,
       imageKey: editImageKey,
+      prerequisites: editPrerequisites,
     };
     if (editIsLesson) {
       updates.children = [];
@@ -537,6 +566,23 @@ function ProgramEditor({ initialStructure, initialName, onSave, onCancel }: {
     const { newTree } = findNodeAndAddChild(tree, selectedNodeId);
     setTree(newTree);
     closeEditor();
+  };
+
+  const handleAddLessonAfter = () => {
+    if (!selectedNodeId) return;
+    const { newTree, newId } = addLessonAfter(tree, selectedNodeId);
+    setTree(newTree);
+    // Открываем редактор для нового урока
+    if (newId) {
+      setSelectedNodeId(newId);
+      setEditName('Новый урок');
+      setEditIsLesson(true);
+      setEditContent('');
+      setEditImageKey(null);
+      setEditPrerequisites([]);
+      setModalOpen(true);
+      setTimeout(() => setModalVisible(true), 10);
+    }
   };
 
   const handleDeleteNode = () => {
@@ -555,9 +601,27 @@ function ProgramEditor({ initialStructure, initialName, onSave, onCancel }: {
     onSave(programName, structure);
   };
 
+  // Функция для получения списка всех уроков (кроме текущего)
+  const getAllLessons = (node: any, excludeId: string): string[] => {
+    const lessons: string[] = [];
+    function traverse(n: any) {
+      if (n.isLesson && n.id !== excludeId) {
+        lessons.push(n.id);
+      }
+      if (n.children) {
+        for (const child of n.children) {
+          traverse(child);
+        }
+      }
+    }
+    traverse(node);
+    return lessons;
+  };
+
   const renderModal = () => {
-    if (!modalOpen) return null;
+    if (!modalOpen || !selectedNodeId) return null;
     const isRoot = selectedNodeId === 'root';
+    const lessons = getAllLessons(tree, selectedNodeId);
 
     return (
       <div
@@ -642,15 +706,44 @@ function ProgramEditor({ initialStructure, initialName, onSave, onCancel }: {
             </div>
           </div>
           {editIsLesson && (
-            <div style={{ marginBottom: '12px' }}>
-              <label>Содержимое урока</label>
-              <textarea
-                value={editContent}
-                onChange={(e) => setEditContent(e.target.value)}
-                rows={4}
-                style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #555', background: '#1a1a2e', color: '#fff', resize: 'vertical' }}
-              />
-            </div>
+            <>
+              <div style={{ marginBottom: '12px' }}>
+                <label>Содержимое урока</label>
+                <textarea
+                  value={editContent}
+                  onChange={(e) => setEditContent(e.target.value)}
+                  rows={4}
+                  style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #555', background: '#1a1a2e', color: '#fff', resize: 'vertical' }}
+                />
+              </div>
+              <div style={{ marginBottom: '12px' }}>
+                <label>Условия открытия</label>
+                <div style={{ maxHeight: '150px', overflow: 'auto', border: '1px solid #555', borderRadius: '4px', padding: '8px' }}>
+                  {lessons.length === 0 && <span style={{ color: '#aaa' }}>Нет других уроков для выбора</span>}
+                  {lessons.map(id => {
+                    const node = findNode(tree, id);
+                    return node ? (
+                      <div key={id} style={{ marginBottom: '4px' }}>
+                        <label>
+                          <input
+                            type="checkbox"
+                            checked={editPrerequisites.includes(id)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setEditPrerequisites([...editPrerequisites, id]);
+                              } else {
+                                setEditPrerequisites(editPrerequisites.filter(p => p !== id));
+                              }
+                            }}
+                          />
+                          {node.name}
+                        </label>
+                      </div>
+                    ) : null;
+                  })}
+                </div>
+              </div>
+            </>
           )}
           <div style={{ marginBottom: '12px' }}>
             <label>Иконка</label>
@@ -691,9 +784,16 @@ function ProgramEditor({ initialStructure, initialName, onSave, onCancel }: {
             <button onClick={saveNode} style={{ background: '#2196F3', border: 'none', padding: '8px 16px', borderRadius: '4px', color: '#fff', cursor: 'pointer' }}>
               💾 Сохранить
             </button>
-            <button onClick={handleAddChild} style={{ background: '#4CAF50', border: 'none', padding: '8px 16px', borderRadius: '4px', color: '#fff', cursor: 'pointer' }}>
-              ➕ Добавить узел
-            </button>
+            {editIsLesson && (
+              <button onClick={handleAddLessonAfter} style={{ background: '#4CAF50', border: 'none', padding: '8px 16px', borderRadius: '4px', color: '#fff', cursor: 'pointer' }}>
+                ➕ Добавить урок после
+              </button>
+            )}
+            {!isRoot && (
+              <button onClick={handleAddChild} style={{ background: '#4CAF50', border: 'none', padding: '8px 16px', borderRadius: '4px', color: '#fff', cursor: 'pointer' }}>
+                ➕ Добавить потомка
+              </button>
+            )}
             {!isRoot && (
               <button onClick={handleDeleteNode} style={{ background: '#f44336', border: 'none', padding: '8px 16px', borderRadius: '4px', color: '#fff', cursor: 'pointer' }}>
                 🗑️
@@ -730,39 +830,12 @@ function ProgramEditor({ initialStructure, initialName, onSave, onCancel }: {
 
 // ========== КОМПОНЕНТЫ ДЛЯ ОТОБРАЖЕНИЯ ==========
 
-function buildTreeForDisplay(node: any, progress: Record<string, boolean>): any {
-  // Приоритет у явного поля isLesson
-  const isLesson = node.isLesson !== undefined ? node.isLesson : (!node.children || node.children.length === 0);
-  if (isLesson) {
-    const completed = progress[node.id] || false;
-    return {
-      name: node.name,
-      __id: node.id,
-      __isLesson: true,
-      __completed: completed,
-      __imageUrl: node.imageKey ? `${STORAGE_URL}${node.imageKey}` : null,
-      __imageKey: node.imageKey || null,
-      __content: node.content || null,
-    };
-  } else {
-    const displayName = node.name;
-    return {
-      name: displayName,
-      children: node.children.map((child: any) => buildTreeForDisplay(child, progress)),
-      __id: node.id,
-      __isLesson: false,
-      __imageUrl: node.imageKey ? `${STORAGE_URL}${node.imageKey}` : null,
-      __imageKey: node.imageKey || null,
-    };
-  }
-}
-
-// ========== ВСПОМОГАТЕЛЬНАЯ ФУНКЦИЯ ДЛЯ ПОЛУЧЕНИЯ УРОКОВ В ПОРЯДКЕ ==========
-function getAllLessonsInOrder(node: any): string[] {
-  const result: string[] = [];
+// Функция для сбора всех уроков с их prerequisites
+function collectLessonsWithPrerequisites(node: any): Record<string, string[]> {
+  const map: Record<string, string[]> = {};
   function traverse(n: any) {
     if (n.isLesson) {
-      result.push(n.id);
+      map[n.id] = n.prerequisites || [];
     }
     if (n.children) {
       for (const child of n.children) {
@@ -771,28 +844,57 @@ function getAllLessonsInOrder(node: any): string[] {
     }
   }
   traverse(node);
-  return result;
+  return map;
+}
+
+function buildTreeForDisplay(node: any, progress: Record<string, boolean>, prerequisitesMap: Record<string, string[]>): any {
+  const isLesson = node.isLesson !== undefined ? node.isLesson : (!node.children || node.children.length === 0);
+  if (isLesson) {
+    const completed = progress[node.id] || false;
+    // Проверяем, доступен ли урок: все prerequisites должны быть пройдены
+    const prereqs = prerequisitesMap[node.id] || [];
+    const isLocked = prereqs.some(id => !progress[id]);
+    return {
+      name: node.name,
+      __id: node.id,
+      __isLesson: true,
+      __completed: completed,
+      __locked: isLocked,
+      __imageUrl: node.imageKey ? `${STORAGE_URL}${node.imageKey}` : null,
+      __imageKey: node.imageKey || null,
+      __content: node.content || null,
+    };
+  } else {
+    const displayName = node.name;
+    return {
+      name: displayName,
+      children: node.children.map((child: any) => buildTreeForDisplay(child, progress, prerequisitesMap)),
+      __id: node.id,
+      __isLesson: false,
+      __imageUrl: node.imageKey ? `${STORAGE_URL}${node.imageKey}` : null,
+      __imageKey: node.imageKey || null,
+    };
+  }
 }
 
 const renderCustomNode = ({ nodeDatum, onLessonClick, onToggleLesson }: any) => {
   const isLesson = nodeDatum.__isLesson;
   const completed = nodeDatum.__completed;
+  const locked = nodeDatum.__locked || false;
   const imageUrl = nodeDatum.__imageUrl;
   const content = nodeDatum.__content;
   const radius = 24;
 
   const handleClick = () => {
-    if (isLesson) {
-      if (onToggleLesson) {
-        onToggleLesson(nodeDatum.__id);
-      } else if (onLessonClick) {
-        onLessonClick(content, nodeDatum.name);
-      }
+    if (isLesson && !locked && onToggleLesson) {
+      onToggleLesson(nodeDatum.__id);
+    } else if (isLesson && onLessonClick) {
+      onLessonClick(content, nodeDatum.name);
     }
   };
 
   const clipId = `clip-${nodeDatum.__id || Math.random().toString(36).substring(2, 10)}`;
-  const textColor = isLesson && completed ? '#4CAF50' : '#fff';
+  const textColor = isLesson ? (completed ? '#4CAF50' : (locked ? '#666' : '#fff')) : '#fff';
 
   return (
     <g>
@@ -810,15 +912,15 @@ const renderCustomNode = ({ nodeDatum, onLessonClick, onToggleLesson }: any) => 
           clipPath={`url(#${clipId})`}
           preserveAspectRatio="xMidYMid slice"
           onClick={handleClick}
-          style={{ cursor: isLesson ? 'pointer' : 'default', transform: 'scaleY(-1)' }}
+          style={{ cursor: isLesson && !locked ? 'pointer' : 'default', transform: 'scaleY(-1)', opacity: locked ? 0.5 : 1 }}
         />
       ) : (
         <circle
           r={radius}
-          fill={isLesson ? (completed ? '#4CAF50' : '#FF9800') : '#2196F3'}
+          fill={isLesson ? (completed ? '#4CAF50' : (locked ? '#555' : '#FF9800')) : '#2196F3'}
           stroke="none"
           onClick={handleClick}
-          style={{ cursor: isLesson ? 'pointer' : 'default' }}
+          style={{ cursor: isLesson && !locked ? 'pointer' : 'default' }}
         />
       )}
 
@@ -831,6 +933,10 @@ const renderCustomNode = ({ nodeDatum, onLessonClick, onToggleLesson }: any) => 
         </>
       )}
 
+      {isLesson && locked && !completed && (
+        <text x="0" y="2" fontSize={radius * 0.7} fill="#fff" stroke="none" textAnchor="middle" dominantBaseline="central" fontWeight="bold" onClick={handleClick} style={{ cursor: 'default', transform: 'scaleY(-1)' }}>🔒</text>
+      )}
+
       <text
         fill={textColor}
         stroke="none"
@@ -840,7 +946,7 @@ const renderCustomNode = ({ nodeDatum, onLessonClick, onToggleLesson }: any) => 
         fontSize={isLesson ? 14 : 16}
         fontFamily="Arial, sans-serif"
         textAnchor="start"
-        style={{ fontWeight: isLesson ? 'normal' : 'bold', transform: 'scaleY(-1)' }}
+        style={{ fontWeight: isLesson ? 'normal' : 'bold', transform: 'scaleY(-1)', opacity: locked ? 0.5 : 1 }}
         onClick={handleClick}
       >
         {nodeDatum.name}
@@ -871,7 +977,8 @@ function SkillTreeView({ structure, progress, onLessonClick, onToggleLesson }: {
     return () => window.removeEventListener('resize', updateTranslate);
   }, []);
 
-  const treeData = buildTreeForDisplay(structure, progress);
+  const prerequisitesMap = collectLessonsWithPrerequisites(structure);
+  const treeData = buildTreeForDisplay(structure, progress, prerequisitesMap);
   return (
     <div ref={containerRef} style={{ width: '100%', height: '100%', backgroundColor: '#1a1a2e', transform: 'scaleY(-1)' }}>
       <Tree
@@ -1198,31 +1305,22 @@ function App() {
     loadProgressForProgram(userId, currentProgramId!).then(p => setProgress(p));
   };
 
-  // ========== ОБНОВЛЁННАЯ ФУНКЦИЯ ПЕРЕКЛЮЧЕНИЯ ПРОГРЕССА С ПОСЛЕДОВАТЕЛЬНОСТЬЮ ==========
+  // ========== ОБНОВЛЁННАЯ ФУНКЦИЯ ПЕРЕКЛЮЧЕНИЯ ПРОГРЕССА С УСЛОВИЯМИ ==========
   const toggleLessonForStudent = async (lessonId: string) => {
     if (!selectedStudentId || !currentProgramId) return;
     if (!structure) return;
 
-    // Получаем все уроки в порядке следования (DFS слева направо)
-    const allLessons = getAllLessonsInOrder(structure);
-    const index = allLessons.indexOf(lessonId);
-    if (index === -1) return;
-
-    const currentCompleted = progress[lessonId] || false;
-    const newStatus = !currentCompleted;
-    const updates: Record<string, boolean> = {};
-
-    if (newStatus === true) {
-      // Если отмечаем как пройденный – отмечаем все предыдущие уроки
-      for (let i = 0; i <= index; i++) {
-        updates[allLessons[i]] = true;
-      }
-    } else {
-      // Если снимаем отметку – только этот урок становится непройденным
-      updates[lessonId] = false;
+    // Проверяем, доступен ли урок
+    const prerequisitesMap = collectLessonsWithPrerequisites(structure);
+    const prereqs = prerequisitesMap[lessonId] || [];
+    const isLocked = prereqs.some(id => !progress[id]);
+    if (isLocked) {
+      alert('Этот урок ещё не открыт. Пройдите предыдущие уроки.');
+      return;
     }
 
-    const newProgress = { ...progress, ...updates };
+    const newProgress = { ...progress };
+    newProgress[lessonId] = !progress[lessonId];
     setProgress(newProgress);
     await saveProgressForProgram(selectedStudentId, currentProgramId, newProgress);
   };
