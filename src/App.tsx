@@ -1282,32 +1282,25 @@ function LessonModal({ isOpen, onClose, title, textClosed, textOpen, textComplet
   isPreview: boolean;
   prereqNames: string[];
 }) {
-  const [closing, setClosing] = useState(false);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [modalVisible, setModalVisible] = useState(false);
 
   useEffect(() => {
-    if (!isOpen) {
-      setClosing(true);
-      const timer = setTimeout(() => {
-        setClosing(false);
-      }, 300);
-      return () => clearTimeout(timer);
+    if (isOpen) {
+      setModalOpen(true);
+      setTimeout(() => setModalVisible(true), 10);
     } else {
-      setClosing(false);
+      setModalVisible(false);
+      setTimeout(() => {
+        setModalOpen(false);
+        onClose();
+      }, 300);
     }
-  }, [isOpen]);
+  }, [isOpen, onClose]);
 
-  if (!isOpen && !closing) return null;
+  if (!modalOpen) return null;
 
   const hasContent = textClosed || textOpen || textCompleted;
-  const showContent = isOpen && !closing;
-
-  const handleClose = () => {
-    if (closing) return;
-    setClosing(true);
-    setTimeout(() => {
-      onClose();
-    }, 300);
-  };
 
   return (
     <div
@@ -1324,10 +1317,18 @@ function LessonModal({ isOpen, onClose, title, textClosed, textOpen, textComplet
         alignItems: 'center',
         zIndex: 999,
         cursor: 'pointer',
-        opacity: showContent ? 1 : 0,
-        transition: 'opacity 0.25s ease',
+        opacity: modalVisible ? 1 : 0,
+        transition: 'opacity 0.3s ease',
       }}
-      onClick={handleClose}
+      onClick={() => {
+        if (modalVisible) {
+          setModalVisible(false);
+          setTimeout(() => {
+            setModalOpen(false);
+            onClose();
+          }, 300);
+        }
+      }}
     >
       <div
         className="modal-content"
@@ -1341,9 +1342,9 @@ function LessonModal({ isOpen, onClose, title, textClosed, textOpen, textComplet
           cursor: 'default',
           color: '#fff',
           boxShadow: '0 8px 32px rgba(0,0,0,0.7)',
-          transform: showContent ? 'scale(1)' : 'scale(0.95)',
-          transition: 'transform 0.25s ease, opacity 0.25s ease',
-          opacity: showContent ? 1 : 0,
+          transform: modalVisible ? 'scale(1)' : 'scale(0.95)',
+          transition: 'transform 0.3s ease, opacity 0.3s ease',
+          opacity: modalVisible ? 1 : 0,
         }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -1380,7 +1381,15 @@ function LessonModal({ isOpen, onClose, title, textClosed, textOpen, textComplet
           )}
         </div>
         <button
-          onClick={handleClose}
+          onClick={() => {
+            if (modalVisible) {
+              setModalVisible(false);
+              setTimeout(() => {
+                setModalOpen(false);
+                onClose();
+              }, 300);
+            }
+          }}
           className="hover-scale"
           style={{ marginTop: '20px', padding: '8px 20px', backgroundColor: '#4CAF50', border: 'none', borderRadius: '6px', color: '#fff', cursor: 'pointer' }}
         >
