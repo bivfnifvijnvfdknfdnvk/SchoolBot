@@ -304,6 +304,7 @@ function findNodeAndAddChild(tree: any, parentId: string): { newTree: any; newId
         name: 'Новый узел',
         children: [],
         isLesson: false,
+        content: '',
         imageKey: null,
         prerequisites: [],
         textClosed: '',
@@ -473,7 +474,6 @@ function ProgramEditor({ initialStructure, initialName, onSave, onCancel }: {
       name: 'Корневой узел',
       children: [],
       isLesson: false,
-      content: '',
       imageKey: null,
     };
   });
@@ -908,9 +908,11 @@ function buildTreeForDisplay(node: any, progress: Record<string, boolean>, prere
   const isLesson = node.isLesson === true;
   const completed = isLesson ? (progress[node.id] || false) : false;
   let isLocked = false;
+  let prereqCount = 0;
   if (isLesson && !isPreview) {
     const prereqs = prerequisitesMap[node.id] || [];
     isLocked = prereqs.some((id: string) => !progress[id]);
+    prereqCount = prereqs.length;
   }
   return {
     name: node.name,
@@ -918,6 +920,7 @@ function buildTreeForDisplay(node: any, progress: Record<string, boolean>, prere
     __isLesson: isLesson,
     __completed: completed,
     __locked: isLocked,
+    __prereqCount: prereqCount,
     __imageUrl: node.imageKey ? `${STORAGE_URL}${node.imageKey}` : null,
     __imageKey: node.imageKey || null,
     __textClosed: node.textClosed || '',
@@ -927,10 +930,11 @@ function buildTreeForDisplay(node: any, progress: Record<string, boolean>, prere
   };
 }
 
-const renderCustomNode = ({ nodeDatum, onLessonClick, onToggleLesson }: any) => {
+const renderCustomNode = ({ nodeDatum, onLessonClick, onToggleLesson, isPreview }: any) => {
   const isLesson = nodeDatum.__isLesson;
   const completed = nodeDatum.__completed;
   const locked = nodeDatum.__locked || false;
+  const prereqCount = nodeDatum.__prereqCount || 0;
   const imageUrl = nodeDatum.__imageUrl;
   const textClosed = nodeDatum.__textClosed || '';
   const textOpen = nodeDatum.__textOpen || '';
@@ -942,14 +946,16 @@ const renderCustomNode = ({ nodeDatum, onLessonClick, onToggleLesson }: any) => 
       if (onToggleLesson && !locked) {
         onToggleLesson(nodeDatum.__id);
       } else if (onLessonClick) {
-        // Передаём все тексты и статусы
+        // Передаём также список условий (пока пустой, но можно расширить)
         onLessonClick(
           nodeDatum.name,
           textClosed,
           textOpen,
           textCompleted,
           locked,
-          completed
+          completed,
+          isPreview,
+          prereqCount
         );
       }
     }
@@ -996,7 +1002,14 @@ const renderCustomNode = ({ nodeDatum, onLessonClick, onToggleLesson }: any) => 
       )}
 
       {isLesson && locked && !completed && (
-        <text x="0" y="2" fontSize={radius * 0.7} fill="#fff" stroke="none" textAnchor="middle" dominantBaseline="central" fontWeight="bold" onClick={handleClick} style={{ cursor: 'default', transform: 'scaleY(-1)' }}>🔒</text>
+        <>
+          <text x="0" y="2" fontSize={radius * 0.7} fill="#fff" stroke="none" textAnchor="middle" dominantBaseline="central" fontWeight="bold" onClick={handleClick} style={{ cursor: 'default', transform: 'scaleY(-1)' }}>🔒</text>
+          {prereqCount > 1 && (
+            <text x={radius + 6} y="0" fontSize={12} fill="#ffa500" stroke="none" textAnchor="start" dominantBaseline="central" fontWeight="bold" onClick={handleClick}>
+              🔗{prereqCount}
+            </text>
+          )}
+        </>
       )}
 
       <text
@@ -1020,7 +1033,7 @@ const renderCustomNode = ({ nodeDatum, onLessonClick, onToggleLesson }: any) => 
 function SkillTreeView({ structure, progress, onLessonClick, onToggleLesson, isPreview = false }: {
   structure: any;
   progress: Record<string, boolean>;
-  onLessonClick?: (name: string, textClosed: string, textOpen: string, textCompleted: string, locked: boolean, completed: boolean) => void;
+  onLessonClick?: (name: string, textClosed: string, textOpen: string, textCompleted: string, locked: boolean, completed: boolean, isPreview: boolean, prereqCount: number) => void;
   onToggleLesson?: (lessonId: string) => void;
   isPreview?: boolean;
 }) {
@@ -1048,7 +1061,7 @@ function SkillTreeView({ structure, progress, onLessonClick, onToggleLesson, isP
         data={treeData}
         orientation="vertical"
         pathFunc="step"
-        renderCustomNodeElement={(props) => renderCustomNode({ ...props, onLessonClick, onToggleLesson })}
+        renderCustomNodeElement={(props) => renderCustomNode({ ...props, onLessonClick, onToggleLesson, isPreview })}
         translate={translate}
         zoomable={true}
         draggable={true}
@@ -1105,7 +1118,7 @@ function StudentProgramList({ userId, onApply, existingProgramIds }: { userId: s
   );
 }
 
-function LessonModal({ isOpen, onClose, title, textClosed, textOpen, textCompleted, locked, completed }: {
+function LessonModal({ isOpen, onClose, title, textClosed, textOpen, textCompleted, locked, completed, isPreview, prereqCount }: {
   isOpen: boolean;
   onClose: () => void;
   title: string;
@@ -1114,6 +1127,8 @@ function LessonModal({ isOpen, onClose, title, textClosed, textOpen, textComplet
   textCompleted: string;
   locked: boolean;
   completed: boolean;
+  isPreview: boolean;
+  prereqCount: number;
 }) {
   if (!isOpen) return null;
 
@@ -1123,6 +1138,11 @@ function LessonModal({ isOpen, onClose, title, textClosed, textOpen, textComplet
     <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 999, cursor: 'pointer' }} onClick={onClose}>
       <div style={{ backgroundColor: '#2a2a4e', padding: '30px', borderRadius: '12px', maxWidth: '80%', maxHeight: '80%', overflow: 'auto', cursor: 'default', color: '#fff', boxShadow: '0 8px 32px rgba(0,0,0,0.7)' }} onClick={(e) => e.stopPropagation()}>
         <h2 style={{ marginBottom: '16px', borderBottom: '1px solid #555', paddingBottom: '8px' }}>{title}</h2>
+        {locked && prereqCount > 0 && (
+          <div style={{ marginBottom: '12px', color: '#ffa500' }}>
+            <strong>🔗 Условия:</strong> требуется пройти {prereqCount} урок(а/ов).
+          </div>
+        )}
         <div style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', lineHeight: '1.6' }}>
           {hasContent ? (
             <>
@@ -1138,7 +1158,7 @@ function LessonModal({ isOpen, onClose, title, textClosed, textOpen, textComplet
                   <div>{textOpen}</div>
                 </div>
               )}
-              {completed && textCompleted && (
+              {(completed || isPreview) && textCompleted && (
                 <div style={{ marginBottom: '12px' }}>
                   <strong>📚 Материалы:</strong>
                   <div>{textCompleted}</div>
@@ -1178,7 +1198,6 @@ function App() {
   const [editingProgramName, setEditingProgramName] = useState('');
   const [editingProgramVisible, setEditingProgramVisible] = useState(true);
 
-  // Состояние для модалки урока
   const [lessonModalOpen, setLessonModalOpen] = useState(false);
   const [lessonModalTitle, setLessonModalTitle] = useState('');
   const [lessonModalTextClosed, setLessonModalTextClosed] = useState('');
@@ -1186,6 +1205,8 @@ function App() {
   const [lessonModalTextCompleted, setLessonModalTextCompleted] = useState('');
   const [lessonModalLocked, setLessonModalLocked] = useState(false);
   const [lessonModalCompleted, setLessonModalCompleted] = useState(false);
+  const [lessonModalIsPreview, setLessonModalIsPreview] = useState(false);
+  const [lessonModalPrereqCount, setLessonModalPrereqCount] = useState(0);
 
   useEffect(() => {
     const init = async () => {
@@ -1444,14 +1465,15 @@ function App() {
     }
   };
 
-  // Обработчик клика по уроку – открывает модалку с текстами
-  const handleLessonClick = (name: string, textClosed: string, textOpen: string, textCompleted: string, locked: boolean, completed: boolean) => {
+  const handleLessonClick = (name: string, textClosed: string, textOpen: string, textCompleted: string, locked: boolean, completed: boolean, isPreview: boolean, prereqCount: number) => {
     setLessonModalTitle(name);
     setLessonModalTextClosed(textClosed);
     setLessonModalTextOpen(textOpen);
     setLessonModalTextCompleted(textCompleted);
     setLessonModalLocked(locked);
     setLessonModalCompleted(completed);
+    setLessonModalIsPreview(isPreview);
+    setLessonModalPrereqCount(prereqCount);
     setLessonModalOpen(true);
   };
 
@@ -1537,6 +1559,8 @@ function App() {
             textCompleted={lessonModalTextCompleted}
             locked={lessonModalLocked}
             completed={lessonModalCompleted}
+            isPreview={lessonModalIsPreview}
+            prereqCount={lessonModalPrereqCount}
           />
         </div>
       );
@@ -1565,6 +1589,8 @@ function App() {
                 textCompleted={lessonModalTextCompleted}
                 locked={lessonModalLocked}
                 completed={lessonModalCompleted}
+                isPreview={lessonModalIsPreview}
+                prereqCount={lessonModalPrereqCount}
               />
             </div>
           </div>
@@ -1647,6 +1673,8 @@ function App() {
           textCompleted={lessonModalTextCompleted}
           locked={lessonModalLocked}
           completed={lessonModalCompleted}
+          isPreview={lessonModalIsPreview}
+          prereqCount={lessonModalPrereqCount}
         />
       </div>
     );
