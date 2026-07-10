@@ -328,53 +328,26 @@ function findNodeAndAddChild(tree: any, parentId: string): { newTree: any; newId
   return { newTree: result.newNode, newId: result.newId };
 }
 
-function addLessonAfter(tree: any, afterId: string): { newTree: any; newId: string } {
-  // Находим узел с id afterId и добавляем после него новый урок
-  function traverse(node: any): { found: boolean; newNode: any; newId: string } {
-    if (node.id === afterId) {
-      const newId = Date.now().toString() + Math.random().toString(36).substring(2, 6);
-      const newLesson = {
-        id: newId,
-        name: 'Новый урок',
-        children: [],
-        isLesson: true,
-        content: '',
-        imageKey: null,
-        prerequisites: [],
-      };
-      // Добавляем после текущего узла в родительском массиве
-      return { found: true, newNode: { ...node, children: [...(node.children || []), newLesson] }, newId };
-    }
-    if (node.children) {
-      for (let i = 0; i < node.children.length; i++) {
-        const result = traverse(node.children[i]);
-        if (result.found) {
-          const newChildren = [...node.children];
-          newChildren[i] = result.newNode;
-          return { found: true, newNode: { ...node, children: newChildren }, newId: result.newId };
-        }
-      }
-    }
-    return { found: false, newNode: node, newId: '' };
-  }
-  const result = traverse(tree);
-  return { newTree: result.newNode, newId: result.newId };
-}
-
-// Рендер узла для редактора (с переворотом содержимого обратно)
-const renderEditorNode = ({ nodeDatum, onNodeClick }: any) => {
+// Рендер узла для редактора (в обычном режиме)
+const renderEditorNode = ({ nodeDatum, onNodeClick, isSelectMode, onSelectToggle }: any) => {
   const isLesson = nodeDatum.isLesson || false;
   const imageUrl = nodeDatum.imageKey ? `${STORAGE_URL}${nodeDatum.imageKey}` : null;
   const radius = 24;
 
   const handleClick = (e: any) => {
     e.stopPropagation();
+    if (isSelectMode && isLesson && onSelectToggle) {
+      // В режиме выбора условий: клик по уроку переключает его состояние
+      onSelectToggle(nodeDatum.id);
+      return;
+    }
     if (onNodeClick) {
       onNodeClick(nodeDatum.id);
     }
   };
 
   const clipId = `clip-${nodeDatum.id || Math.random().toString(36).substring(2, 10)}`;
+  const isSelected = nodeDatum._selected || false;
 
   return (
     <g>
@@ -392,15 +365,16 @@ const renderEditorNode = ({ nodeDatum, onNodeClick }: any) => {
           clipPath={`url(#${clipId})`}
           preserveAspectRatio="xMidYMid slice"
           onClick={handleClick}
-          style={{ cursor: 'pointer', transform: 'scaleY(-1)' }}
+          style={{ cursor: isSelectMode && isLesson ? 'pointer' : 'pointer', transform: 'scaleY(-1)', outline: isSelected ? '2px solid #4CAF50' : 'none' }}
         />
       ) : (
         <circle
           r={radius}
-          fill={isLesson ? '#FF9800' : '#2196F3'}
-          stroke="none"
+          fill={isLesson ? (isSelected ? '#4CAF50' : '#FF9800') : '#2196F3'}
+          stroke={isSelected ? '#4CAF50' : 'none'}
+          strokeWidth={isSelected ? 4 : 0}
           onClick={handleClick}
-          style={{ cursor: 'pointer' }}
+          style={{ cursor: isSelectMode && isLesson ? 'pointer' : 'pointer' }}
         />
       )}
 
@@ -419,12 +393,13 @@ const renderEditorNode = ({ nodeDatum, onNodeClick }: any) => {
         onClick={handleClick}
       >
         {nodeDatum.name}
+        {isSelectMode && isLesson && (isSelected ? ' ✅' : ' ⬜')}
       </text>
     </g>
   );
 };
 
-function buildEditorTree(node: any): any {
+function buildEditorTree(node: any, selectedIds?: string[]): any {
   return {
     name: node.name,
     id: node.id,
@@ -432,12 +407,19 @@ function buildEditorTree(node: any): any {
     imageKey: node.imageKey || null,
     content: node.content || null,
     prerequisites: node.prerequisites || [],
-    children: node.children ? node.children.map((child: any) => buildEditorTree(child)) : undefined,
+    _selected: selectedIds ? selectedIds.includes(node.id) : false,
+    children: node.children ? node.children.map((child: any) => buildEditorTree(child, selectedIds)) : undefined,
   };
 }
 
 // Компонент дерева для редактора (ветви вверх)
-function EditableTreeView({ structure, onNodeClick }: { structure: any; onNodeClick: (nodeId: string) => void }) {
+function EditableTreeView({ structure, onNodeClick, isSelectMode, onSelectToggle, selectedIds }: {
+  structure: any;
+  onNodeClick: (nodeId: string) => void;
+  isSelectMode?: boolean;
+  onSelectToggle?: (nodeId: string) => void;
+  selectedIds?: string[];
+}) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [translate, setTranslate] = useState({ x: 400, y: 100 });
 
@@ -454,14 +436,14 @@ function EditableTreeView({ structure, onNodeClick }: { structure: any; onNodeCl
     return () => window.removeEventListener('resize', updateTranslate);
   }, []);
 
-  const treeData = buildEditorTree(structure);
+  const treeData = buildEditorTree(structure, selectedIds);
   return (
     <div ref={containerRef} style={{ width: '100%', height: '100%', backgroundColor: '#1a1a2e', transform: 'scaleY(-1)' }}>
       <Tree
         data={treeData}
         orientation="vertical"
         pathFunc="step"
-        renderCustomNodeElement={(props) => renderEditorNode({ ...props, onNodeClick })}
+        renderCustomNodeElement={(props) => renderEditorNode({ ...props, onNodeClick, isSelectMode, onSelectToggle })}
         translate={translate}
         zoomable={true}
         draggable={true}
@@ -506,6 +488,9 @@ function ProgramEditor({ initialStructure, initialName, onSave, onCancel }: {
   const [loadingIcons, setLoadingIcons] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
+
+  const [isSelectingPrerequisites, setIsSelectingPrerequisites] = useState(false);
+  const [tempSelectedIds, setTempSelectedIds] = useState<string[]>([]);
 
   useEffect(() => {
     const fetchIcons = async () => {
@@ -568,23 +553,6 @@ function ProgramEditor({ initialStructure, initialName, onSave, onCancel }: {
     closeEditor();
   };
 
-  const handleAddLessonAfter = () => {
-    if (!selectedNodeId) return;
-    const { newTree, newId } = addLessonAfter(tree, selectedNodeId);
-    setTree(newTree);
-    // Открываем редактор для нового урока
-    if (newId) {
-      setSelectedNodeId(newId);
-      setEditName('Новый урок');
-      setEditIsLesson(true);
-      setEditContent('');
-      setEditImageKey(null);
-      setEditPrerequisites([]);
-      setModalOpen(true);
-      setTimeout(() => setModalVisible(true), 10);
-    }
-  };
-
   const handleDeleteNode = () => {
     if (!selectedNodeId || selectedNodeId === 'root') return;
     if (!confirm(`Удалить узел "${editName}"?`)) return;
@@ -593,6 +561,15 @@ function ProgramEditor({ initialStructure, initialName, onSave, onCancel }: {
   };
 
   const handleNodeClick = (nodeId: string) => {
+    if (isSelectingPrerequisites) {
+      if (nodeId === selectedNodeId) return;
+      const node = findNode(tree, nodeId);
+      if (!node || !node.isLesson) return;
+      setTempSelectedIds(prev =>
+        prev.includes(nodeId) ? prev.filter(id => id !== nodeId) : [...prev, nodeId]
+      );
+      return;
+    }
     openEditor(nodeId);
   };
 
@@ -601,27 +578,44 @@ function ProgramEditor({ initialStructure, initialName, onSave, onCancel }: {
     onSave(programName, structure);
   };
 
-  // Функция для получения списка всех уроков (кроме текущего)
-  const getAllLessons = (node: any, excludeId: string): string[] => {
-    const lessons: string[] = [];
-    function traverse(n: any) {
-      if (n.isLesson && n.id !== excludeId) {
-        lessons.push(n.id);
-      }
-      if (n.children) {
-        for (const child of n.children) {
-          traverse(child);
-        }
-      }
+  const startSelectingPrerequisites = () => {
+    if (!selectedNodeId) return;
+    setModalVisible(false);
+    setTimeout(() => {
+      setModalOpen(false);
+      setSelectedNodeId(null);
+      setIsSelectingPrerequisites(true);
+      setTempSelectedIds([...editPrerequisites]);
+    }, 200);
+  };
+
+  const finishSelectingPrerequisites = () => {
+    if (!selectedNodeId) {
+      setIsSelectingPrerequisites(false);
+      return;
     }
-    traverse(node);
-    return lessons;
+    setEditPrerequisites([...tempSelectedIds]);
+    setIsSelectingPrerequisites(false);
+    const node = findNode(tree, selectedNodeId);
+    if (node) {
+      setModalOpen(true);
+      setTimeout(() => setModalVisible(true), 10);
+    }
+  };
+
+  const cancelSelectingPrerequisites = () => {
+    setIsSelectingPrerequisites(false);
+    if (!selectedNodeId) return;
+    const node = findNode(tree, selectedNodeId);
+    if (node) {
+      setModalOpen(true);
+      setTimeout(() => setModalVisible(true), 10);
+    }
   };
 
   const renderModal = () => {
     if (!modalOpen || !selectedNodeId) return null;
     const isRoot = selectedNodeId === 'root';
-    const lessons = getAllLessons(tree, selectedNodeId);
 
     return (
       <div
@@ -718,29 +712,16 @@ function ProgramEditor({ initialStructure, initialName, onSave, onCancel }: {
               </div>
               <div style={{ marginBottom: '12px' }}>
                 <label>Условия открытия</label>
-                <div style={{ maxHeight: '150px', overflow: 'auto', border: '1px solid #555', borderRadius: '4px', padding: '8px' }}>
-                  {lessons.length === 0 && <span style={{ color: '#aaa' }}>Нет других уроков для выбора</span>}
-                  {lessons.map(id => {
-                    const node = findNode(tree, id);
-                    return node ? (
-                      <div key={id} style={{ marginBottom: '4px' }}>
-                        <label>
-                          <input
-                            type="checkbox"
-                            checked={editPrerequisites.includes(id)}
-                            onChange={(e) => {
-                              if (e.target.checked) {
-                                setEditPrerequisites([...editPrerequisites, id]);
-                              } else {
-                                setEditPrerequisites(editPrerequisites.filter(p => p !== id));
-                              }
-                            }}
-                          />
-                          {node.name}
-                        </label>
-                      </div>
-                    ) : null;
-                  })}
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button
+                    onClick={startSelectingPrerequisites}
+                    style={{ background: '#4CAF50', border: 'none', padding: '6px 12px', borderRadius: '4px', color: '#fff', cursor: 'pointer' }}
+                  >
+                    🎯 Выбрать условия
+                  </button>
+                  <span style={{ color: '#aaa', fontSize: '0.9rem', alignSelf: 'center' }}>
+                    {editPrerequisites.length > 0 ? `(${editPrerequisites.length} уроков)` : 'нет условий'}
+                  </span>
                 </div>
               </div>
             </>
@@ -784,16 +765,9 @@ function ProgramEditor({ initialStructure, initialName, onSave, onCancel }: {
             <button onClick={saveNode} style={{ background: '#2196F3', border: 'none', padding: '8px 16px', borderRadius: '4px', color: '#fff', cursor: 'pointer' }}>
               💾 Сохранить
             </button>
-            {editIsLesson && (
-              <button onClick={handleAddLessonAfter} style={{ background: '#4CAF50', border: 'none', padding: '8px 16px', borderRadius: '4px', color: '#fff', cursor: 'pointer' }}>
-                ➕ Добавить урок после
-              </button>
-            )}
-            {!isRoot && (
-              <button onClick={handleAddChild} style={{ background: '#4CAF50', border: 'none', padding: '8px 16px', borderRadius: '4px', color: '#fff', cursor: 'pointer' }}>
-                ➕ Добавить потомка
-              </button>
-            )}
+            <button onClick={handleAddChild} style={{ background: '#4CAF50', border: 'none', padding: '8px 16px', borderRadius: '4px', color: '#fff', cursor: 'pointer' }}>
+              ➕ Добавить узел
+            </button>
             {!isRoot && (
               <button onClick={handleDeleteNode} style={{ background: '#f44336', border: 'none', padding: '8px 16px', borderRadius: '4px', color: '#fff', cursor: 'pointer' }}>
                 🗑️
@@ -820,9 +794,37 @@ function ProgramEditor({ initialStructure, initialName, onSave, onCancel }: {
           <button onClick={handleSaveProgram} style={{ padding: '6px 12px', background: '#4CAF50', border: 'none', borderRadius: 4, color: '#fff', cursor: 'pointer' }}>Сохранить</button>
         </div>
       </div>
-      <div style={{ border: '1px solid #555', borderRadius: 8, padding: 10, height: '600px', overflow: 'auto' }}>
-        <EditableTreeView structure={tree} onNodeClick={handleNodeClick} />
-      </div>
+      {isSelectingPrerequisites ? (
+        <div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px', backgroundColor: '#2a2a4e', borderRadius: '8px', marginBottom: '10px' }}>
+            <span style={{ color: '#fff' }}>Выберите уроки, которые должны быть пройдены для открытия текущего урока. Кликните по уроку на дереве, чтобы отметить/снять.</span>
+            <div>
+              <button onClick={cancelSelectingPrerequisites} style={{ marginRight: '8px', padding: '6px 12px', background: '#555', border: 'none', borderRadius: '4px', color: '#fff', cursor: 'pointer' }}>Отмена</button>
+              <button onClick={finishSelectingPrerequisites} style={{ padding: '6px 12px', background: '#4CAF50', border: 'none', borderRadius: '4px', color: '#fff', cursor: 'pointer' }}>✅ Готово</button>
+            </div>
+          </div>
+          <div style={{ border: '1px solid #555', borderRadius: 8, padding: 10, height: '600px', overflow: 'auto' }}>
+            <EditableTreeView
+              structure={tree}
+              onNodeClick={handleNodeClick}
+              isSelectMode={true}
+              onSelectToggle={(nodeId) => {
+                if (nodeId === selectedNodeId) return;
+                const node = findNode(tree, nodeId);
+                if (!node || !node.isLesson) return;
+                setTempSelectedIds(prev =>
+                  prev.includes(nodeId) ? prev.filter(id => id !== nodeId) : [...prev, nodeId]
+                );
+              }}
+              selectedIds={tempSelectedIds}
+            />
+          </div>
+        </div>
+      ) : (
+        <div style={{ border: '1px solid #555', borderRadius: 8, padding: 10, height: '600px', overflow: 'auto' }}>
+          <EditableTreeView structure={tree} onNodeClick={handleNodeClick} />
+        </div>
+      )}
       {renderModal()}
     </div>
   );
