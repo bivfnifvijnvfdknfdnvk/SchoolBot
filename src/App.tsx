@@ -5,7 +5,7 @@ import './App.css';
 
 // ========== КОНСТАНТЫ ==========
 const STORAGE_URL = 'https://wmfjjpsakhmwwyvimqwx.supabase.co/storage/v1/object/public/icons/';
-const ADMIN_IDS: number[] = [139489115]; // ID учителей
+const ADMIN_IDS: number[] = [1394891154]; // ID учителей
 
 // ========== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ==========
 function extractUserInfoFromHash(): { id: string | null, firstName: string | null, lastName: string | null, username: string | null } {
@@ -806,7 +806,7 @@ function ProgramEditor({ initialStructure, initialName, onSave, onCancel }: {
   };
 
   return (
-    <div style={{ padding: 20, color: '#fff', backgroundColor: '#1a1a2e', minHeight: '100vh', overflow: 'hidden' }}>
+    <div className="fade-slide" style={{ padding: 20, color: '#fff', backgroundColor: '#1a1a2e', minHeight: '100vh', overflow: 'hidden' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: 20 }}>
         <button
           onClick={onCancel}
@@ -940,7 +940,8 @@ function buildTreeForDisplay(
   isPreview: boolean = false
 ): any {
   const isLesson = node.isLesson === true;
-  const completed = isLesson ? (progress[node.id] || false) : false;
+  // Если isPreview, то completed всегда false (чтобы не показывать галочки для учителя)
+  const completed = isLesson && !isPreview ? (progress[node.id] || false) : false;
   let isLocked = false;
   let prereqNames: string[] = [];
   if (isLesson && !isPreview) {
@@ -1185,8 +1186,13 @@ function SkillTreeView({ structure, progress, onLessonClick, onToggleLesson, isP
   );
 }
 
-// ========== КОМПОНЕНТ СПИСКА ПРОГРАММ ДЛЯ УЧЕНИКА ==========
-function StudentProgramList({ userId, onApply, existingProgramIds }: { userId: string; onApply: (programId: string) => void; existingProgramIds: string[] }) {
+// ========== КОМПОНЕНТ СПИСКА ПРОГРАММ ДЛЯ УЧЕНИКА (с исправлениями) ==========
+function StudentProgramList({ userId, onApply, existingProgramIds, refreshKey }: {
+  userId: string;
+  onApply: (programId: string) => void;
+  existingProgramIds: string[];
+  refreshKey: number;
+}) {
   const [availablePrograms, setAvailablePrograms] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -1207,7 +1213,7 @@ function StudentProgramList({ userId, onApply, existingProgramIds }: { userId: s
       setLoading(false);
     };
     load();
-  }, [userId, existingProgramIds]);
+  }, [userId, existingProgramIds, refreshKey]);
 
   if (loading) return <p>Загрузка...</p>;
 
@@ -1243,26 +1249,7 @@ function StudentProgramList({ userId, onApply, existingProgramIds }: { userId: s
               📩
             </button>
           )}
-          {prog.appStatus === 'pending' && (
-            <span style={{ color: '#aaa' }}>⏳</span>
-          )}
-          {prog.appStatus === 'rejected' && (
-            <button
-              onClick={() => onApply(prog.id)}
-              className="hover-scale"
-              style={{
-                background: 'rgba(255,255,255,0.1)',
-                border: 'none',
-                borderRadius: '4px',
-                padding: '6px 8px',
-                color: '#fff',
-                cursor: 'pointer',
-                fontSize: '18px',
-              }}
-            >
-              📩
-            </button>
-          )}
+          {/* Убран дублирующий эмодзи часов */}
         </div>
       ))}
     </div>
@@ -1449,6 +1436,9 @@ function App() {
   const [lessonModalCompleted, setLessonModalCompleted] = useState(false);
   const [lessonModalIsPreview, setLessonModalIsPreview] = useState(false);
   const [lessonModalPrereqNames, setLessonModalPrereqNames] = useState<string[]>([]);
+
+  // Для обновления списка доступных программ у ученика после отправки заявки
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
     const init = async () => {
@@ -1650,6 +1640,7 @@ function App() {
     const success = await createApplication(programId, userId);
     if (success) {
       alert('Заявка отправлена!');
+      setRefreshKey(prev => prev + 1);
       loadPrograms();
     } else {
       alert('Ошибка отправки заявки');
@@ -1706,34 +1697,31 @@ function App() {
   };
 
   const handleLessonClick = (name: string, textClosed: string, textOpen: string, textCompleted: string, locked: boolean, completed: boolean, isPreview: boolean, prereqNames: string[]) => {
-  // Если модалка уже открыта – закрываем её и открываем заново? Лучше просто закрыть.
-  // Но для простоты, если открыта – не открываем новую
-  if (lessonModalOpen) {
-    closeLessonModal();
-    // Небольшая задержка, чтобы анимация закрытия успела завершиться
-    setTimeout(() => {
-      setLessonModalTitle(name);
-      setLessonModalTextClosed(textClosed);
-      setLessonModalTextOpen(textOpen);
-      setLessonModalTextCompleted(textCompleted);
-      setLessonModalLocked(locked);
-      setLessonModalCompleted(completed);
-      setLessonModalIsPreview(isPreview);
-      setLessonModalPrereqNames(prereqNames);
-      setLessonModalOpen(true);
-    }, 300);
-    return;
-  }
-  setLessonModalTitle(name);
-  setLessonModalTextClosed(textClosed);
-  setLessonModalTextOpen(textOpen);
-  setLessonModalTextCompleted(textCompleted);
-  setLessonModalLocked(locked);
-  setLessonModalCompleted(completed);
-  setLessonModalIsPreview(isPreview);
-  setLessonModalPrereqNames(prereqNames);
-  setLessonModalOpen(true);
-};
+    if (lessonModalOpen) {
+      closeLessonModal();
+      setTimeout(() => {
+        setLessonModalTitle(name);
+        setLessonModalTextClosed(textClosed);
+        setLessonModalTextOpen(textOpen);
+        setLessonModalTextCompleted(textCompleted);
+        setLessonModalLocked(locked);
+        setLessonModalCompleted(completed);
+        setLessonModalIsPreview(isPreview);
+        setLessonModalPrereqNames(prereqNames);
+        setLessonModalOpen(true);
+      }, 300);
+      return;
+    }
+    setLessonModalTitle(name);
+    setLessonModalTextClosed(textClosed);
+    setLessonModalTextOpen(textOpen);
+    setLessonModalTextCompleted(textCompleted);
+    setLessonModalLocked(locked);
+    setLessonModalCompleted(completed);
+    setLessonModalIsPreview(isPreview);
+    setLessonModalPrereqNames(prereqNames);
+    setLessonModalOpen(true);
+  };
 
   const closeLessonModal = () => {
     setLessonModalOpen(false);
@@ -1959,8 +1947,10 @@ function App() {
                           onClick={(e) => { e.stopPropagation(); handleDeleteStudent(item.student_id.toString(), studentName); }}
                           className="hover-scale"
                           style={{
-                            background: 'transparent',
+                            background: 'rgba(255,0,0,0.1)',
                             border: 'none',
+                            borderRadius: '4px',
+                            padding: '4px 6px',
                             color: '#f44336',
                             fontSize: '1.2rem',
                             cursor: 'pointer',
@@ -2152,7 +2142,12 @@ function App() {
 
           <hr style={{ margin: '30px 0' }} />
           <h3>Доступные программы</h3>
-          <StudentProgramList userId={userId} onApply={handleApply} existingProgramIds={programs.map(p => p.id)} />
+          <StudentProgramList
+            userId={userId}
+            onApply={handleApply}
+            existingProgramIds={programs.map(p => p.id)}
+            refreshKey={refreshKey}
+          />
         </div>
       );
     }
