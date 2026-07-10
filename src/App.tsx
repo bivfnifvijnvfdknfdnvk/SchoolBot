@@ -304,7 +304,6 @@ function findNodeAndAddChild(tree: any, parentId: string): { newTree: any; newId
         name: 'Новый узел',
         children: [],
         isLesson: false,
-        content: '',
         imageKey: null,
         prerequisites: [],
         textClosed: '',
@@ -813,38 +812,38 @@ function ProgramEditor({ initialStructure, initialName, onSave, onCancel }: {
         />
         <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
           <button
-  onClick={onCancel}
-  style={{
-    background: 'transparent',
-    border: 'none',
-    color: 'rgba(255,255,255,0.5)',
-    fontSize: '18px',
-    cursor: 'pointer',
-    display: 'flex',
-    alignItems: 'center',
-    gap: '6px',
-    padding: '4px 8px',
-    transition: 'color 0.2s',
-  }}
-  onMouseEnter={(e) => e.currentTarget.style.color = '#fff'}
-  onMouseLeave={(e) => e.currentTarget.style.color = 'rgba(255,255,255,0.5)'}
->
-  ← Назад
-</button>
-<button
-  onClick={handleSaveProgram}
-  style={{
-    padding: '6px 16px',
-    background: '#4CAF50',
-    border: 'none',
-    borderRadius: '4px',
-    color: '#fff',
-    cursor: 'pointer',
-    fontSize: '14px',
-  }}
->
-  Сохранить
-</button>
+            onClick={onCancel}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              color: 'rgba(255,255,255,0.5)',
+              fontSize: '18px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '4px 8px',
+              transition: 'color 0.2s',
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.color = '#fff'}
+            onMouseLeave={(e) => e.currentTarget.style.color = 'rgba(255,255,255,0.5)'}
+          >
+            ← Назад
+          </button>
+          <button
+            onClick={handleSaveProgram}
+            style={{
+              padding: '6px 16px',
+              background: '#4CAF50',
+              border: 'none',
+              borderRadius: '4px',
+              color: '#fff',
+              cursor: 'pointer',
+              fontSize: '14px',
+            }}
+          >
+            Сохранить
+          </button>
         </div>
       </div>
       {isSelectingPrerequisites ? (
@@ -977,7 +976,6 @@ const renderCustomNode = ({ nodeDatum, onLessonClick, onToggleLesson, isPreview 
       if (onToggleLesson && !locked) {
         onToggleLesson(nodeDatum.__id);
       } else if (onLessonClick) {
-        // Передаём также список условий (пока пустой, но можно расширить)
         onLessonClick(
           nodeDatum.name,
           textClosed,
@@ -1564,27 +1562,24 @@ function App() {
     if (selectedStudentId) {
       return (
         <div style={{ width: '100vw', height: '100vh', backgroundColor: '#1a1a2e' }}>
-          <div style={{ position: 'absolute', top: 10, left: 10, zIndex: 10, display: 'flex', gap: '10px' }}>
+          <div style={{ position: 'absolute', top: 10, left: 10, zIndex: 10, display: 'flex', gap: '10px', alignItems: 'center' }}>
             <button
-  onClick={backToAdmin}
-  style={{
-    background: 'transparent',
-    border: 'none',
-    color: 'rgba(255,255,255,0.5)',
-    fontSize: '18px',
-    cursor: 'pointer',
-    display: 'flex',
-    alignItems: 'center',
-    gap: '6px',
-    padding: '4px 8px',
-    transition: 'color 0.2s',
-  }}
-  onMouseEnter={(e) => e.currentTarget.style.color = '#fff'}
-  onMouseLeave={(e) => e.currentTarget.style.color = 'rgba(255,255,255,0.5)'}
->
-  ← Назад к админке
-</button>
-            <span style={{ color: '#fff' }}>Редактирование ученика: {selectedStudentName || '...'}</span>
+              onClick={backToAdmin}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: 'rgba(255,255,255,0.3)',
+                fontSize: '24px',
+                cursor: 'pointer',
+                padding: '4px 8px',
+                transition: 'color 0.2s',
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.color = '#fff'}
+              onMouseLeave={(e) => e.currentTarget.style.color = 'rgba(255,255,255,0.3)'}
+            >
+              ←
+            </button>
+            <span style={{ color: '#fff', fontWeight: 'bold', fontSize: '18px' }}>{selectedStudentName || '...'}</span>
           </div>
           {isCreator ? (
             <SkillTreeView
@@ -1617,26 +1612,25 @@ function App() {
 
     return (
       <div style={{ padding: '20px', color: '#fff', backgroundColor: '#1a1a2e', minHeight: '100vh' }}>
-        <button
-  onClick={() => { setView('programs'); setCurrentProgramId(null); }}
-  style={{
-    background: 'transparent',
-    border: 'none',
-    color: 'rgba(255,255,255,0.5)',
-    fontSize: '18px',
-    cursor: 'pointer',
-    display: 'flex',
-    alignItems: 'center',
-    gap: '6px',
-    padding: '4px 8px',
-    transition: 'color 0.2s',
-  }}
-  onMouseEnter={(e) => e.currentTarget.style.color = '#fff'}
-  onMouseLeave={(e) => e.currentTarget.style.color = 'rgba(255,255,255,0.5)'}
->
-  ← Назад к программам
-</button>
-        <h2>Панель управления программой</h2>
+        <div style={{ display: 'flex', alignItems: 'center', marginBottom: '16px' }}>
+          <button
+            onClick={() => { setView('programs'); setCurrentProgramId(null); }}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              color: 'rgba(255,255,255,0.3)',
+              fontSize: '24px',
+              cursor: 'pointer',
+              padding: '4px 8px',
+              transition: 'color 0.2s',
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.color = '#fff'}
+            onMouseLeave={(e) => e.currentTarget.style.color = 'rgba(255,255,255,0.3)'}
+          >
+            ←
+          </button>
+          <h2 style={{ margin: 0, marginLeft: '8px' }}>Панель управления программой</h2>
+        </div>
         <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap' }}>
           <div style={{ flex: 1, minWidth: '300px' }}>
             <h3>Дерево навыков (превью)</h3>
@@ -1697,17 +1691,12 @@ function App() {
               >
                 <span>{student.name}</span>
                 {isCreator && (
-                  <>
-                    <button onClick={(e) => { e.stopPropagation(); handleSelectStudent(student.id); }} style={{ marginRight: '8px', background: 'transparent', border: 'none', color: '#4CAF50', cursor: 'pointer' }}>
-                      📝
-                    </button>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); handleDeleteStudent(student.id, student.name); }}
-                      style={{ backgroundColor: 'transparent', border: 'none', color: '#f44336', fontSize: '1.2rem', cursor: 'pointer' }}
-                    >
-                      🗑️
-                    </button>
-                  </>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); handleDeleteStudent(student.id, student.name); }}
+                    style={{ backgroundColor: 'transparent', border: 'none', color: '#f44336', fontSize: '1.2rem', cursor: 'pointer' }}
+                  >
+                    🗑️
+                  </button>
                 )}
               </div>
             ))}
@@ -1723,26 +1712,23 @@ function App() {
       <div style={{ width: '100vw', height: '100vh', backgroundColor: '#1a1a2e' }}>
         <div style={{ position: 'absolute', top: 10, left: 10, zIndex: 10, display: 'flex', gap: '10px', alignItems: 'center' }}>
           <button
-  onClick={() => { setView('programs'); setCurrentProgramId(null); }}
-  style={{
-    background: 'transparent',
-    border: 'none',
-    color: 'rgba(255,255,255,0.5)',
-    fontSize: '18px',
-    cursor: 'pointer',
-    display: 'flex',
-    alignItems: 'center',
-    gap: '6px',
-    padding: '4px 8px',
-    transition: 'color 0.2s',
-  }}
-  onMouseEnter={(e) => e.currentTarget.style.color = '#fff'}
-  onMouseLeave={(e) => e.currentTarget.style.color = 'rgba(255,255,255,0.5)'}
->
-  ← Сменить программу
-</button>
-          <span style={{ color: '#fff' }}>Программа: {programs.find(p => p.id === currentProgramId)?.name || ''}</span>
-          <span style={{ color: '#fff' }}>Ученик: {userName || userId}</span>
+            onClick={() => { setView('programs'); setCurrentProgramId(null); }}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              color: 'rgba(255,255,255,0.3)',
+              fontSize: '24px',
+              cursor: 'pointer',
+              padding: '4px 8px',
+              transition: 'color 0.2s',
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.color = '#fff'}
+            onMouseLeave={(e) => e.currentTarget.style.color = 'rgba(255,255,255,0.3)'}
+          >
+            ←
+          </button>
+          <span style={{ color: '#fff', marginLeft: '8px' }}>Программа: {programs.find(p => p.id === currentProgramId)?.name || ''}</span>
+          <span style={{ color: '#fff', marginLeft: 'auto' }}>Ученик: {userName || userId}</span>
         </div>
         <SkillTreeView
           structure={structure}
@@ -1769,8 +1755,25 @@ function App() {
     if (isAdmin) {
       return (
         <div style={{ padding: '20px', color: '#fff', backgroundColor: '#1a1a2e', minHeight: '100vh' }}>
-          <h2>Все программы</h2>
-          <button onClick={handleCreateNewProgram}>➕ Создать программу</button>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+            <h2 style={{ margin: 0 }}>Все программы</h2>
+            <button
+              onClick={handleCreateNewProgram}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: 'rgba(255,255,255,0.3)',
+                fontSize: '24px',
+                cursor: 'pointer',
+                padding: '4px 8px',
+                transition: 'color 0.2s',
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.color = '#fff'}
+              onMouseLeave={(e) => e.currentTarget.style.color = 'rgba(255,255,255,0.3)'}
+            >
+              +
+            </button>
+          </div>
           {programs.length === 0 && <p>Программ пока нет.</p>}
           {programs.map(prog => {
             const isCreator = prog.created_by === Number(userId);
