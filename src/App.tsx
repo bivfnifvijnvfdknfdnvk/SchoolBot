@@ -5,7 +5,7 @@ import './App.css';
 
 // ========== КОНСТАНТЫ ==========
 const STORAGE_URL = 'https://wmfjjpsakhmwwyvimqwx.supabase.co/storage/v1/object/public/icons/';
-const ADMIN_IDS: number[] = [1394891154, 810851557]; // ID учителей
+const ADMIN_IDS: number[] = [1394891154]; // ID учителей
 
 // ========== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ==========
 function extractUserInfoFromHash(): { id: string | null, firstName: string | null, lastName: string | null, username: string | null } {
@@ -32,18 +32,6 @@ function extractUserInfoFromHash(): { id: string | null, firstName: string | nul
 }
 
 // ========== ФУНКЦИИ ДЛЯ РАБОТЫ С БАЗОЙ ==========
-async function getTeacherPrograms(teacherId: string) {
-  const { data, error } = await supabase
-    .from('programs')
-    .select('*')
-    .eq('teacher_id', Number(teacherId));
-  if (error) {
-    console.error('Ошибка загрузки программ учителя:', error);
-    return [];
-  }
-  return data || [];
-}
-
 async function getAllPrograms() {
   const { data, error } = await supabase
     .from('programs')
@@ -70,6 +58,18 @@ async function createProgram(name: string, teacherId: string, structure: any) {
     return null;
   }
   return data.id;
+}
+
+async function updateProgram(programId: string, name: string, structure: any) {
+  const { error } = await supabase
+    .from('programs')
+    .update({ name, structure })
+    .eq('id', programId);
+  if (error) {
+    console.error('Ошибка обновления программы:', error);
+    return false;
+  }
+  return true;
 }
 
 async function deleteProgram(programId: string) {
@@ -400,8 +400,9 @@ function EditableTreeView({ structure, onNodeClick }: { structure: any; onNodeCl
 }
 
 // ========== ВИЗУАЛЬНЫЙ РЕДАКТОР ПРОГРАММ ==========
-function ProgramEditor({ initialStructure, onSave, onCancel }: {
+function ProgramEditor({ initialStructure, initialName, onSave, onCancel }: {
   initialStructure?: any;
+  initialName?: string;
   onSave: (name: string, structure: any) => void;
   onCancel: () => void;
 }) {
@@ -419,12 +420,7 @@ function ProgramEditor({ initialStructure, onSave, onCancel }: {
     };
   });
 
-  const [programName, setProgramName] = useState(() => {
-    if (initialStructure) {
-      return initialStructure.name || 'Новая программа';
-    }
-    return 'Новая программа';
-  });
+  const [programName, setProgramName] = useState(initialName || 'Новая программа');
 
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
@@ -684,7 +680,7 @@ function ProgramEditor({ initialStructure, onSave, onCancel }: {
   );
 }
 
-// ========== КОМПОНЕНТЫ ДЛЯ ОТОБРАЖЕНИЯ (ветви вверх) ==========
+// ========== КОМПОНЕНТЫ ДЛЯ ОТОБРАЖЕНИЯ ==========
 
 function buildTreeForDisplay(node: any, progress: Record<string, boolean>): any {
   const isLesson = !node.children || node.children.length === 0;
@@ -828,7 +824,6 @@ function SkillTreeView({ structure, progress, onLessonClick, onToggleLesson }: {
   );
 }
 
-// StudentProgramList (без изменений)
 function StudentProgramList({ userId, onApply, existingProgramIds }: { userId: string; onApply: (programId: string) => void; existingProgramIds: string[] }) {
   const [availablePrograms, setAvailablePrograms] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -874,7 +869,6 @@ function StudentProgramList({ userId, onApply, existingProgramIds }: { userId: s
   );
 }
 
-// LessonModal (без изменений)
 function LessonModal({ isOpen, onClose, title, content }: { isOpen: boolean; onClose: () => void; title: string; content: string | null }) {
   if (!isOpen) return null;
 
@@ -909,6 +903,7 @@ function App() {
 
   const [editingProgramId, setEditingProgramId] = useState<string | null>(null);
   const [editingStructure, setEditingStructure] = useState<any>(null);
+  const [editingProgramName, setEditingProgramName] = useState('');
 
   const [modalOpen, setModalOpen] = useState(false);
   const [modalTitle, setModalTitle] = useState('');
@@ -963,7 +958,8 @@ function App() {
 
   const loadPrograms = async () => {
     if (isAdmin) {
-      const progs = await getTeacherPrograms(userId);
+      // Учитель видит все программы
+      const progs = await getAllPrograms();
       setPrograms(progs);
     } else {
       const progs = await getStudentPrograms(userId);
@@ -1001,21 +997,22 @@ function App() {
     if (prog) {
       setEditingProgramId(programId);
       setEditingStructure(JSON.parse(JSON.stringify(prog.structure)));
+      setEditingProgramName(prog.name);
       setView('create');
     }
   };
 
   const handleSaveProgram = async (name: string, structure: any) => {
     if (editingProgramId) {
-      await deleteProgram(editingProgramId);
-      const newId = await createProgram(name, userId, structure);
-      if (newId) {
+      const success = await updateProgram(editingProgramId, name, structure);
+      if (success) {
         alert('Программа обновлена!');
         setEditingProgramId(null);
         setEditingStructure(null);
+        setEditingProgramName('');
         loadPrograms();
       } else {
-        alert('Ошибка обновления');
+        alert('Ошибка обновления программы');
       }
     } else {
       const id = await createProgram(name, userId, structure);
@@ -1023,7 +1020,7 @@ function App() {
         alert('Программа создана!');
         loadPrograms();
       } else {
-        alert('Ошибка создания');
+        alert('Ошибка создания программы');
       }
     }
   };
@@ -1031,12 +1028,14 @@ function App() {
   const handleCreateNewProgram = () => {
     setEditingProgramId(null);
     setEditingStructure(null);
+    setEditingProgramName('');
     setView('create');
   };
 
   const handleCancelEditor = () => {
     setEditingProgramId(null);
     setEditingStructure(null);
+    setEditingProgramName('');
     setView('programs');
   };
 
@@ -1161,6 +1160,7 @@ function App() {
     return (
       <ProgramEditor
         initialStructure={editingStructure}
+        initialName={editingProgramName}
         onSave={handleSaveProgram}
         onCancel={handleCancelEditor}
       />
