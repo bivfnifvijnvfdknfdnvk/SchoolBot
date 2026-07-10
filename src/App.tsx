@@ -5,7 +5,7 @@ import './App.css';
 
 // ========== КОНСТАНТЫ ==========
 const STORAGE_URL = 'https://wmfjjpsakhmwwyvimqwx.supabase.co/storage/v1/object/public/icons/';
-const ADMIN_IDS: number[] = [1394891154]; // ID учителей
+const ADMIN_IDS: number[] = [139489115]; // ID учителей
 
 // ========== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ==========
 function extractUserInfoFromHash(): { id: string | null, firstName: string | null, lastName: string | null, username: string | null } {
@@ -1777,16 +1777,18 @@ function App() {
     return <div style={{ color: '#fff', padding: '20px' }}>Загрузка...</div>;
   }
 
-  if (isAdmin && view === 'create') {
-    return (
+if (isAdmin && view === 'create') {
+  return (
+    <div style={{ backgroundColor: '#1a1a2e', minHeight: '100vh' }}>
       <ProgramEditor
         initialStructure={editingStructure}
         initialName={editingProgramName}
         onSave={handleSaveProgram}
         onCancel={handleCancelEditor}
       />
-    );
-  }
+    </div>
+  );
+}
 
   if (isAdmin && view === 'admin' && currentProgramId) {
     const currentProgram = programs.find(p => p.id === currentProgramId);
@@ -1807,53 +1809,60 @@ function App() {
     const combinedList = [...pendingApps, ...acceptedList];
 
     if (selectedStudentId) {
-      return (
-        <div style={{ width: '100vw', height: '100vh', backgroundColor: '#1a1a2e' }}>
-          <div style={{ position: 'absolute', top: 10, left: 10, right: 10, zIndex: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0 10px' }}>
-            <button
-              onClick={backToAdmin}
-              className="hover-scale"
-              style={{
-                background: 'transparent',
-                border: 'none',
-                color: 'rgba(255,255,255,0.3)',
-                fontSize: '28px',
-                cursor: 'pointer',
-                padding: '4px 8px',
-              }}
-            >
-              ←
-            </button>
-            <span style={{ color: '#fff', fontWeight: 'bold', fontSize: '18px' }}>{selectedStudentName || '...'}</span>
-          </div>
-          {isCreator ? (
-            <SkillTreeView
-              structure={structure}
-              progress={progress}
-              onToggleLesson={toggleLessonForStudent}
-              onLessonClick={handleLessonClick}
-            />
-          ) : (
-            <div style={{ color: '#fff', padding: '20px', textAlign: 'center' }}>
-              <h3>Только для просмотра</h3>
-              <SkillTreeView structure={structure} progress={progress} onLessonClick={handleLessonClick} />
-            </div>
-          )}
-          <LessonModal
-            isOpen={lessonModalOpen}
-            onClose={closeLessonModal}
-            title={lessonModalTitle}
-            textClosed={lessonModalTextClosed}
-            textOpen={lessonModalTextOpen}
-            textCompleted={lessonModalTextCompleted}
-            locked={lessonModalLocked}
-            completed={lessonModalCompleted}
-            isPreview={lessonModalIsPreview}
-            prereqNames={lessonModalPrereqNames}
-          />
+  const [studentEditorVisible, setStudentEditorVisible] = useState(false);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setStudentEditorVisible(true), 10);
+    return () => clearTimeout(timer);
+  }, []);
+
+  return (
+    <div className={`fade-slide ${studentEditorVisible ? 'fade-slide-visible' : ''}`} style={{ width: '100vw', height: '100vh', backgroundColor: '#1a1a2e' }}>
+      <div style={{ position: 'absolute', top: 10, left: 10, right: 10, zIndex: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0 10px' }}>
+        <button
+          onClick={backToAdmin}
+          className="hover-scale"
+          style={{
+            background: 'transparent',
+            border: 'none',
+            color: 'rgba(255,255,255,0.3)',
+            fontSize: '28px',
+            cursor: 'pointer',
+            padding: '4px 8px',
+          }}
+        >
+          ←
+        </button>
+        <span style={{ color: '#fff', fontWeight: 'bold', fontSize: '18px' }}>{selectedStudentName || '...'}</span>
+      </div>
+      {isCreator ? (
+        <SkillTreeView
+          structure={structure}
+          progress={progress}
+          onToggleLesson={toggleLessonForStudent}
+          onLessonClick={handleLessonClick}
+        />
+      ) : (
+        <div style={{ color: '#fff', padding: '20px', textAlign: 'center' }}>
+          <h3>Только для просмотра</h3>
+          <SkillTreeView structure={structure} progress={progress} onLessonClick={handleLessonClick} />
         </div>
-      );
-    }
+      )}
+      <LessonModal
+        isOpen={lessonModalOpen}
+        onClose={closeLessonModal}
+        title={lessonModalTitle}
+        textClosed={lessonModalTextClosed}
+        textOpen={lessonModalTextOpen}
+        textCompleted={lessonModalTextCompleted}
+        locked={lessonModalLocked}
+        completed={lessonModalCompleted}
+        isPreview={lessonModalIsPreview}
+        prereqNames={lessonModalPrereqNames}
+      />
+    </div>
+  );
+}
 
     return (
       <div style={{ padding: '20px', color: '#fff', backgroundColor: '#1a1a2e', minHeight: '100vh' }}>
