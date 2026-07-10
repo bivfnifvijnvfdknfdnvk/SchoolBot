@@ -5,7 +5,7 @@ import './App.css';
 
 // ========== КОНСТАНТЫ ==========
 const STORAGE_URL = 'https://wmfjjpsakhmwwyvimqwx.supabase.co/storage/v1/object/public/icons/';
-const ADMIN_IDS: number[] = [139489115]; // ID учителей
+const ADMIN_IDS: number[] = [1394891154]; // ID учителей
 
 // ========== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ==========
 function extractUserInfoFromHash(): { id: string | null, firstName: string | null, lastName: string | null, username: string | null } {
@@ -1451,8 +1451,7 @@ function App() {
   const [lessonModalIsPreview, setLessonModalIsPreview] = useState(false);
   const [lessonModalPrereqNames, setLessonModalPrereqNames] = useState<string[]>([]);
 
-  // Для обновления списка доступных программ у ученика после отправки заявки
-  const [refreshKey, setRefreshKey] = useState(0);
+  const [refreshKey, setRefreshKey] = useState(0); // <-- добавлено
 
   useEffect(() => {
     const init = async () => {
@@ -1527,35 +1526,35 @@ function App() {
   };
 
   const selectProgram = async (programId: string) => {
-  const prog = programs.find(p => p.id === programId);
-  if (!prog) {
-    alert('Программа не найдена. Попробуйте обновить страницу.');
-    setView('programs');
-    setCurrentProgramId(null);
-    return;
-  }
-  setCurrentProgramId(programId);
-  if (!isAdmin && !prog.visible) {
-    alert('Эта программа временно недоступна.');
-    setView('programs');
-    setCurrentProgramId(null);
-    return;
-  }
-  setStructure(prog.structure);
-  const progData = await loadProgressForProgram(userId, programId);
-  setProgress(progData);
-  if (isAdmin) {
-    const apps = await getApplicationsForProgram(programId);
-    setApplications(apps);
-    const accepted = await getAcceptedStudents(programId);
-    setAcceptedStudents(accepted);
-    setView('admin');
-    setSelectedStudentId(null);
-    setSelectedStudentName(null);
-  } else {
-    setView('tree');
-  }
-};
+    const prog = programs.find(p => p.id === programId);
+    if (!prog) {
+      alert('Программа не найдена. Попробуйте обновить страницу.');
+      setView('programs');
+      setCurrentProgramId(null);
+      return;
+    }
+    setCurrentProgramId(programId);
+    if (!isAdmin && !prog.visible) {
+      alert('Эта программа временно недоступна.');
+      setView('programs');
+      setCurrentProgramId(null);
+      return;
+    }
+    setStructure(prog.structure);
+    const progData = await loadProgressForProgram(userId, programId);
+    setProgress(progData);
+    if (isAdmin) {
+      const apps = await getApplicationsForProgram(programId);
+      setApplications(apps);
+      const accepted = await getAcceptedStudents(programId);
+      setAcceptedStudents(accepted);
+      setView('admin');
+      setSelectedStudentId(null);
+      setSelectedStudentName(null);
+    } else {
+      setView('tree');
+    }
+  };
 
   const startEditingProgram = (programId: string) => {
     const prog = programs.find(p => p.id === programId);
@@ -1652,16 +1651,21 @@ function App() {
   };
 
   const handleApply = async (programId: string) => {
-  const success = await createApplication(programId, userId);
-  if (success) {
-    alert('Заявка отправлена!');
-    setRefreshKey(prev => prev + 1); // <-- добавьте эту строку
-  } else {
-    alert('Ошибка отправки заявки');
-  }
-};
+    const success = await createApplication(programId, userId);
+    if (success) {
+      alert('Заявка отправлена!');
+      setRefreshKey(prev => prev + 1);
+      // Не вызываем loadPrograms(), чтобы не сбить список принятых программ
+    } else {
+      alert('Ошибка отправки заявки');
+    }
+  };
 
   const handleSelectStudent = async (studentId: string) => {
+    if (!structure) {
+      alert('Структура программы не загружена. Попробуйте позже.');
+      return;
+    }
     setSelectedStudentId(studentId);
     const prog = await loadProgressForProgram(studentId, currentProgramId!);
     setProgress(prog);
@@ -1769,35 +1773,36 @@ function App() {
     };
   }, [userId, currentProgramId]);
 
+  // Защита от серого экрана (для ученика)
   useEffect(() => {
-  if (currentProgramId && view === 'tree') {
-    const prog = programs.find(p => p.id === currentProgramId);
-    if (!prog) {
-      setView('programs');
-      setCurrentProgramId(null);
-      alert('Программа временно недоступна');
+    if (currentProgramId && view === 'tree') {
+      const prog = programs.find(p => p.id === currentProgramId);
+      if (!prog) {
+        setView('programs');
+        setCurrentProgramId(null);
+        alert('Программа временно недоступна');
+      }
     }
-  }
-}, [programs, currentProgramId, view]);
+  }, [programs, currentProgramId, view]);
 
   // ========== ОТРИСОВКА ==========
 
   if (userId === 'guest') {
-    return <div style={{ color: '#fff', padding: '20px' }}>Загрузка...</div>;
+    return <div style={{ color: '#fff', padding: '20px', backgroundColor: '#1a1a2e', minHeight: '100vh' }}>Загрузка...</div>;
   }
 
-if (isAdmin && view === 'create') {
-  return (
-    <div style={{ backgroundColor: '#1a1a2e', minHeight: '100vh' }}>
-      <ProgramEditor
-        initialStructure={editingStructure}
-        initialName={editingProgramName}
-        onSave={handleSaveProgram}
-        onCancel={handleCancelEditor}
-      />
-    </div>
-  );
-}
+  if (isAdmin && view === 'create') {
+    return (
+      <div style={{ backgroundColor: '#1a1a2e', minHeight: '100vh' }}>
+        <ProgramEditor
+          initialStructure={editingStructure}
+          initialName={editingProgramName}
+          onSave={handleSaveProgram}
+          onCancel={handleCancelEditor}
+        />
+      </div>
+    );
+  }
 
   if (isAdmin && view === 'admin' && currentProgramId) {
     const currentProgram = programs.find(p => p.id === currentProgramId);
@@ -1818,64 +1823,64 @@ if (isAdmin && view === 'create') {
     const combinedList = [...pendingApps, ...acceptedList];
 
     if (selectedStudentId) {
-  const [studentEditorVisible, setStudentEditorVisible] = useState(false);
+      const [studentEditorVisible, setStudentEditorVisible] = useState(false);
 
-  useEffect(() => {
-    const timer = setTimeout(() => setStudentEditorVisible(true), 10);
-    return () => clearTimeout(timer);
-  }, []);
+      useEffect(() => {
+        const timer = setTimeout(() => setStudentEditorVisible(true), 10);
+        return () => clearTimeout(timer);
+      }, []);
 
-  if (!structure) {
-    return <div style={{ color: '#fff', padding: '20px', backgroundColor: '#1a1a2e', minHeight: '100vh' }}>Загрузка...</div>;
-  }
+      if (!structure) {
+        return <div style={{ color: '#fff', padding: '20px', backgroundColor: '#1a1a2e', minHeight: '100vh' }}>Загрузка структуры...</div>;
+      }
 
-  return (
-    <div className={`fade-slide ${studentEditorVisible ? 'fade-slide-visible' : ''}`} style={{ width: '100vw', height: '100vh', backgroundColor: '#1a1a2e' }}>
-      <div style={{ position: 'absolute', top: 10, left: 10, right: 10, zIndex: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0 10px' }}>
-        <button
-          onClick={backToAdmin}
-          className="hover-scale"
-          style={{
-            background: 'transparent',
-            border: 'none',
-            color: 'rgba(255,255,255,0.3)',
-            fontSize: '28px',
-            cursor: 'pointer',
-            padding: '4px 8px',
-          }}
-        >
-          ←
-        </button>
-        <span style={{ color: '#fff', fontWeight: 'bold', fontSize: '18px' }}>{selectedStudentName || '...'}</span>
-      </div>
-      {isCreator ? (
-        <SkillTreeView
-          structure={structure}
-          progress={progress}
-          onToggleLesson={toggleLessonForStudent}
-          onLessonClick={handleLessonClick}
-        />
-      ) : (
-        <div style={{ color: '#fff', padding: '20px', textAlign: 'center' }}>
-          <h3>Только для просмотра</h3>
-          <SkillTreeView structure={structure} progress={progress} onLessonClick={handleLessonClick} />
+      return (
+        <div className={`fade-slide ${studentEditorVisible ? 'fade-slide-visible' : ''}`} style={{ width: '100vw', height: '100vh', backgroundColor: '#1a1a2e' }}>
+          <div style={{ position: 'absolute', top: 10, left: 10, right: 10, zIndex: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0 10px' }}>
+            <button
+              onClick={backToAdmin}
+              className="hover-scale"
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: 'rgba(255,255,255,0.3)',
+                fontSize: '28px',
+                cursor: 'pointer',
+                padding: '4px 8px',
+              }}
+            >
+              ←
+            </button>
+            <span style={{ color: '#fff', fontWeight: 'bold', fontSize: '18px' }}>{selectedStudentName || '...'}</span>
+          </div>
+          {isCreator ? (
+            <SkillTreeView
+              structure={structure}
+              progress={progress}
+              onToggleLesson={toggleLessonForStudent}
+              onLessonClick={handleLessonClick}
+            />
+          ) : (
+            <div style={{ color: '#fff', padding: '20px', textAlign: 'center' }}>
+              <h3>Только для просмотра</h3>
+              <SkillTreeView structure={structure} progress={progress} onLessonClick={handleLessonClick} />
+            </div>
+          )}
+          <LessonModal
+            isOpen={lessonModalOpen}
+            onClose={closeLessonModal}
+            title={lessonModalTitle}
+            textClosed={lessonModalTextClosed}
+            textOpen={lessonModalTextOpen}
+            textCompleted={lessonModalTextCompleted}
+            locked={lessonModalLocked}
+            completed={lessonModalCompleted}
+            isPreview={lessonModalIsPreview}
+            prereqNames={lessonModalPrereqNames}
+          />
         </div>
-      )}
-      <LessonModal
-        isOpen={lessonModalOpen}
-        onClose={closeLessonModal}
-        title={lessonModalTitle}
-        textClosed={lessonModalTextClosed}
-        textOpen={lessonModalTextOpen}
-        textCompleted={lessonModalTextCompleted}
-        locked={lessonModalLocked}
-        completed={lessonModalCompleted}
-        isPreview={lessonModalIsPreview}
-        prereqNames={lessonModalPrereqNames}
-      />
-    </div>
-  );
-}
+      );
+    }
 
     return (
       <div style={{ padding: '20px', color: '#fff', backgroundColor: '#1a1a2e', minHeight: '100vh' }}>
@@ -2009,55 +2014,59 @@ if (isAdmin && view === 'create') {
   }
 
   if (!isAdmin && view === 'tree' && currentProgramId) {
-  const progName = programs.find(p => p.id === currentProgramId)?.name || '';
-  const [visible, setVisible] = useState(false);
-  
-  useEffect(() => {
-    const timer = setTimeout(() => setVisible(true), 10);
-    return () => clearTimeout(timer);
-  }, []);
+    const progName = programs.find(p => p.id === currentProgramId)?.name || '';
+    const [studentViewVisible, setStudentViewVisible] = useState(false);
 
-  return (
-    <div className={`fade-slide ${visible ? 'fade-slide-visible' : ''}`} style={{ width: '100vw', height: '100vh', backgroundColor: '#1a1a2e' }}>
-      <div style={{ position: 'absolute', top: 10, left: 10, right: 10, zIndex: 10, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '0 10px' }}>
-        <button
-          onClick={() => { setView('programs'); setCurrentProgramId(null); }}
-          className="hover-scale"
-          style={{
-            background: 'transparent',
-            border: 'none',
-            color: 'rgba(255,255,255,0.3)',
-            fontSize: '28px',
-            cursor: 'pointer',
-            padding: '4px 8px',
-            position: 'absolute',
-            left: 0,
-          }}
-        >
-          ←
-        </button>
-        <span style={{ color: '#fff', fontWeight: 'bold', fontSize: '18px' }}>{progName}</span>
+    useEffect(() => {
+      const timer = setTimeout(() => setStudentViewVisible(true), 10);
+      return () => clearTimeout(timer);
+    }, []);
+
+    if (!structure) {
+      return <div style={{ color: '#fff', padding: '20px', backgroundColor: '#1a1a2e', minHeight: '100vh' }}>Загрузка...</div>;
+    }
+
+    return (
+      <div className={`fade-slide ${studentViewVisible ? 'fade-slide-visible' : ''}`} style={{ width: '100vw', height: '100vh', backgroundColor: '#1a1a2e' }}>
+        <div style={{ position: 'absolute', top: 10, left: 10, right: 10, zIndex: 10, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '0 10px' }}>
+          <button
+            onClick={() => { setView('programs'); setCurrentProgramId(null); }}
+            className="hover-scale"
+            style={{
+              background: 'transparent',
+              border: 'none',
+              color: 'rgba(255,255,255,0.3)',
+              fontSize: '28px',
+              cursor: 'pointer',
+              padding: '4px 8px',
+              position: 'absolute',
+              left: 0,
+            }}
+          >
+            ←
+          </button>
+          <span style={{ color: '#fff', fontWeight: 'bold', fontSize: '18px' }}>{progName}</span>
+        </div>
+        <SkillTreeView
+          structure={structure}
+          progress={progress}
+          onLessonClick={handleLessonClick}
+        />
+        <LessonModal
+          isOpen={lessonModalOpen}
+          onClose={closeLessonModal}
+          title={lessonModalTitle}
+          textClosed={lessonModalTextClosed}
+          textOpen={lessonModalTextOpen}
+          textCompleted={lessonModalTextCompleted}
+          locked={lessonModalLocked}
+          completed={lessonModalCompleted}
+          isPreview={lessonModalIsPreview}
+          prereqNames={lessonModalPrereqNames}
+        />
       </div>
-      <SkillTreeView
-        structure={structure}
-        progress={progress}
-        onLessonClick={handleLessonClick}
-      />
-      <LessonModal
-        isOpen={lessonModalOpen}
-        onClose={closeLessonModal}
-        title={lessonModalTitle}
-        textClosed={lessonModalTextClosed}
-        textOpen={lessonModalTextOpen}
-        textCompleted={lessonModalTextCompleted}
-        locked={lessonModalLocked}
-        completed={lessonModalCompleted}
-        isPreview={lessonModalIsPreview}
-        prereqNames={lessonModalPrereqNames}
-      />
-    </div>
-  );
-}
+    );
+  }
 
   if (view === 'programs') {
     if (isAdmin) {
@@ -2188,17 +2197,17 @@ if (isAdmin && view === 'create') {
           <hr style={{ margin: '30px 0' }} />
           <h3>Доступные программы</h3>
           <StudentProgramList
-  userId={userId}
-  onApply={handleApply}
-  existingProgramIds={programs.map(p => p.id)}
-  refreshKey={refreshKey}
-/>
+            userId={userId}
+            onApply={handleApply}
+            existingProgramIds={programs.map(p => p.id)}
+            refreshKey={refreshKey}
+          />
         </div>
       );
     }
   }
 
-  return <div style={{ color: '#fff', padding: '20px' }}>Неизвестный экран</div>;
+  return <div style={{ color: '#fff', padding: '20px', backgroundColor: '#1a1a2e', minHeight: '100vh' }}>Неизвестный экран</div>;
 }
 
 export default App;
