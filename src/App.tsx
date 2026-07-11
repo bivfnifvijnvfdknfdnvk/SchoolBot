@@ -497,11 +497,22 @@ function ProgramEditor({ initialStructure, initialName, onSave, onCancel }: {
 
   // Состояние для анимации появления редактора
   const [editorVisible, setEditorVisible] = useState(false);
+const [isExiting, setIsExiting] = useState(false);
 
-  useEffect(() => {
+useEffect(() => {
+  if (!isExiting) {
     const timer = setTimeout(() => setEditorVisible(true), 10);
     return () => clearTimeout(timer);
-  }, []);
+  }
+}, [isExiting]);
+
+const handleCancel = () => {
+  setIsExiting(true);
+  setEditorVisible(false);
+  setTimeout(() => {
+    onCancel();
+  }, 300);
+};
 
   useEffect(() => {
     const fetchIcons = async () => {
@@ -817,19 +828,19 @@ function ProgramEditor({ initialStructure, initialName, onSave, onCancel }: {
     <div className={`fade-slide ${editorVisible ? 'fade-slide-visible' : ''}`} style={{ padding: 20, color: '#fff', backgroundColor: '#1a1a2e', minHeight: '100vh', overflow: 'hidden' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: 20 }}>
         <button
-          onClick={onCancel}
-          className="hover-scale"
-          style={{
-            background: 'transparent',
-            border: 'none',
-            color: 'rgba(255,255,255,0.3)',
-            fontSize: '28px',
-            cursor: 'pointer',
-            padding: '4px 8px',
-          }}
-        >
-          ←
-        </button>
+  onClick={handleCancel}
+  className="hover-scale"
+  style={{
+    background: 'transparent',
+    border: 'none',
+    color: 'rgba(255,255,255,0.3)',
+    fontSize: '28px',
+    cursor: 'pointer',
+    padding: '4px 8px',
+  }}
+>
+  ←
+</button>
         <input
           type="text"
           value={programName}
@@ -1434,17 +1445,28 @@ function StudentTreeViewContainer({
   programName: string;
 }) {
   const [visible, setVisible] = useState(false);
+  const [isExiting, setIsExiting] = useState(false);
 
   useEffect(() => {
-    const timer = setTimeout(() => setVisible(true), 10);
-    return () => clearTimeout(timer);
-  }, []);
+    if (!isExiting) {
+      const timer = setTimeout(() => setVisible(true), 10);
+      return () => clearTimeout(timer);
+    }
+  }, [isExiting]);
+
+  const handleBack = () => {
+    setIsExiting(true);
+    setVisible(false);
+    setTimeout(() => {
+      onBack();
+    }, 300);
+  };
 
   return (
     <div className={`fade-slide ${visible ? 'fade-slide-visible' : ''}`} style={{ width: '100vw', height: '100vh', backgroundColor: '#1a1a2e' }}>
       <div style={{ position: 'absolute', top: 10, left: 10, right: 10, zIndex: 10, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '0 10px' }}>
         <button
-          onClick={onBack}
+          onClick={handleBack}
           className="hover-scale"
           style={{
             background: 'transparent',
@@ -1487,17 +1509,28 @@ function AdminStudentProgressEditor({
   onLessonClick: (name: string, textClosed: string, textOpen: string, textCompleted: string, locked: boolean, completed: boolean, isPreview: boolean, prereqNames: string[]) => void;
 }) {
   const [visible, setVisible] = useState(false);
+  const [isExiting, setIsExiting] = useState(false);
 
   useEffect(() => {
-    const timer = setTimeout(() => setVisible(true), 10);
-    return () => clearTimeout(timer);
-  }, []);
+    if (!isExiting) {
+      const timer = setTimeout(() => setVisible(true), 10);
+      return () => clearTimeout(timer);
+    }
+  }, [isExiting]);
+
+  const handleBack = () => {
+    setIsExiting(true);
+    setVisible(false);
+    setTimeout(() => {
+      onBack();
+    }, 300);
+  };
 
   return (
     <div className={`fade-slide ${visible ? 'fade-slide-visible' : ''}`} style={{ width: '100vw', height: '100vh', backgroundColor: '#1a1a2e' }}>
       <div style={{ position: 'absolute', top: 10, left: 10, right: 10, zIndex: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0 10px' }}>
         <button
-          onClick={onBack}
+          onClick={handleBack}
           className="hover-scale"
           style={{
             background: 'transparent',
