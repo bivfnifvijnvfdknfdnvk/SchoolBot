@@ -1868,17 +1868,14 @@ function App() {
     return;
   }
 
-  setIsSaving(true);
-
+  // Оптимистичное обновление (мгновенно)
   let newProgress = { ...progress };
   newProgress[lessonId] = !progress[lessonId];
   newProgress = recalculateProgress(structure, newProgress);
+  setProgress(newProgress);
 
+  setIsSaving(true);
   await saveProgressForProgram(selectedStudentId, currentProgramId, newProgress);
-
-  const freshProgress = await loadProgressForProgram(selectedStudentId, currentProgramId);
-  setProgress(freshProgress);
-
   setIsSaving(false);
 };
 
