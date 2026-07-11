@@ -5,7 +5,7 @@ import './App.css';
 
 // ========== КОНСТАНТЫ ==========
 const STORAGE_URL = 'https://wmfjjpsakhmwwyvimqwx.supabase.co/storage/v1/object/public/icons/';
-const ADMIN_IDS: number[] = [1394891154, 810851557,]; // ID учителей
+const ADMIN_IDS: number[] = [1394891154, 810851557]; // ID учителей
 
 // ========== КОНСТАНТЫ АНИМАЦИЙ ==========
 const ANIMATION_DURATION_MS = 300; // единое время для всех анимаций (в миллисекундах)
@@ -493,7 +493,7 @@ function ProgramEditor({ initialStructure, initialName, onSave, onCancel }: {
   const [iconList, setIconList] = useState<string[]>([]);
   const [loadingIcons, setLoadingIcons] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
-  const [modalVisible, setModalVisible] = useState(false);
+const [modalVisible, setModalVisible] = useState(false);
 
   const [isSelectingPrerequisites, setIsSelectingPrerequisites] = useState(false);
   const [tempSelectedIds, setTempSelectedIds] = useState<string[]>([]);
@@ -534,28 +534,28 @@ const handleCancel = () => {
   }, []);
 
   const openEditor = (nodeId: string) => {
-    const node = findNode(tree, nodeId);
-    if (node) {
-      setSelectedNodeId(nodeId);
-      setEditName(node.name || '');
-      setEditIsLesson(node.isLesson || false);
-      setEditImageKey(node.imageKey || null);
-      setEditPrerequisites(node.prerequisites || []);
-      setEditTextClosed(node.textClosed || '');
-      setEditTextOpen(node.textOpen || '');
-      setEditTextCompleted(node.textCompleted || '');
-      setModalOpen(true);
-      setTimeout(() => setModalVisible(true), 10);
-    }
-  };
+  const node = findNode(tree, nodeId);
+  if (node) {
+    setSelectedNodeId(nodeId);
+    setEditName(node.name || '');
+    setEditIsLesson(node.isLesson || false);
+    setEditImageKey(node.imageKey || null);
+    setEditPrerequisites(node.prerequisites || []);
+    setEditTextClosed(node.textClosed || '');
+    setEditTextOpen(node.textOpen || '');
+    setEditTextCompleted(node.textCompleted || '');
+    setModalOpen(true);
+    setTimeout(() => setModalVisible(true), 10);
+  }
+};
 
-  const closeEditor = () => {
-    setModalVisible(false);
-    setTimeout(() => {
-      setModalOpen(false);
-      setSelectedNodeId(null);
-    }, 200);
-  };
+const closeEditor = () => {
+  setModalVisible(false);
+  setTimeout(() => {
+    setModalOpen(false);
+    setSelectedNodeId(null);
+  }, ANIMATION_DURATION_MS);
+};
 
   const saveNode = () => {
     if (!selectedNodeId) return;
@@ -639,197 +639,197 @@ const handleCancel = () => {
   };
 
   const renderModal = () => {
-    if (!modalOpen || !selectedNodeId) return null;
-    const isRoot = selectedNodeId === 'root';
+  if (!modalOpen || !selectedNodeId) return null;
+  const isRoot = selectedNodeId === 'root';
 
-    return (
+  return (
+    <div
+      className={`modal-overlay ${modalVisible ? 'modal-overlay-visible' : ''}`}
+      style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        width: '100vw',
+        height: '100vh',
+        backgroundColor: 'rgba(0,0,0,0.6)',
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        zIndex: 999,
+        cursor: 'pointer',
+      }}
+      onClick={closeEditor}
+    >
       <div
-        className="modal-overlay"
+        className={`modal-content ${modalVisible ? 'modal-content-visible' : ''}`}
         style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          width: '100vw',
-          height: '100vh',
-          backgroundColor: 'rgba(0,0,0,0.6)',
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          zIndex: 999,
-          opacity: modalVisible ? 1 : 0,
+          backgroundColor: '#2a2a4e',
+          padding: '30px',
+          borderRadius: '12px',
+          maxWidth: '500px',
+          width: '90%',
+          maxHeight: '80%',
+          overflow: 'auto',
+          color: '#fff',
+          boxShadow: '0 8px 32px rgba(0,0,0,0.7)',
+          position: 'relative',
         }}
-        onClick={closeEditor}
+        onClick={(e) => e.stopPropagation()}
       >
-        <div
-          className="modal-content"
+        {/* --- Содержимое модалки (остаётся без изменений) --- */}
+        <button
+          onClick={closeEditor}
+          className="hover-scale"
           style={{
-            backgroundColor: '#2a2a4e',
-            padding: '30px',
-            borderRadius: '12px',
-            maxWidth: '500px',
-            width: '90%',
-            maxHeight: '80%',
-            overflow: 'auto',
+            position: 'absolute',
+            top: '12px',
+            right: '16px',
+            background: 'rgba(255,255,255,0.1)',
+            border: 'none',
+            borderRadius: '4px',
+            padding: 0,
+            width: '32px',
+            height: '32px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
             color: '#fff',
-            boxShadow: '0 8px 32px rgba(0,0,0,0.7)',
-            transform: modalVisible ? 'scale(1)' : 'scale(0.95)',
-            position: 'relative',
+            fontSize: '18px',
+            cursor: 'pointer',
           }}
-          onClick={(e) => e.stopPropagation()}
         >
-          <button
-  onClick={closeEditor}
-  className="hover-scale"
-  style={{
-    position: 'absolute',
-    top: '12px',
-    right: '16px',
-    background: 'rgba(255,255,255,0.1)',
-    border: 'none',
-    borderRadius: '4px',
-    padding: 0,
-    width: '32px',
-    height: '32px',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    color: '#fff',
-    fontSize: '18px',
-    cursor: 'pointer',
-  }}
->
-  ✕
-</button>
+          ✕
+        </button>
 
-          <h2 style={{ marginBottom: '16px' }}>Редактировать узел</h2>
-          <div style={{ marginBottom: '12px' }}>
-            <label>Название</label>
-            <input
-              type="text"
-              value={editName}
-              onChange={(e) => setEditName(e.target.value)}
-              style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #555', background: '#1a1a2e', color: '#fff' }}
-            />
-          </div>
-          <div style={{ marginBottom: '12px' }}>
-            <label>Тип</label>
-            <div>
-              <button
-                onClick={() => setEditIsLesson(false)}
-                className="hover-scale"
-                style={{ background: editIsLesson ? '#555' : '#4CAF50', border: 'none', padding: '6px 12px', borderRadius: '4px', color: '#fff', cursor: 'pointer', marginRight: '8px' }}
-              >
-                📁 Папка
-              </button>
-              <button
-                onClick={() => setEditIsLesson(true)}
-                className="hover-scale"
-                style={{ background: editIsLesson ? '#4CAF50' : '#555', border: 'none', padding: '6px 12px', borderRadius: '4px', color: '#fff', cursor: 'pointer' }}
-              >
-                📄 Урок
-              </button>
-            </div>
-          </div>
-          {editIsLesson && (
-            <>
-              <div style={{ marginBottom: '12px' }}>
-                <label>Текст в закрытом состоянии (краткое описание)</label>
-                <textarea
-                  value={editTextClosed}
-                  onChange={(e) => setEditTextClosed(e.target.value)}
-                  rows={3}
-                  style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #555', background: '#1a1a2e', color: '#fff', resize: 'vertical' }}
-                />
-              </div>
-              <div style={{ marginBottom: '12px' }}>
-                <label>Текст в открытом состоянии (задания)</label>
-                <textarea
-                  value={editTextOpen}
-                  onChange={(e) => setEditTextOpen(e.target.value)}
-                  rows={3}
-                  style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #555', background: '#1a1a2e', color: '#fff', resize: 'vertical' }}
-                />
-              </div>
-              <div style={{ marginBottom: '12px' }}>
-                <label>Текст после прохождения (материалы)</label>
-                <textarea
-                  value={editTextCompleted}
-                  onChange={(e) => setEditTextCompleted(e.target.value)}
-                  rows={3}
-                  style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #555', background: '#1a1a2e', color: '#fff', resize: 'vertical' }}
-                />
-              </div>
-              <div style={{ marginBottom: '12px' }}>
-                <label>Условия открытия</label>
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <button
-                    onClick={startSelectingPrerequisites}
-                    className="hover-scale"
-                    style={{ background: '#4CAF50', border: 'none', padding: '6px 12px', borderRadius: '4px', color: '#fff', cursor: 'pointer' }}
-                  >
-                    🎯 Выбрать условия
-                  </button>
-                  <span style={{ color: '#aaa', fontSize: '0.9rem', alignSelf: 'center' }}>
-                    {editPrerequisites.length > 0 ? `(${editPrerequisites.length} уроков)` : 'нет условий'}
-                  </span>
-                </div>
-              </div>
-            </>
-          )}
-          <div style={{ marginBottom: '12px' }}>
-            <label>Иконка</label>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '4px' }}>
-              <button
-                onClick={() => setEditImageKey(null)}
-                className="hover-scale"
-                style={{ background: editImageKey === null ? '#444' : 'transparent', border: '1px solid #555', borderRadius: '4px', padding: '4px 8px', color: '#fff', cursor: 'pointer' }}
-              >
-                🚫
-              </button>
-              {loadingIcons ? (
-                <span>Загрузка...</span>
-              ) : (
-                iconList.map(file => (
-                  <button
-                    key={file}
-                    onClick={() => setEditImageKey(file)}
-                    className="hover-scale"
-                    style={{
-                      background: editImageKey === file ? '#444' : 'transparent',
-                      border: '1px solid #555',
-                      borderRadius: '4px',
-                      padding: 2,
-                      cursor: 'pointer',
-                      width: 36,
-                      height: 36,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}
-                  >
-                    <img src={`${STORAGE_URL}${file}`} alt={file} style={{ width: 28, height: 28, borderRadius: '50%' }} />
-                  </button>
-                ))
-              )}
-            </div>
-          </div>
-          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '16px' }}>
-            <button onClick={saveNode} className="hover-scale" style={{ background: '#2196F3', border: 'none', padding: '8px 16px', borderRadius: '4px', color: '#fff', cursor: 'pointer' }}>
-              💾 Сохранить
+        <h2 style={{ marginBottom: '16px' }}>Редактировать узел</h2>
+        <div style={{ marginBottom: '12px' }}>
+          <label>Название</label>
+          <input
+            type="text"
+            value={editName}
+            onChange={(e) => setEditName(e.target.value)}
+            style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #555', background: '#1a1a2e', color: '#fff' }}
+          />
+        </div>
+        <div style={{ marginBottom: '12px' }}>
+          <label>Тип</label>
+          <div>
+            <button
+              onClick={() => setEditIsLesson(false)}
+              className="hover-scale"
+              style={{ background: editIsLesson ? '#555' : '#4CAF50', border: 'none', padding: '6px 12px', borderRadius: '4px', color: '#fff', cursor: 'pointer', marginRight: '8px' }}
+            >
+              📁 Папка
             </button>
-            <button onClick={handleAddChild} className="hover-scale" style={{ background: '#4CAF50', border: 'none', padding: '8px 16px', borderRadius: '4px', color: '#fff', cursor: 'pointer' }}>
-              ➕ Добавить узел
+            <button
+              onClick={() => setEditIsLesson(true)}
+              className="hover-scale"
+              style={{ background: editIsLesson ? '#4CAF50' : '#555', border: 'none', padding: '6px 12px', borderRadius: '4px', color: '#fff', cursor: 'pointer' }}
+            >
+              📄 Урок
             </button>
-            {!isRoot && (
-              <button onClick={handleDeleteNode} className="hover-scale" style={{ background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '4px', padding: 0, width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: '1.2rem', cursor: 'pointer' }}>
-  🗑️
-</button>
+          </div>
+        </div>
+        {editIsLesson && (
+          <>
+            <div style={{ marginBottom: '12px' }}>
+              <label>Текст в закрытом состоянии (краткое описание)</label>
+              <textarea
+                value={editTextClosed}
+                onChange={(e) => setEditTextClosed(e.target.value)}
+                rows={3}
+                style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #555', background: '#1a1a2e', color: '#fff', resize: 'vertical' }}
+              />
+            </div>
+            <div style={{ marginBottom: '12px' }}>
+              <label>Текст в открытом состоянии (задания)</label>
+              <textarea
+                value={editTextOpen}
+                onChange={(e) => setEditTextOpen(e.target.value)}
+                rows={3}
+                style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #555', background: '#1a1a2e', color: '#fff', resize: 'vertical' }}
+              />
+            </div>
+            <div style={{ marginBottom: '12px' }}>
+              <label>Текст после прохождения (материалы)</label>
+              <textarea
+                value={editTextCompleted}
+                onChange={(e) => setEditTextCompleted(e.target.value)}
+                rows={3}
+                style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #555', background: '#1a1a2e', color: '#fff', resize: 'vertical' }}
+              />
+            </div>
+            <div style={{ marginBottom: '12px' }}>
+              <label>Условия открытия</label>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button
+                  onClick={startSelectingPrerequisites}
+                  className="hover-scale"
+                  style={{ background: '#4CAF50', border: 'none', padding: '6px 12px', borderRadius: '4px', color: '#fff', cursor: 'pointer' }}
+                >
+                  🎯 Выбрать условия
+                </button>
+                <span style={{ color: '#aaa', fontSize: '0.9rem', alignSelf: 'center' }}>
+                  {editPrerequisites.length > 0 ? `(${editPrerequisites.length} уроков)` : 'нет условий'}
+                </span>
+              </div>
+            </div>
+          </>
+        )}
+        <div style={{ marginBottom: '12px' }}>
+          <label>Иконка</label>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '4px' }}>
+            <button
+              onClick={() => setEditImageKey(null)}
+              className="hover-scale"
+              style={{ background: editImageKey === null ? '#444' : 'transparent', border: '1px solid #555', borderRadius: '4px', padding: '4px 8px', color: '#fff', cursor: 'pointer' }}
+            >
+              🚫
+            </button>
+            {loadingIcons ? (
+              <span>Загрузка...</span>
+            ) : (
+              iconList.map(file => (
+                <button
+                  key={file}
+                  onClick={() => setEditImageKey(file)}
+                  className="hover-scale"
+                  style={{
+                    background: editImageKey === file ? '#444' : 'transparent',
+                    border: '1px solid #555',
+                    borderRadius: '4px',
+                    padding: 2,
+                    cursor: 'pointer',
+                    width: 36,
+                    height: 36,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <img src={`${STORAGE_URL}${file}`} alt={file} style={{ width: 28, height: 28, borderRadius: '50%' }} />
+                </button>
+              ))
             )}
           </div>
         </div>
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '16px' }}>
+          <button onClick={saveNode} className="hover-scale" style={{ background: '#2196F3', border: 'none', padding: '8px 16px', borderRadius: '4px', color: '#fff', cursor: 'pointer' }}>
+            💾 Сохранить
+          </button>
+          <button onClick={handleAddChild} className="hover-scale" style={{ background: '#4CAF50', border: 'none', padding: '8px 16px', borderRadius: '4px', color: '#fff', cursor: 'pointer' }}>
+            ➕ Добавить узел
+          </button>
+          {!isRoot && (
+            <button onClick={handleDeleteNode} className="hover-scale" style={{ background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '4px', padding: 0, width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: '1.2rem', cursor: 'pointer' }}>
+              🗑️
+            </button>
+          )}
+        </div>
       </div>
-    );
-  };
+    </div>
+  );
+};
 
   return (
     <div className={`fade-slide ${editorVisible ? 'fade-slide-visible' : ''}`} style={{ padding: 20, color: '#fff', backgroundColor: '#1a1a2e', minHeight: '100vh', overflow: 'hidden' }}>
