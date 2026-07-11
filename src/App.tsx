@@ -678,24 +678,28 @@ const handleCancel = () => {
           onClick={(e) => e.stopPropagation()}
         >
           <button
-            onClick={closeEditor}
-            className="hover-scale"
-            style={{
-              position: 'absolute',
-              top: '12px',
-              right: '16px',
-              background: 'transparent',
-              border: 'none',
-              color: 'rgba(255,255,255,0.4)',
-              fontSize: '24px',
-              cursor: 'pointer',
-              padding: '4px 8px',
-            }}
-            onMouseEnter={(e) => e.currentTarget.style.color = '#fff'}
-            onMouseLeave={(e) => e.currentTarget.style.color = 'rgba(255,255,255,0.4)'}
-          >
-            ✕
-          </button>
+  onClick={closeEditor}
+  className="hover-scale"
+  style={{
+    position: 'absolute',
+    top: '12px',
+    right: '16px',
+    background: 'rgba(255,255,255,0.1)',
+    border: 'none',
+    borderRadius: '4px',
+    padding: 0,
+    width: '32px',
+    height: '32px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    color: '#fff',
+    fontSize: '18px',
+    cursor: 'pointer',
+  }}
+>
+  ✕
+</button>
 
           <h2 style={{ marginBottom: '16px' }}>Редактировать узел</h2>
           <div style={{ marginBottom: '12px' }}>
@@ -817,9 +821,9 @@ const handleCancel = () => {
               ➕ Добавить узел
             </button>
             {!isRoot && (
-              <button onClick={handleDeleteNode} className="hover-scale" style={{ background: '#f44336', border: 'none', padding: '8px 16px', borderRadius: '4px', color: '#fff', cursor: 'pointer' }}>
-                🗑️
-              </button>
+              <button onClick={handleDeleteNode} className="hover-scale" style={{ background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '4px', padding: 0, width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: '1.2rem', cursor: 'pointer' }}>
+  🗑️
+</button>
             )}
           </div>
         </div>
@@ -1252,34 +1256,58 @@ function StudentProgramList({ userId, onApply, existingProgramIds, refreshKey }:
   return (
     <div className="list-enter">
       {availablePrograms.map(prog => (
-        <div key={prog.id} className="card-hover" style={{ margin: '10px 0', backgroundColor: '#333', padding: '15px', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <span>{prog.name}</span>
-          {prog.appStatus === 'pending' && (
-            <span style={{ color: '#ffa500' }}>⏳</span>
-          )}
-          {prog.appStatus === 'rejected' && (
-            <span style={{ color: '#ff4444' }}>❌</span>
-          )}
-          {!prog.appStatus && (
-            <button
-              onClick={() => onApply(prog.id)}
-              className="hover-scale"
-              style={{
-                background: 'rgba(255,255,255,0.1)',
-                border: 'none',
-                borderRadius: '4px',
-                padding: '6px 8px',
-                color: '#fff',
-                cursor: 'pointer',
-                fontSize: '18px',
-              }}
-            >
-              📩
-            </button>
-          )}
-          {/* Убраны дублирующие эмодзи */}
-        </div>
-      ))}
+  <div key={prog.id} className="card-hover" style={{ margin: '10px 0', backgroundColor: '#333', padding: '15px', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+    <span>{prog.name}</span>
+    {prog.appStatus === 'pending' && <span style={{ color: '#ffa500' }}>⏳</span>}
+    {prog.appStatus === 'rejected' && (
+      <>
+        <span style={{ color: '#ff4444' }}>❌</span>
+        <button
+  onClick={() => onApply(prog.id)}
+  className="hover-scale"
+  style={{
+    background: 'rgba(255,255,255,0.1)',
+    border: 'none',
+    borderRadius: '4px',
+    padding: 0,
+    width: '32px',
+    height: '32px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    color: '#fff',
+    cursor: 'pointer',
+    fontSize: '18px',
+  }}
+>
+  📩
+</button>
+      </>
+    )}
+    {!prog.appStatus && (
+      <button
+  onClick={() => onApply(prog.id)}
+  className="hover-scale"
+  style={{
+    background: 'rgba(255,255,255,0.1)',
+    border: 'none',
+    borderRadius: '4px',
+    padding: 0,
+    width: '32px',
+    height: '32px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    color: '#fff',
+    cursor: 'pointer',
+    fontSize: '18px',
+  }}
+>
+  📩
+</button>
+    )}
+  </div>
+))}
     </div>
   );
 }
@@ -1790,15 +1818,28 @@ function App() {
   };
 
   const handleApply = async (programId: string) => {
+  const existing = await getApplicationStatus(userId, programId);
+  if (existing && existing.status === 'rejected') {
+    // Повторная отправка после отклонения
+    const success = await updateApplicationStatus(existing.id, 'pending');
+    if (success) {
+      alert('Заявка отправлена повторно!');
+      setRefreshKey(prev => prev + 1);
+    } else {
+      alert('Ошибка обновления заявки');
+    }
+  } else if (!existing) {
     const success = await createApplication(programId, userId);
     if (success) {
       alert('Заявка отправлена!');
       setRefreshKey(prev => prev + 1);
-      // Не вызываем loadPrograms(), чтобы не сбить список принятых программ
     } else {
       alert('Ошибка отправки заявки');
     }
-  };
+  } else {
+    alert('Заявка уже существует');
+  }
+};
 
   const handleSelectStudent = async (studentId: string) => {
     if (!structure) {
@@ -2063,53 +2104,68 @@ function App() {
                       {isPending && isCreator && (
                         <>
                           <button
-                            onClick={(e) => { e.stopPropagation(); handleAcceptApplication(item.id); }}
-                            className="hover-scale"
-                            style={{
-                              background: 'rgba(76, 175, 80, 0.2)',
-                              border: 'none',
-                              borderRadius: '4px',
-                              padding: '4px 6px',
-                              color: '#4CAF50',
-                              cursor: 'pointer',
-                              fontSize: '18px',
-                            }}
-                          >
-                            ✅
-                          </button>
+  onClick={(e) => { e.stopPropagation(); handleAcceptApplication(item.id); }}
+  className="hover-scale"
+  style={{
+    background: 'rgba(255,255,255,0.1)',
+    border: 'none',
+    borderRadius: '4px',
+    padding: 0,
+    width: '32px',
+    height: '32px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    color: '#fff',
+    cursor: 'pointer',
+    fontSize: '18px',
+  }}
+>
+  ✅
+</button>
                           <button
-                            onClick={(e) => { e.stopPropagation(); handleRejectApplication(item.id); }}
-                            className="hover-scale"
-                            style={{
-                              background: 'rgba(244, 67, 54, 0.2)',
-                              border: 'none',
-                              borderRadius: '4px',
-                              padding: '4px 6px',
-                              color: '#f44336',
-                              cursor: 'pointer',
-                              fontSize: '18px',
-                            }}
-                          >
-                            ❌
-                          </button>
+  onClick={(e) => { e.stopPropagation(); handleRejectApplication(item.id); }}
+  className="hover-scale"
+  style={{
+    background: 'rgba(255,255,255,0.1)',
+    border: 'none',
+    borderRadius: '4px',
+    padding: 0,
+    width: '32px',
+    height: '32px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    color: '#fff',
+    cursor: 'pointer',
+    fontSize: '18px',
+  }}
+>
+  ❌
+</button>
                         </>
                       )}
                       {!isPending && isCreator && (
                         <button
-                          onClick={(e) => { e.stopPropagation(); handleDeleteStudent(item.student_id.toString(), studentName); }}
-                          className="hover-scale"
-                          style={{
-                            background: 'rgba(255,0,0,0.1)',
-                            border: 'none',
-                            borderRadius: '4px',
-                            padding: '4px 6px',
-                            color: '#f44336',
-                            fontSize: '1.2rem',
-                            cursor: 'pointer',
-                          }}
-                        >
-                          🗑️
-                        </button>
+  onClick={(e) => { e.stopPropagation(); handleDeleteStudent(item.student_id.toString(), studentName); }}
+  className="hover-scale"
+  style={{
+    background: 'rgba(255,255,255,0.1)',
+    border: 'none',
+    borderRadius: '4px',
+    padding: 0,
+    width: '32px',
+    height: '32px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    color: '#fff',
+    fontSize: '1.2rem',
+    cursor: 'pointer',
+  }}
+>
+  🗑️
+</button>
                       )}
                     </div>
                   </div>
@@ -2202,50 +2258,65 @@ function App() {
                   {isCreator && (
                     <div style={{ display: 'flex', gap: '6px', marginTop: '6px', justifyContent: 'flex-end' }}>
                       <button
-                        onClick={(e) => { e.stopPropagation(); handleToggleVisibility(prog.id, prog.visible); }}
-                        className="hover-scale"
-                        style={{
-                          background: 'rgba(255,255,255,0.1)',
-                          border: 'none',
-                          borderRadius: '4px',
-                          padding: '4px 6px',
-                          color: prog.visible ? '#4CAF50' : '#f44336',
-                          cursor: 'pointer',
-                          fontSize: '1.2rem',
-                        }}
-                      >
-                        {prog.visible ? '👁️' : '🚫'}
-                      </button>
+  onClick={(e) => { e.stopPropagation(); handleToggleVisibility(prog.id, prog.visible); }}
+  className="hover-scale"
+  style={{
+    background: 'rgba(255,255,255,0.1)',
+    border: 'none',
+    borderRadius: '4px',
+    padding: 0,
+    width: '32px',
+    height: '32px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    color: '#fff',
+    cursor: 'pointer',
+    fontSize: '1.2rem',
+  }}
+>
+  {prog.visible ? '👁️' : '🚫'}
+</button>
                       <button
-                        onClick={(e) => { e.stopPropagation(); startEditingProgram(prog.id); }}
-                        className="hover-scale"
-                        style={{
-                          background: 'rgba(255,255,255,0.1)',
-                          border: 'none',
-                          borderRadius: '4px',
-                          padding: '4px 6px',
-                          color: '#4CAF50',
-                          cursor: 'pointer',
-                          fontSize: '1.2rem',
-                        }}
-                      >
-                        ✏️
-                      </button>
+  onClick={(e) => { e.stopPropagation(); startEditingProgram(prog.id); }}
+  className="hover-scale"
+  style={{
+    background: 'rgba(255,255,255,0.1)',
+    border: 'none',
+    borderRadius: '4px',
+    padding: 0,
+    width: '32px',
+    height: '32px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    color: '#fff',
+    cursor: 'pointer',
+    fontSize: '1.2rem',
+  }}
+>
+  ✏️
+</button>
                       <button
-                        onClick={(e) => { e.stopPropagation(); handleDeleteProgram(prog.id, prog.name); }}
-                        className="hover-scale"
-                        style={{
-                          background: 'rgba(255,255,255,0.1)',
-                          border: 'none',
-                          borderRadius: '4px',
-                          padding: '4px 6px',
-                          color: '#f44336',
-                          cursor: 'pointer',
-                          fontSize: '1.2rem',
-                        }}
-                      >
-                        🗑️
-                      </button>
+  onClick={(e) => { e.stopPropagation(); handleDeleteProgram(prog.id, prog.name); }}
+  className="hover-scale"
+  style={{
+    background: 'rgba(255,255,255,0.1)',
+    border: 'none',
+    borderRadius: '4px',
+    padding: 0,
+    width: '32px',
+    height: '32px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    color: '#fff',
+    cursor: 'pointer',
+    fontSize: '1.2rem',
+  }}
+>
+  🗑️
+</button>
                     </div>
                   )}
                 </div>
