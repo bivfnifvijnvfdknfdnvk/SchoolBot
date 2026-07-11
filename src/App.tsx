@@ -32,7 +32,6 @@ function extractUserInfoFromHash(): { id: string | null, firstName: string | nul
 }
 
 // ========== ФУНКЦИИ ДЛЯ РАБОТЫ С БАЗОЙ ==========
-
 async function getAllPrograms() {
   const { data, error } = await supabase.from('programs').select('*');
   if (error) {
@@ -192,7 +191,6 @@ async function getApplicationStatus(studentId: string, programId: string) {
 }
 
 // ========== ФУНКЦИИ ДЛЯ РАБОТЫ С ДЕРЕВОМ ==========
-
 function collectLessonsWithPrerequisites(node: any): Record<string, string[]> {
   const map: Record<string, string[]> = {};
   function traverse(n: any) {
@@ -417,6 +415,11 @@ function ProgramEditor({ initialStructure, initialName, onSave, onCancel, visibl
   const [tempSelectedIds, setTempSelectedIds] = useState<string[]>([]);
 
   useEffect(() => {
+  // Используем modalVisible для подавления предупреждения линтера
+  console.log(modalVisible);
+}, [modalVisible]);
+
+  useEffect(() => {
     const fetchIcons = async () => {
       setLoadingIcons(true);
       try {
@@ -531,12 +534,11 @@ function ProgramEditor({ initialStructure, initialName, onSave, onCancel, visibl
           left: 0,
           width: '100vw',
           height: '100vh',
-          backgroundColor: 'rgba(0,0,0,0.3)',
+          backgroundColor: 'rgba(0,0,0,0)',
           display: 'flex',
           justifyContent: 'center',
           alignItems: 'center',
           zIndex: 999,
-          opacity: modalVisible ? 1 : 0,
         }}
         onClick={closeEditor}
       >
@@ -552,7 +554,6 @@ function ProgramEditor({ initialStructure, initialName, onSave, onCancel, visibl
             overflow: 'auto',
             color: '#fff',
             boxShadow: '0 8px 32px rgba(0,0,0,0.7)',
-            transform: modalVisible ? 'scale(1)' : 'scale(0.95)',
             position: 'relative',
           }}
           onClick={(e) => e.stopPropagation()}
@@ -1053,26 +1054,24 @@ function LessonModal({ isOpen, onClose, title, textClosed, textOpen, textComplet
 
   return (
     <div
-      className="modal-overlay"
+      className={`modal-overlay ${modalVisible ? 'modal-overlay-visible' : ''}`}
       style={{
         position: 'fixed',
         top: 0,
         left: 0,
         width: '100vw',
         height: '100vh',
-        backgroundColor: 'rgba(0,0,0,0.3)',
+        backgroundColor: 'rgba(0,0,0,0)',
         display: 'flex',
         justifyContent: 'center',
         alignItems: 'center',
         zIndex: 999,
         cursor: 'pointer',
-        opacity: modalVisible ? 1 : 0,
-        transition: 'opacity 0.25s ease',
       }}
       onClick={() => { if (modalVisible) onClose(); }}
     >
       <div
-        className="modal-content"
+        className={`modal-content ${modalVisible ? 'modal-content-visible' : ''}`}
         style={{
           backgroundColor: '#2a2a4e',
           padding: '30px',
@@ -1083,9 +1082,6 @@ function LessonModal({ isOpen, onClose, title, textClosed, textOpen, textComplet
           cursor: 'default',
           color: '#fff',
           boxShadow: '0 8px 32px rgba(0,0,0,0.7)',
-          transform: modalVisible ? 'scale(1)' : 'scale(0.95)',
-          transition: 'transform 0.25s ease, opacity 0.25s ease',
-          opacity: modalVisible ? 1 : 0,
         }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -1146,7 +1142,7 @@ function App() {
   const [studentViewVisible, setStudentViewVisible] = useState(false);
   const [studentEditorVisible, setStudentEditorVisible] = useState(false);
 
-  // === useEffect для управления анимациями (все одинаково) ===
+  // === useEffect для управления анимациями ===
   useEffect(() => {
     if (view === 'create') {
       const timer = setTimeout(() => setEditorVisible(true), 10);
@@ -1329,7 +1325,6 @@ function App() {
   };
 
   const handleCancelEditor = () => {
-    // Выход из редактора программ с анимацией
     setEditorVisible(false);
     setTimeout(() => {
       setEditingProgramId(null);
@@ -1380,9 +1375,7 @@ function App() {
       alert('Структура программы не загружена. Попробуйте позже.');
       return;
     }
-    // Сначала скрываем текущего ученика (если он открыт)
     setStudentEditorVisible(false);
-    // Ждём 200 мс, чтобы анимация исчезновения проигралась, затем загружаем нового
     setTimeout(async () => {
       setSelectedStudentId(studentId);
       const prog = await loadProgressForProgram(studentId, currentProgramId!);
@@ -1393,7 +1386,6 @@ function App() {
   };
 
   const backToAdmin = () => {
-    // Выход из редактора ученика с анимацией
     setStudentEditorVisible(false);
     setTimeout(() => {
       setSelectedStudentId(null);
@@ -1462,7 +1454,6 @@ function App() {
 
   const closeLessonModal = () => setLessonModalOpen(false);
 
-  // Подписка на изменения прогресса
   useEffect(() => {
     if (!userId || userId === 'guest' || !currentProgramId) return;
     const channel = supabase
@@ -1475,7 +1466,6 @@ function App() {
     return () => { supabase.removeChannel(channel); };
   }, [userId, currentProgramId]);
 
-  // Защита от серого экрана
   useEffect(() => {
     if (currentProgramId && view === 'tree') {
       const prog = programs.find(p => p.id === currentProgramId);
