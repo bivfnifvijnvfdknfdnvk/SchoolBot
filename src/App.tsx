@@ -1461,16 +1461,7 @@ function App() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [studentEditorVisible, setStudentEditorVisible] = useState(false);
   const [studentViewVisible, setStudentViewVisible] = useState(false);
-
-  useEffect(() => {
-  const timer = setTimeout(() => setStudentEditorVisible(true), 10);
-  return () => clearTimeout(timer);
-}, []);
-
-useEffect(() => {
-  const timer = setTimeout(() => setStudentViewVisible(true), 10);
-  return () => clearTimeout(timer);
-}, []);
+  const [adminViewVisible, setAdminViewVisible] = useState(false);
 
   useEffect(() => {
     const init = async () => {
@@ -1575,10 +1566,14 @@ useEffect(() => {
       const accepted = await getAcceptedStudents(programId);
       setAcceptedStudents(accepted);
       setView('admin');
-      setSelectedStudentId(null);
-      setSelectedStudentName(null);
+setSelectedStudentId(null);
+setSelectedStudentName(null);
+setAdminViewVisible(false);
+setTimeout(() => setAdminViewVisible(true), 10);
     } else {
       setView('tree');
+setStudentViewVisible(false);
+setTimeout(() => setStudentViewVisible(true), 10);
     }
   };
 
@@ -1688,22 +1683,27 @@ useEffect(() => {
   };
 
   const handleSelectStudent = async (studentId: string) => {
-    if (!structure) {
-      alert('Структура программы не загружена. Попробуйте позже.');
-      return;
-    }
-    setSelectedStudentId(studentId);
-    const prog = await loadProgressForProgram(studentId, currentProgramId!);
-    setProgress(prog);
-    const student = acceptedStudents.find(s => s.id === studentId);
-    setSelectedStudentName(student ? student.name : null);
-  };
+  if (!structure) {
+    alert('Структура программы не загружена. Попробуйте позже.');
+    return;
+  }
+  setStudentEditorVisible(false);
+  setSelectedStudentId(studentId);
+  const prog = await loadProgressForProgram(studentId, currentProgramId!);
+  setProgress(prog);
+  const student = acceptedStudents.find(s => s.id === studentId);
+  setSelectedStudentName(student ? student.name : null);
+  setTimeout(() => setStudentEditorVisible(true), 10);
+};
 
   const backToAdmin = () => {
+  setStudentEditorVisible(false);
+  setTimeout(() => {
     setSelectedStudentId(null);
     setSelectedStudentName(null);
     loadProgressForProgram(userId, currentProgramId!).then(p => setProgress(p));
-  };
+  }, 200);
+};
 
   const toggleLessonForStudent = async (lessonId: string) => {
     if (!selectedStudentId || !currentProgramId) return;
@@ -1854,7 +1854,7 @@ if (selectedStudentId) {
       }
 
       return (
-        <div className={`fade-slide ${studentEditorVisible ? 'fade-slide-visible' : ''}`} style={{ width: '100vw', height: '100vh', backgroundColor: '#1a1a2e' }}>
+        <div className={`fade-slide ${adminViewVisible ? 'fade-slide-visible' : ''}`} style={{ padding: '20px', color: '#fff', backgroundColor: '#1a1a2e', minHeight: '100vh' }}>
           <div style={{ position: 'absolute', top: 10, left: 10, right: 10, zIndex: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0 10px' }}>
             <button
               onClick={backToAdmin}
@@ -1905,7 +1905,13 @@ if (selectedStudentId) {
       <div style={{ padding: '20px', color: '#fff', backgroundColor: '#1a1a2e', minHeight: '100vh' }}>
         <div style={{ display: 'flex', alignItems: 'center', marginBottom: '16px' }}>
           <button
-            onClick={() => { setView('programs'); setCurrentProgramId(null); }}
+            onClick={() => {
+  setAdminViewVisible(false);
+  setTimeout(() => {
+    setView('programs');
+    setCurrentProgramId(null);
+  }, 200);
+}}
             className="hover-scale"
             style={{
               background: 'transparent',
@@ -2041,10 +2047,16 @@ if (selectedStudentId) {
     }
 
     return (
-      <div className={`fade-slide ${studentViewVisible ? 'fade-slide-visible' : ''}`} style={{ width: '100vw', height: '100vh', backgroundColor: '#1a1a2e' }}>
+      <div className={`fade-slide ${studentEditorVisible ? 'fade-slide-visible' : ''}`} style={{ width: '100vw', height: '100vh', backgroundColor: '#1a1a2e' }}>
         <div style={{ position: 'absolute', top: 10, left: 10, right: 10, zIndex: 10, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '0 10px' }}>
           <button
-            onClick={() => { setView('programs'); setCurrentProgramId(null); }}
+            onClick={() => {
+  setStudentViewVisible(false);
+  setTimeout(() => {
+    setView('programs');
+    setCurrentProgramId(null);
+  }, 200);
+}}
             className="hover-scale"
             style={{
               background: 'transparent',
