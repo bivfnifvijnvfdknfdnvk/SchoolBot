@@ -1351,31 +1351,25 @@ function LessonModal({ isOpen, onClose, title, textClosed, textOpen, textComplet
         clearTimeout(closeTimeoutRef.current);
         closeTimeoutRef.current = null;
       }
-      // Даём браузеру отрендерить элемент с opacity: 0
-      requestAnimationFrame(() => {
-        setTimeout(() => {
-          setVisible(true);
-        }, 10);
-      });
+      // Запускаем анимацию открытия
+      const timer = setTimeout(() => {
+        setVisible(true);
+      }, 10);
+      return () => clearTimeout(timer);
     } else {
+      // Закрываем с анимацией
       setVisible(false);
       if (closeTimeoutRef.current) {
         clearTimeout(closeTimeoutRef.current);
-        closeTimeoutRef.current = null;
       }
       closeTimeoutRef.current = window.setTimeout(() => {
         onClose();
         closeTimeoutRef.current = null;
       }, ANIMATION_DURATION_MS);
     }
-    return () => {
-      if (closeTimeoutRef.current) {
-        clearTimeout(closeTimeoutRef.current);
-        closeTimeoutRef.current = null;
-      }
-    };
   }, [isOpen, onClose]);
 
+  // Если модалка закрыта и невидима — не рендерим
   if (!isOpen && !visible) return null;
 
   const hasContent = textClosed || textOpen || textCompleted;
@@ -1397,9 +1391,7 @@ function LessonModal({ isOpen, onClose, title, textClosed, textOpen, textComplet
         cursor: 'pointer',
       }}
       onClick={() => {
-        if (visible) {
-          onClose();
-        }
+        if (visible) onClose();
       }}
     >
       <div
@@ -1451,9 +1443,7 @@ function LessonModal({ isOpen, onClose, title, textClosed, textOpen, textComplet
         </div>
         <button
           onClick={() => {
-            if (visible) {
-              onClose();
-            }
+            if (visible) onClose();
           }}
           className="hover-scale"
           style={{ marginTop: '20px', padding: '8px 20px', backgroundColor: '#4CAF50', border: 'none', borderRadius: '6px', color: '#fff', cursor: 'pointer' }}
