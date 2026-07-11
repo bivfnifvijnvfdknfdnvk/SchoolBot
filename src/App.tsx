@@ -1,11 +1,11 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Tree from 'react-d3-tree';
 import { supabase } from './supabaseClient';
 import './App.css';
 
 // ========== КОНСТАНТЫ ==========
 const STORAGE_URL = 'https://wmfjjpsakhmwwyvimqwx.supabase.co/storage/v1/object/public/icons/';
-const ADMIN_IDS: number[] = [1394891154];
+const ADMIN_IDS: number[] = [1394891154]; // ID учителей
 
 // ========== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ==========
 function extractUserInfoFromHash(): { id: string | null, firstName: string | null, lastName: string | null, username: string | null } {
@@ -32,8 +32,11 @@ function extractUserInfoFromHash(): { id: string | null, firstName: string | nul
 }
 
 // ========== ФУНКЦИИ ДЛЯ РАБОТЫ С БАЗОЙ ==========
+
 async function getAllPrograms() {
-  const { data, error } = await supabase.from('programs').select('*');
+  const { data, error } = await supabase
+    .from('programs')
+    .select('*');
   if (error) {
     console.error('Ошибка загрузки всех программ:', error);
     return [];
@@ -42,7 +45,10 @@ async function getAllPrograms() {
 }
 
 async function getVisiblePrograms() {
-  const { data, error } = await supabase.from('programs').select('*').eq('visible', true);
+  const { data, error } = await supabase
+    .from('programs')
+    .select('*')
+    .eq('visible', true);
   if (error) {
     console.error('Ошибка загрузки видимых программ:', error);
     return [];
@@ -52,7 +58,10 @@ async function getVisiblePrograms() {
 
 async function getUsersByIds(userIds: number[]): Promise<Record<number, string>> {
   if (userIds.length === 0) return {};
-  const { data, error } = await supabase.from('users').select('telegram_id, first_name, last_name').in('telegram_id', userIds);
+  const { data, error } = await supabase
+    .from('users')
+    .select('telegram_id, first_name, last_name')
+    .in('telegram_id', userIds);
   if (error) {
     console.error('Ошибка загрузки имён пользователей:', error);
     return {};
@@ -68,7 +77,13 @@ async function getUsersByIds(userIds: number[]): Promise<Record<number, string>>
 async function createProgram(name: string, teacherId: string, structure: any) {
   const { data, error } = await supabase
     .from('programs')
-    .insert({ name, teacher_id: Number(teacherId), created_by: Number(teacherId), visible: false, structure })
+    .insert({
+      name,
+      teacher_id: Number(teacherId),
+      created_by: Number(teacherId),
+      visible: false,
+      structure,
+    })
     .select('id')
     .single();
   if (error) {
@@ -79,7 +94,10 @@ async function createProgram(name: string, teacherId: string, structure: any) {
 }
 
 async function updateProgram(programId: string, updates: { name?: string; structure?: any; visible?: boolean }) {
-  const { error } = await supabase.from('programs').update(updates).eq('id', programId);
+  const { error } = await supabase
+    .from('programs')
+    .update(updates)
+    .eq('id', programId);
   if (error) {
     console.error('Ошибка обновления программы:', error);
     return false;
@@ -92,7 +110,10 @@ async function toggleProgramVisibility(programId: string, currentVisible: boolea
 }
 
 async function deleteProgram(programId: string) {
-  const { error } = await supabase.from('programs').delete().eq('id', programId);
+  const { error } = await supabase
+    .from('programs')
+    .delete()
+    .eq('id', programId);
   if (error) {
     console.error('Ошибка удаления программы:', error);
     return false;
@@ -101,25 +122,40 @@ async function deleteProgram(programId: string) {
 }
 
 async function getApplicationsForProgram(programId: string) {
-  const { data, error } = await supabase.from('applications').select('*').eq('program_id', programId);
+  const { data, error } = await supabase
+    .from('applications')
+    .select('*')
+    .eq('program_id', programId);
   if (error) {
     console.error('Ошибка загрузки заявок:', error);
     return [];
   }
   const studentIds = data.map(app => app.student_id);
   if (studentIds.length === 0) return data;
-  const { data: users, error: userError } = await supabase.from('users').select('telegram_id, first_name, last_name').in('telegram_id', studentIds);
+  const { data: users, error: userError } = await supabase
+    .from('users')
+    .select('telegram_id, first_name, last_name')
+    .in('telegram_id', studentIds);
   if (userError) return data;
   const userMap: { [key: number]: string } = {};
   users.forEach(u => {
     const name = `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.telegram_id.toString();
     userMap[u.telegram_id] = name;
   });
-  return data.map(app => ({ ...app, student_name: userMap[app.student_id] || app.student_id.toString() }));
+  return data.map(app => ({
+    ...app,
+    student_name: userMap[app.student_id] || app.student_id.toString(),
+  }));
 }
 
 async function createApplication(programId: string, studentId: string) {
-  const { error } = await supabase.from('applications').insert({ program_id: programId, student_id: Number(studentId), status: 'pending' });
+  const { error } = await supabase
+    .from('applications')
+    .insert({
+      program_id: programId,
+      student_id: Number(studentId),
+      status: 'pending',
+    });
   if (error) {
     console.error('Ошибка создания заявки:', error);
     return false;
@@ -128,7 +164,10 @@ async function createApplication(programId: string, studentId: string) {
 }
 
 async function updateApplicationStatus(applicationId: string, status: string) {
-  const { error } = await supabase.from('applications').update({ status }).eq('id', applicationId);
+  const { error } = await supabase
+    .from('applications')
+    .update({ status })
+    .eq('id', applicationId);
   if (error) {
     console.error('Ошибка обновления заявки:', error);
     return false;
@@ -137,11 +176,19 @@ async function updateApplicationStatus(applicationId: string, status: string) {
 }
 
 async function getAcceptedStudents(programId: string) {
-  const { data, error } = await supabase.from('applications').select('student_id').eq('program_id', programId).eq('status', 'accepted');
+  const { data, error } = await supabase
+    .from('applications')
+    .select('student_id')
+    .eq('program_id', programId)
+    .eq('status', 'accepted');
   if (error || !data) return [];
   const studentIds = data.map(item => item.student_id);
   if (studentIds.length === 0) return [];
-  const { data: users, error: userError } = await supabase.from('users').select('telegram_id, first_name, last_name').in('telegram_id', studentIds);
+
+  const { data: users, error: userError } = await supabase
+    .from('users')
+    .select('telegram_id, first_name, last_name')
+    .in('telegram_id', studentIds);
   if (userError) return [];
   return users.map(u => ({
     id: u.telegram_id.toString(),
@@ -150,13 +197,19 @@ async function getAcceptedStudents(programId: string) {
 }
 
 async function loadProgressForProgram(userId: string, programId: string): Promise<Record<string, boolean>> {
-  const { data, error } = await supabase.from('progress').select('lesson_id, completed').eq('user_id', Number(userId)).eq('program_id', programId);
+  const { data, error } = await supabase
+    .from('progress')
+    .select('lesson_id, completed')
+    .eq('user_id', Number(userId))
+    .eq('program_id', programId);
   if (error) {
     console.error('Ошибка загрузки прогресса:', error);
     return {};
   }
   const progress: Record<string, boolean> = {};
-  data.forEach(row => { progress[row.lesson_id] = row.completed; });
+  data.forEach(row => {
+    progress[row.lesson_id] = row.completed;
+  });
   return progress;
 }
 
@@ -168,57 +221,54 @@ async function saveProgressForProgram(userId: string, programId: string, progres
     completed,
     updated_at: new Date().toISOString(),
   }));
-  const { error } = await supabase.from('progress').upsert(entries, { onConflict: 'user_id, program_id, lesson_id' });
+  const { error } = await supabase
+    .from('progress')
+    .upsert(entries, { onConflict: 'user_id, program_id, lesson_id' });
   if (error) {
     console.error('Ошибка сохранения прогресса:', error);
   }
 }
 
 async function getStudentPrograms(studentId: string) {
-  const { data: applications, error: appError } = await supabase.from('applications').select('program_id').eq('student_id', Number(studentId)).eq('status', 'accepted');
+  const { data: applications, error: appError } = await supabase
+    .from('applications')
+    .select('program_id')
+    .eq('student_id', Number(studentId))
+    .eq('status', 'accepted');
   if (appError || !applications) return [];
   const programIds = applications.map(item => item.program_id);
   if (programIds.length === 0) return [];
-  const { data: programs, error: progError } = await supabase.from('programs').select('*').in('id', programIds).eq('visible', true);
+  const { data: programs, error: progError } = await supabase
+    .from('programs')
+    .select('*')
+    .in('id', programIds)
+    .eq('visible', true);
   if (progError) return [];
   return programs || [];
 }
 
 async function getApplicationStatus(studentId: string, programId: string) {
-  const { data, error } = await supabase.from('applications').select('status, id').eq('student_id', Number(studentId)).eq('program_id', programId).maybeSingle();
+  const { data, error } = await supabase
+    .from('applications')
+    .select('status, id')
+    .eq('student_id', Number(studentId))
+    .eq('program_id', programId)
+    .maybeSingle();
   if (error || !data) return null;
   return data;
 }
 
-// ========== ФУНКЦИИ ДЛЯ РАБОТЫ С ДЕРЕВОМ ==========
-function collectLessonsWithPrerequisites(node: any): Record<string, string[]> {
-  const map: Record<string, string[]> = {};
-  function traverse(n: any) {
-    if (!n || typeof n !== 'object' || !n.id) return;
-    if (n.isLesson === true) {
-      map[n.id] = Array.isArray(n.prerequisites) ? n.prerequisites : [];
-    }
-    if (n.children && Array.isArray(n.children)) {
-      for (const child of n.children) traverse(child);
-    }
-  }
-  traverse(node);
-  return map;
-}
-
-function buildNodeMap(node: any, map: Record<string, any>) {
-  if (!node || typeof node !== 'object' || !node.id) return;
-  map[node.id] = node;
-  if (node.children && Array.isArray(node.children)) {
-    for (const child of node.children) buildNodeMap(child, map);
-  }
-}
-
 // ========== КОМПОНЕНТЫ ДЛЯ РЕДАКТОРА ==========
+
 function updateNodeInTree(tree: any, id: string, updates: any): any {
-  if (tree.id === id) return { ...tree, ...updates };
+  if (tree.id === id) {
+    return { ...tree, ...updates };
+  }
   if (tree.children) {
-    return { ...tree, children: tree.children.map((child: any) => updateNodeInTree(child, id, updates)) };
+    return {
+      ...tree,
+      children: tree.children.map((child: any) => updateNodeInTree(child, id, updates)),
+    };
   }
   return tree;
 }
@@ -226,7 +276,10 @@ function updateNodeInTree(tree: any, id: string, updates: any): any {
 function deleteNodeFromTree(tree: any, id: string): any {
   if (tree.children) {
     const filtered = tree.children.filter((child: any) => child.id !== id);
-    return { ...tree, children: filtered.map((child: any) => deleteNodeFromTree(child, id)) };
+    return {
+      ...tree,
+      children: filtered.map((child: any) => deleteNodeFromTree(child, id)),
+    };
   }
   return tree;
 }
@@ -276,24 +329,34 @@ function findNodeAndAddChild(tree: any, parentId: string): { newTree: any; newId
   return { newTree: result.newNode, newId: result.newId };
 }
 
+// Рендер узла для редактора (в обычном режиме)
 const renderEditorNode = ({ nodeDatum, onNodeClick, isSelectMode, onSelectToggle }: any) => {
   const isLesson = nodeDatum.isLesson || false;
   const imageUrl = nodeDatum.imageKey ? `${STORAGE_URL}${nodeDatum.imageKey}` : null;
   const radius = 24;
+
   const handleClick = (e: any) => {
     e.stopPropagation();
     if (isSelectMode && isLesson && onSelectToggle) {
       onSelectToggle(nodeDatum.id);
       return;
     }
-    if (onNodeClick) onNodeClick(nodeDatum.id);
+    if (onNodeClick) {
+      onNodeClick(nodeDatum.id);
+    }
   };
+
   const clipId = `clip-${nodeDatum.id || Math.random().toString(36).substring(2, 10)}`;
   const isSelected = nodeDatum._selected || false;
 
   return (
     <g>
-      <defs><clipPath id={clipId}><circle cx="0" cy="0" r={radius} /></clipPath></defs>
+      <defs>
+        <clipPath id={clipId}>
+          <circle cx="0" cy="0" r={radius} />
+        </clipPath>
+      </defs>
+
       {imageUrl ? (
         <image
           href={imageUrl}
@@ -314,7 +377,9 @@ const renderEditorNode = ({ nodeDatum, onNodeClick, isSelectMode, onSelectToggle
           style={{ cursor: isSelectMode && isLesson ? 'pointer' : 'pointer' }}
         />
       )}
+
       <circle cx="0" cy="0" r={radius} fill="none" stroke="#fff" strokeWidth="2" onClick={handleClick} style={{ pointerEvents: 'none' }} />
+
       <text
         fill="#fff"
         stroke="none"
@@ -349,6 +414,7 @@ function buildEditorTree(node: any, selectedIds?: string[]): any {
   };
 }
 
+// Компонент дерева для редактора (ветви вверх)
 function EditableTreeView({ structure, onNodeClick, isSelectMode, onSelectToggle, selectedIds }: {
   structure: any;
   onNodeClick: (nodeId: string) => void;
@@ -358,6 +424,7 @@ function EditableTreeView({ structure, onNodeClick, isSelectMode, onSelectToggle
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [translate, setTranslate] = useState({ x: 400, y: 100 });
+
   useEffect(() => {
     const updateTranslate = () => {
       if (containerRef.current) {
@@ -370,6 +437,7 @@ function EditableTreeView({ structure, onNodeClick, isSelectMode, onSelectToggle
     window.addEventListener('resize', updateTranslate);
     return () => window.removeEventListener('resize', updateTranslate);
   }, []);
+
   const treeData = buildEditorTree(structure, selectedIds);
   return (
     <div ref={containerRef} style={{ width: '100%', height: '100%', backgroundColor: '#1a1a2e', transform: 'scaleY(-1)' }}>
@@ -390,15 +458,27 @@ function EditableTreeView({ structure, onNodeClick, isSelectMode, onSelectToggle
 }
 
 // ========== ВИЗУАЛЬНЫЙ РЕДАКТОР ПРОГРАММ ==========
-function ProgramEditor({ initialStructure, initialName, onSave, onCancel, visible }: {
+function ProgramEditor({ initialStructure, initialName, onSave, onCancel }: {
   initialStructure?: any;
   initialName?: string;
   onSave: (name: string, structure: any) => void;
   onCancel: () => void;
-  visible: boolean;
 }) {
-  const [tree, setTree] = useState<any>(() => initialStructure || { id: 'root', name: 'Корневой узел', children: [], isLesson: false, imageKey: null });
+  const [tree, setTree] = useState<any>(() => {
+    if (initialStructure) {
+      return initialStructure;
+    }
+    return {
+      id: 'root',
+      name: 'Корневой узел',
+      children: [],
+      isLesson: false,
+      imageKey: null,
+    };
+  });
+
   const [programName, setProgramName] = useState(initialName || 'Новая программа');
+
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
   const [editIsLesson, setEditIsLesson] = useState(false);
@@ -411,13 +491,17 @@ function ProgramEditor({ initialStructure, initialName, onSave, onCancel, visibl
   const [loadingIcons, setLoadingIcons] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
+
   const [isSelectingPrerequisites, setIsSelectingPrerequisites] = useState(false);
   const [tempSelectedIds, setTempSelectedIds] = useState<string[]>([]);
 
+  // Состояние для анимации появления редактора
+  const [editorVisible, setEditorVisible] = useState(false);
+
   useEffect(() => {
-  // Используем modalVisible для подавления предупреждения линтера
-  console.log(modalVisible);
-}, [modalVisible]);
+    const timer = setTimeout(() => setEditorVisible(true), 10);
+    return () => clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     const fetchIcons = async () => {
@@ -425,8 +509,11 @@ function ProgramEditor({ initialStructure, initialName, onSave, onCancel, visibl
       try {
         const { data, error } = await supabase.storage.from('icons').list();
         if (error) throw error;
-        setIconList(data.map(f => f.name));
-      } catch (_) { console.error('Не удалось загрузить иконки'); }
+        const files = data.map(f => f.name);
+        setIconList(files);
+      } catch (e) {
+        console.error('Не удалось загрузить иконки:', e);
+      }
       setLoadingIcons(false);
     };
     fetchIcons();
@@ -450,7 +537,10 @@ function ProgramEditor({ initialStructure, initialName, onSave, onCancel, visibl
 
   const closeEditor = () => {
     setModalVisible(false);
-    setTimeout(() => { setModalOpen(false); setSelectedNodeId(null); }, 200);
+    setTimeout(() => {
+      setModalOpen(false);
+      setSelectedNodeId(null);
+    }, 200);
   };
 
   const saveNode = () => {
@@ -487,14 +577,17 @@ function ProgramEditor({ initialStructure, initialName, onSave, onCancel, visibl
       if (nodeId === selectedNodeId) return;
       const node = findNode(tree, nodeId);
       if (!node || !node.isLesson) return;
-      setTempSelectedIds(prev => prev.includes(nodeId) ? prev.filter(id => id !== nodeId) : [...prev, nodeId]);
+      setTempSelectedIds(prev =>
+        prev.includes(nodeId) ? prev.filter(id => id !== nodeId) : [...prev, nodeId]
+      );
       return;
     }
     openEditor(nodeId);
   };
 
   const handleSaveProgram = () => {
-    onSave(programName, JSON.parse(JSON.stringify(tree)));
+    const structure = JSON.parse(JSON.stringify(tree));
+    onSave(programName, structure);
   };
 
   const startSelectingPrerequisites = () => {
@@ -508,23 +601,33 @@ function ProgramEditor({ initialStructure, initialName, onSave, onCancel, visibl
   };
 
   const finishSelectingPrerequisites = () => {
-    if (!selectedNodeId) { setIsSelectingPrerequisites(false); return; }
+    if (!selectedNodeId) {
+      setIsSelectingPrerequisites(false);
+      return;
+    }
     setEditPrerequisites([...tempSelectedIds]);
     setIsSelectingPrerequisites(false);
     const node = findNode(tree, selectedNodeId);
-    if (node) { setModalOpen(true); setTimeout(() => setModalVisible(true), 10); }
+    if (node) {
+      setModalOpen(true);
+      setTimeout(() => setModalVisible(true), 10);
+    }
   };
 
   const cancelSelectingPrerequisites = () => {
     setIsSelectingPrerequisites(false);
     if (!selectedNodeId) return;
     const node = findNode(tree, selectedNodeId);
-    if (node) { setModalOpen(true); setTimeout(() => setModalVisible(true), 10); }
+    if (node) {
+      setModalOpen(true);
+      setTimeout(() => setModalVisible(true), 10);
+    }
   };
 
   const renderModal = () => {
     if (!modalOpen || !selectedNodeId) return null;
     const isRoot = selectedNodeId === 'root';
+
     return (
       <div
         className="modal-overlay"
@@ -534,11 +637,12 @@ function ProgramEditor({ initialStructure, initialName, onSave, onCancel, visibl
           left: 0,
           width: '100vw',
           height: '100vh',
-          backgroundColor: 'rgba(0,0,0,0)',
+          backgroundColor: 'rgba(0,0,0,0.6)',
           display: 'flex',
           justifyContent: 'center',
           alignItems: 'center',
           zIndex: 999,
+          opacity: modalVisible ? 1 : 0,
         }}
         onClick={closeEditor}
       >
@@ -554,6 +658,7 @@ function ProgramEditor({ initialStructure, initialName, onSave, onCancel, visibl
             overflow: 'auto',
             color: '#fff',
             boxShadow: '0 8px 32px rgba(0,0,0,0.7)',
+            transform: modalVisible ? 'scale(1)' : 'scale(0.95)',
             position: 'relative',
           }}
           onClick={(e) => e.stopPropagation()}
@@ -577,6 +682,7 @@ function ProgramEditor({ initialStructure, initialName, onSave, onCancel, visibl
           >
             ✕
           </button>
+
           <h2 style={{ marginBottom: '16px' }}>Редактировать узел</h2>
           <div style={{ marginBottom: '12px' }}>
             <label>Название</label>
@@ -708,7 +814,7 @@ function ProgramEditor({ initialStructure, initialName, onSave, onCancel, visibl
   };
 
   return (
-    <div className={`fade-slide ${visible ? 'fade-slide-visible' : ''}`} style={{ padding: 20, color: '#fff', backgroundColor: '#1a1a2e', minHeight: '100vh', overflow: 'hidden' }}>
+    <div className={`fade-slide ${editorVisible ? 'fade-slide-visible' : ''}`} style={{ padding: 20, color: '#fff', backgroundColor: '#1a1a2e', minHeight: '100vh', overflow: 'hidden' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: 20 }}>
         <button
           onClick={onCancel}
@@ -766,7 +872,9 @@ function ProgramEditor({ initialStructure, initialName, onSave, onCancel, visibl
                 if (nodeId === selectedNodeId) return;
                 const node = findNode(tree, nodeId);
                 if (!node || !node.isLesson) return;
-                setTempSelectedIds(prev => prev.includes(nodeId) ? prev.filter(id => id !== nodeId) : [...prev, nodeId]);
+                setTempSelectedIds(prev =>
+                  prev.includes(nodeId) ? prev.filter(id => id !== nodeId) : [...prev, nodeId]
+                );
               }}
               selectedIds={tempSelectedIds}
             />
@@ -783,22 +891,48 @@ function ProgramEditor({ initialStructure, initialName, onSave, onCancel, visibl
 }
 
 // ========== КОМПОНЕНТЫ ДЛЯ ОТОБРАЖЕНИЯ ==========
+
+function collectLessonsWithPrerequisites(node: any): Record<string, string[]> {
+  const map: Record<string, string[]> = {};
+  function traverse(n: any) {
+    if (n.isLesson === true) {
+      map[n.id] = n.prerequisites || [];
+    }
+    if (n.children) {
+      for (const child of n.children) {
+        traverse(child);
+      }
+    }
+  }
+  traverse(node);
+  return map;
+}
+
 function recalculateProgress(structure: any, progress: Record<string, boolean>): Record<string, boolean> {
   const newProgress = { ...progress };
   const lessons: any[] = [];
   function traverse(node: any) {
-    if (node.isLesson === true) lessons.push(node);
-    if (node.children) for (const child of node.children) traverse(child);
+    if (node.isLesson === true) {
+      lessons.push(node);
+    }
+    if (node.children) {
+      for (const child of node.children) {
+        traverse(child);
+      }
+    }
   }
   traverse(structure);
+
   for (let iter = 0; iter < lessons.length; iter++) {
     let changed = false;
     for (const lesson of lessons) {
       const prereqs = lesson.prerequisites || [];
       const isLocked = prereqs.some((id: string) => !newProgress[id]);
-      if (isLocked && newProgress[lesson.id] === true) {
-        newProgress[lesson.id] = false;
-        changed = true;
+      if (isLocked) {
+        if (newProgress[lesson.id] === true) {
+          newProgress[lesson.id] = false;
+          changed = true;
+        }
       }
     }
     if (!changed) break;
@@ -806,15 +940,25 @@ function recalculateProgress(structure: any, progress: Record<string, boolean>):
   return newProgress;
 }
 
-function buildTreeForDisplay(node: any, progress: Record<string, boolean>, prerequisitesMap: Record<string, string[]>, nodeMap: Record<string, any>, isPreview: boolean = false): any {
+function buildTreeForDisplay(
+  node: any,
+  progress: Record<string, boolean>,
+  prerequisitesMap: Record<string, string[]>,
+  nodeMap: Record<string, any>,
+  isPreview: boolean = false
+): any {
   const isLesson = node.isLesson === true;
+  // Если isPreview, то completed всегда false (чтобы не показывать галочки для учителя)
   const completed = isLesson && !isPreview ? (progress[node.id] || false) : false;
   let isLocked = false;
   let prereqNames: string[] = [];
   if (isLesson && !isPreview) {
     const prereqs = prerequisitesMap[node.id] || [];
     isLocked = prereqs.some((id: string) => !progress[id]);
-    prereqNames = prereqs.map((id: string) => nodeMap[id] ? nodeMap[id].name : id);
+    prereqNames = prereqs.map((id: string) => {
+      const foundNode = nodeMap[id];
+      return foundNode ? foundNode.name : id;
+    });
   }
   return {
     name: node.name,
@@ -828,7 +972,9 @@ function buildTreeForDisplay(node: any, progress: Record<string, boolean>, prere
     __textClosed: node.textClosed || '',
     __textOpen: node.textOpen || '',
     __textCompleted: node.textCompleted || '',
-    children: node.children ? node.children.map((child: any) => buildTreeForDisplay(child, progress, prerequisitesMap, nodeMap, isPreview)) : undefined,
+    children: node.children ? node.children.map((child: any) =>
+      buildTreeForDisplay(child, progress, prerequisitesMap, nodeMap, isPreview)
+    ) : undefined,
   };
 }
 
@@ -836,7 +982,7 @@ const renderCustomNode = ({ nodeDatum, onLessonClick, onToggleLesson, isPreview 
   const isLesson = nodeDatum.__isLesson;
   const completed = nodeDatum.__completed;
   const locked = nodeDatum.__locked || false;
-  const prereqNames = Array.isArray(nodeDatum.__prereqNames) ? nodeDatum.__prereqNames : [];
+  const prereqNames = nodeDatum.__prereqNames || [];
   const imageUrl = nodeDatum.__imageUrl;
   const textClosed = nodeDatum.__textClosed || '';
   const textOpen = nodeDatum.__textOpen || '';
@@ -845,8 +991,20 @@ const renderCustomNode = ({ nodeDatum, onLessonClick, onToggleLesson, isPreview 
 
   const handleClick = () => {
     if (isLesson) {
-      if (onToggleLesson && !locked) onToggleLesson(nodeDatum.__id);
-      else if (onLessonClick) onLessonClick(nodeDatum.name, textClosed, textOpen, textCompleted, locked, completed, isPreview, prereqNames);
+      if (onToggleLesson && !locked) {
+        onToggleLesson(nodeDatum.__id);
+      } else if (onLessonClick) {
+        onLessonClick(
+          nodeDatum.name,
+          textClosed,
+          textOpen,
+          textCompleted,
+          locked,
+          completed,
+          isPreview,
+          prereqNames
+        );
+      }
     }
   };
 
@@ -855,7 +1013,12 @@ const renderCustomNode = ({ nodeDatum, onLessonClick, onToggleLesson, isPreview 
 
   return (
     <g>
-      <defs><clipPath id={clipId}><circle cx="0" cy="0" r={radius} /></clipPath></defs>
+      <defs>
+        <clipPath id={clipId}>
+          <circle cx="0" cy="0" r={radius} />
+        </clipPath>
+      </defs>
+
       {imageUrl ? (
         <image
           href={imageUrl}
@@ -877,21 +1040,86 @@ const renderCustomNode = ({ nodeDatum, onLessonClick, onToggleLesson, isPreview 
           style={{ cursor: isLesson && !locked ? 'pointer' : 'default' }}
         />
       )}
-      <circle cx="0" cy="0" r={radius} fill="none" stroke="#fff" strokeWidth="2" onClick={handleClick} className="tree-node-ring" style={{ pointerEvents: 'none' }} />
+
+      <circle
+        cx="0"
+        cy="0"
+        r={radius}
+        fill="none"
+        stroke="#fff"
+        strokeWidth="2"
+        onClick={handleClick}
+        className="tree-node-ring"
+        style={{ pointerEvents: 'none' }}
+      />
+
       {isLesson && completed && (
         <>
-          <circle cx="0" cy="0" r={radius} fill="rgba(76, 175, 80, 0.4)" stroke="none" onClick={handleClick} className="tree-node-check-bg" style={{ cursor: 'pointer' }} />
-          <text x="0" y="2" fontSize={radius * 0.9} fill="rgba(255,255,255,0.8)" stroke="none" textAnchor="middle" dominantBaseline="central" fontWeight="bold" onClick={handleClick} className="tree-node-check" style={{ cursor: 'pointer', transform: 'scaleY(-1)' }}>✓</text>
+          <circle
+            cx="0"
+            cy="0"
+            r={radius}
+            fill="rgba(76, 175, 80, 0.4)"
+            stroke="none"
+            onClick={handleClick}
+            className="tree-node-check-bg"
+            style={{ cursor: 'pointer' }}
+          />
+          <text
+            x="0"
+            y="2"
+            fontSize={radius * 0.9}
+            fill="rgba(255,255,255,0.8)"
+            stroke="none"
+            textAnchor="middle"
+            dominantBaseline="central"
+            fontWeight="bold"
+            onClick={handleClick}
+            className="tree-node-check"
+            style={{ cursor: 'pointer', transform: 'scaleY(-1)' }}
+          >
+            ✓
+          </text>
         </>
       )}
+
       {isLesson && locked && !completed && (
         <>
-          <text x="0" y="2" fontSize={radius * 0.7} fill="#fff" stroke="none" textAnchor="middle" dominantBaseline="central" fontWeight="bold" onClick={handleClick} className="tree-node-lock" style={{ cursor: 'default', transform: 'scaleY(-1)' }}>🔒</text>
+          <text
+            x="0"
+            y="2"
+            fontSize={radius * 0.7}
+            fill="#fff"
+            stroke="none"
+            textAnchor="middle"
+            dominantBaseline="central"
+            fontWeight="bold"
+            onClick={handleClick}
+            className="tree-node-lock"
+            style={{ cursor: 'default', transform: 'scaleY(-1)' }}
+          >
+            🔒
+          </text>
           {prereqNames.length > 1 && (
-            <text x={radius + 6} y="0" fontSize={12} fill="#ffa500" stroke="none" textAnchor="start" dominantBaseline="central" fontWeight="bold" onClick={handleClick} className="tree-node-prereq-count" style={{ cursor: 'default' }}>🔗{prereqNames.length}</text>
+            <text
+              x={radius + 6}
+              y="0"
+              fontSize={12}
+              fill="#ffa500"
+              stroke="none"
+              textAnchor="start"
+              dominantBaseline="central"
+              fontWeight="bold"
+              onClick={handleClick}
+              className="tree-node-prereq-count"
+              style={{ cursor: 'default' }}
+            >
+              🔗{prereqNames.length}
+            </text>
           )}
         </>
       )}
+
       <text
         fill={textColor}
         stroke="none"
@@ -920,26 +1148,32 @@ function SkillTreeView({ structure, progress, onLessonClick, onToggleLesson, isP
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [translate, setTranslate] = useState({ x: 400, y: 100 });
-  const updateTranslate = () => {
-    if (containerRef.current) {
-      const width = containerRef.current.clientWidth;
-      const height = containerRef.current.clientHeight;
-      setTranslate({ x: width / 2, y: height - 150 });
-    }
-  };
+
   useEffect(() => {
+    const updateTranslate = () => {
+      if (containerRef.current) {
+        const width = containerRef.current.clientWidth;
+        const height = containerRef.current.clientHeight;
+        setTranslate({ x: width / 2, y: height - 150 });
+      }
+    };
     updateTranslate();
     window.addEventListener('resize', updateTranslate);
     return () => window.removeEventListener('resize', updateTranslate);
   }, []);
-  useEffect(() => {
-    if (!containerRef.current) return;
-    const observer = new ResizeObserver(updateTranslate);
-    observer.observe(containerRef.current);
-    return () => observer.disconnect();
-  }, []);
+
+  // Строим карту всех узлов по ID
   const nodeMap: Record<string, any> = {};
-  buildNodeMap(structure, nodeMap);
+  function buildNodeMap(node: any) {
+    nodeMap[node.id] = node;
+    if (node.children) {
+      for (const child of node.children) {
+        buildNodeMap(child);
+      }
+    }
+  }
+  buildNodeMap(structure);
+
   const prerequisitesMap = collectLessonsWithPrerequisites(structure);
   const treeData = buildTreeForDisplay(structure, progress, prerequisitesMap, nodeMap, isPreview);
   return (
@@ -960,7 +1194,7 @@ function SkillTreeView({ structure, progress, onLessonClick, onToggleLesson, isP
   );
 }
 
-// ========== КОМПОНЕНТ СПИСКА ПРОГРАММ ДЛЯ УЧЕНИКА ==========
+// ========== КОМПОНЕНТ СПИСКА ПРОГРАММ ДЛЯ УЧЕНИКА (исправлен) ==========
 function StudentProgramList({ userId, onApply, existingProgramIds, refreshKey }: {
   userId: string;
   onApply: (programId: string) => void;
@@ -969,6 +1203,7 @@ function StudentProgramList({ userId, onApply, existingProgramIds, refreshKey }:
 }) {
   const [availablePrograms, setAvailablePrograms] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+
   useEffect(() => {
     const load = async () => {
       setLoading(true);
@@ -983,7 +1218,8 @@ function StudentProgramList({ userId, onApply, existingProgramIds, refreshKey }:
           } else if (!status) {
             filtered.push({ ...prog, appStatus: null });
           }
-        } catch (_) {
+        } catch (e) {
+          // Если ошибка, считаем что заявки нет
           filtered.push({ ...prog, appStatus: null });
         }
       }
@@ -994,23 +1230,40 @@ function StudentProgramList({ userId, onApply, existingProgramIds, refreshKey }:
   }, [userId, existingProgramIds, refreshKey]);
 
   if (loading) return <p>Загрузка...</p>;
-  if (availablePrograms.length === 0) return <p>Нет доступных программ для подачи заявки.</p>;
+
+  if (availablePrograms.length === 0) {
+    return <p>Нет доступных программ для подачи заявки.</p>;
+  }
+
   return (
     <div className="list-enter">
       {availablePrograms.map(prog => (
         <div key={prog.id} className="card-hover" style={{ margin: '10px 0', backgroundColor: '#333', padding: '15px', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <span>{prog.name}</span>
-          {prog.appStatus === 'pending' && <span style={{ color: '#ffa500' }}>⏳</span>}
-          {prog.appStatus === 'rejected' && <span style={{ color: '#ff4444' }}>❌</span>}
+          {prog.appStatus === 'pending' && (
+            <span style={{ color: '#ffa500' }}>⏳</span>
+          )}
+          {prog.appStatus === 'rejected' && (
+            <span style={{ color: '#ff4444' }}>❌</span>
+          )}
           {!prog.appStatus && (
             <button
               onClick={() => onApply(prog.id)}
               className="hover-scale"
-              style={{ background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '4px', padding: '6px 8px', color: '#fff', cursor: 'pointer', fontSize: '18px' }}
+              style={{
+                background: 'rgba(255,255,255,0.1)',
+                border: 'none',
+                borderRadius: '4px',
+                padding: '6px 8px',
+                color: '#fff',
+                cursor: 'pointer',
+                fontSize: '18px',
+              }}
             >
               📩
             </button>
           )}
+          {/* Убраны дублирующие эмодзи */}
         </div>
       ))}
     </div>
@@ -1034,44 +1287,74 @@ function LessonModal({ isOpen, onClose, title, textClosed, textOpen, textComplet
   const [modalVisible, setModalVisible] = useState(false);
   const closeTimeoutRef = useRef<number | null>(null);
 
+  // Синхронизация с isOpen
   useEffect(() => {
     if (isOpen) {
-      if (closeTimeoutRef.current) clearTimeout(closeTimeoutRef.current);
+      // Открываем
+      if (closeTimeoutRef.current) {
+        clearTimeout(closeTimeoutRef.current);
+        closeTimeoutRef.current = null;
+      }
       setModalOpen(true);
-      requestAnimationFrame(() => setTimeout(() => setModalVisible(true), 10));
+      // Запускаем анимацию появления с небольшой задержкой
+      requestAnimationFrame(() => {
+        setTimeout(() => {
+          setModalVisible(true);
+        }, 10);
+      });
     } else {
+      // Закрываем
       if (modalOpen) {
         setModalVisible(false);
-        if (closeTimeoutRef.current) clearTimeout(closeTimeoutRef.current);
-        closeTimeoutRef.current = window.setTimeout(() => { setModalOpen(false); onClose(); closeTimeoutRef.current = null; }, 300);
+        if (closeTimeoutRef.current) {
+          clearTimeout(closeTimeoutRef.current);
+          closeTimeoutRef.current = null;
+        }
+        closeTimeoutRef.current = window.setTimeout(() => {
+          setModalOpen(false);
+          onClose();
+          closeTimeoutRef.current = null;
+        }, 300);
       }
     }
-    return () => { if (closeTimeoutRef.current) clearTimeout(closeTimeoutRef.current); };
+    return () => {
+      if (closeTimeoutRef.current) {
+        clearTimeout(closeTimeoutRef.current);
+        closeTimeoutRef.current = null;
+      }
+    };
   }, [isOpen, onClose, modalOpen]);
 
   if (!modalOpen) return null;
+
   const hasContent = textClosed || textOpen || textCompleted;
 
   return (
     <div
-      className={`modal-overlay ${modalVisible ? 'modal-overlay-visible' : ''}`}
+      className="modal-overlay"
       style={{
         position: 'fixed',
         top: 0,
         left: 0,
         width: '100vw',
         height: '100vh',
-        backgroundColor: 'rgba(0,0,0,0)',
+        backgroundColor: 'rgba(0,0,0,0.6)',
         display: 'flex',
         justifyContent: 'center',
         alignItems: 'center',
         zIndex: 999,
         cursor: 'pointer',
+        opacity: modalVisible ? 1 : 0,
+        transition: 'opacity 0.25s ease',
       }}
-      onClick={() => { if (modalVisible) onClose(); }}
+      onClick={() => {
+        if (modalVisible) {
+          onClose();
+        }
+      }}
     >
       <div
-        className={`modal-content ${modalVisible ? 'modal-content-visible' : ''}`}
+        className="modal-content"
         style={{
           backgroundColor: '#2a2a4e',
           padding: '30px',
@@ -1082,22 +1365,50 @@ function LessonModal({ isOpen, onClose, title, textClosed, textOpen, textComplet
           cursor: 'default',
           color: '#fff',
           boxShadow: '0 8px 32px rgba(0,0,0,0.7)',
+          transform: modalVisible ? 'scale(1)' : 'scale(0.95)',
+          transition: 'transform 0.25s ease, opacity 0.25s ease',
+          opacity: modalVisible ? 1 : 0,
         }}
         onClick={(e) => e.stopPropagation()}
       >
         <h2 style={{ marginBottom: '16px', borderBottom: '1px solid #555', paddingBottom: '8px' }}>{title}</h2>
-        {locked && prereqNames.length > 0 && <div style={{ marginBottom: '12px', color: '#ffa500' }}><strong>🔗 Условие:</strong> требуется пройти {prereqNames.join(', ')}</div>}
+        {locked && prereqNames.length > 0 && (
+          <div style={{ marginBottom: '12px', color: '#ffa500' }}>
+            <strong>🔗 Условие:</strong> требуется пройти {prereqNames.join(', ')}
+          </div>
+        )}
         <div style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', lineHeight: '1.6' }}>
           {hasContent ? (
             <>
-              {textClosed && <div style={{ marginBottom: '12px' }}><strong>📖 Описание:</strong><div>{textClosed}</div></div>}
-              {!locked && textOpen && <div style={{ marginBottom: '12px' }}><strong>📝 Задания:</strong><div>{textOpen}</div></div>}
-              {(completed || isPreview) && textCompleted && <div style={{ marginBottom: '12px' }}><strong>📚 Материалы:</strong><div>{textCompleted}</div></div>}
+              {textClosed && (
+                <div style={{ marginBottom: '12px' }}>
+                  <strong>📖 Описание:</strong>
+                  <div>{textClosed}</div>
+                </div>
+              )}
+              {!locked && textOpen && (
+                <div style={{ marginBottom: '12px' }}>
+                  <strong>📝 Задания:</strong>
+                  <div>{textOpen}</div>
+                </div>
+              )}
+              {(completed || isPreview) && textCompleted && (
+                <div style={{ marginBottom: '12px' }}>
+                  <strong>📚 Материалы:</strong>
+                  <div>{textCompleted}</div>
+                </div>
+              )}
             </>
-          ) : <div style={{ color: '#aaa' }}>Нет содержимого</div>}
+          ) : (
+            <div style={{ color: '#aaa' }}>Нет содержимого</div>
+          )}
         </div>
         <button
-          onClick={() => { if (modalVisible) onClose(); }}
+          onClick={() => {
+            if (modalVisible) {
+              onClose();
+            }
+          }}
           className="hover-scale"
           style={{ marginTop: '20px', padding: '8px 20px', backgroundColor: '#4CAF50', border: 'none', borderRadius: '6px', color: '#fff', cursor: 'pointer' }}
         >
@@ -1108,23 +1419,131 @@ function LessonModal({ isOpen, onClose, title, textClosed, textOpen, textComplet
   );
 }
 
-// ========== ОСНОВНОЙ КОМПОНЕНТ APP ==========
+// ========== КОМПОНЕНТ ДЛЯ УЧЕНИКА (без хуков внутри условного рендера) ==========
+function StudentTreeViewContainer({
+  structure,
+  progress,
+  onLessonClick,
+  onBack,
+  programName,
+}: {
+  structure: any;
+  progress: Record<string, boolean>;
+  onLessonClick: (name: string, textClosed: string, textOpen: string, textCompleted: string, locked: boolean, completed: boolean, isPreview: boolean, prereqNames: string[]) => void;
+  onBack: () => void;
+  programName: string;
+}) {
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setVisible(true), 10);
+    return () => clearTimeout(timer);
+  }, []);
+
+  return (
+    <div className={`fade-slide ${visible ? 'fade-slide-visible' : ''}`} style={{ width: '100vw', height: '100vh', backgroundColor: '#1a1a2e' }}>
+      <div style={{ position: 'absolute', top: 10, left: 10, right: 10, zIndex: 10, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '0 10px' }}>
+        <button
+          onClick={onBack}
+          className="hover-scale"
+          style={{
+            background: 'transparent',
+            border: 'none',
+            color: 'rgba(255,255,255,0.3)',
+            fontSize: '28px',
+            cursor: 'pointer',
+            padding: '4px 8px',
+            position: 'absolute',
+            left: 0,
+          }}
+        >
+          ←
+        </button>
+        <span style={{ color: '#fff', fontWeight: 'bold', fontSize: '18px' }}>{programName}</span>
+      </div>
+      <SkillTreeView
+        structure={structure}
+        progress={progress}
+        onLessonClick={onLessonClick}
+      />
+    </div>
+  );
+}
+
+// ========== КОМПОНЕНТ ДЛЯ РЕДАКТИРОВАНИЯ ПРОГРЕССА УЧЕНИКА (для учителя) ==========
+function AdminStudentProgressEditor({
+  structure,
+  progress,
+  studentName,
+  onBack,
+  onToggleLesson,
+  onLessonClick,
+}: {
+  structure: any;
+  progress: Record<string, boolean>;
+  studentName: string | null;
+  onBack: () => void;
+  onToggleLesson: (lessonId: string) => void;
+  onLessonClick: (name: string, textClosed: string, textOpen: string, textCompleted: string, locked: boolean, completed: boolean, isPreview: boolean, prereqNames: string[]) => void;
+}) {
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setVisible(true), 10);
+    return () => clearTimeout(timer);
+  }, []);
+
+  return (
+    <div className={`fade-slide ${visible ? 'fade-slide-visible' : ''}`} style={{ width: '100vw', height: '100vh', backgroundColor: '#1a1a2e' }}>
+      <div style={{ position: 'absolute', top: 10, left: 10, right: 10, zIndex: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0 10px' }}>
+        <button
+          onClick={onBack}
+          className="hover-scale"
+          style={{
+            background: 'transparent',
+            border: 'none',
+            color: 'rgba(255,255,255,0.3)',
+            fontSize: '28px',
+            cursor: 'pointer',
+            padding: '4px 8px',
+          }}
+        >
+          ←
+        </button>
+        <span style={{ color: '#fff', fontWeight: 'bold', fontSize: '18px' }}>{studentName || '...'}</span>
+      </div>
+      <SkillTreeView
+        structure={structure}
+        progress={progress}
+        onToggleLesson={onToggleLesson}
+        onLessonClick={onLessonClick}
+      />
+    </div>
+  );
+}
+
+// ========== ОСНОВНОЙ КОМПОНЕНТ ==========
 function App() {
   const [userId, setUserId] = useState('guest');
   const [isAdmin, setIsAdmin] = useState(false);
+
   const [programs, setPrograms] = useState<any[]>([]);
   const [currentProgramId, setCurrentProgramId] = useState<string | null>(null);
   const [view, setView] = useState<'programs' | 'create' | 'tree' | 'admin'>('programs');
+
   const [progress, setProgress] = useState<Record<string, boolean>>({});
   const [structure, setStructure] = useState<any>(null);
+
   const [applications, setApplications] = useState<any[]>([]);
   const [acceptedStudents, setAcceptedStudents] = useState<any[]>([]);
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
   const [selectedStudentName, setSelectedStudentName] = useState<string | null>(null);
+
   const [editingProgramId, setEditingProgramId] = useState<string | null>(null);
   const [editingStructure, setEditingStructure] = useState<any>(null);
   const [editingProgramName, setEditingProgramName] = useState('');
   const [editingProgramVisible, setEditingProgramVisible] = useState(true);
+
   const [lessonModalOpen, setLessonModalOpen] = useState(false);
   const [lessonModalTitle, setLessonModalTitle] = useState('');
   const [lessonModalTextClosed, setLessonModalTextClosed] = useState('');
@@ -1134,59 +1553,24 @@ function App() {
   const [lessonModalCompleted, setLessonModalCompleted] = useState(false);
   const [lessonModalIsPreview, setLessonModalIsPreview] = useState(false);
   const [lessonModalPrereqNames, setLessonModalPrereqNames] = useState<string[]>([]);
-  const [refreshKey, setRefreshKey] = useState(0);
 
-  // === Флаги видимости для анимаций ===
-  const [editorVisible, setEditorVisible] = useState(false);
-  const [adminViewVisible, setAdminViewVisible] = useState(false);
-  const [studentViewVisible, setStudentViewVisible] = useState(false);
-  const [studentEditorVisible, setStudentEditorVisible] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0); // <-- добавлено
 
-  // === useEffect для управления анимациями ===
-  useEffect(() => {
-    if (view === 'create') {
-      const timer = setTimeout(() => setEditorVisible(true), 10);
-      return () => clearTimeout(timer);
-    } else {
-      setEditorVisible(false);
-    }
-  }, [view]);
-
-  useEffect(() => {
-    if (view === 'admin') {
-      const timer = setTimeout(() => setAdminViewVisible(true), 10);
-      return () => clearTimeout(timer);
-    } else {
-      setAdminViewVisible(false);
-    }
-  }, [view]);
-
-  useEffect(() => {
-    if (view === 'tree') {
-      const timer = setTimeout(() => setStudentViewVisible(true), 10);
-      return () => clearTimeout(timer);
-    } else {
-      setStudentViewVisible(false);
-    }
-  }, [view]);
-
-  useEffect(() => {
-    if (selectedStudentId) {
-      const timer = setTimeout(() => setStudentEditorVisible(true), 10);
-      return () => clearTimeout(timer);
-    } else {
-      setStudentEditorVisible(false);
-    }
-  }, [selectedStudentId]);
-
-  // === Инициализация пользователя ===
   useEffect(() => {
     const init = async () => {
       const { id, firstName, lastName, username } = extractUserInfoFromHash();
       if (id) {
         setUserId(id);
-        setIsAdmin(ADMIN_IDS.includes(Number(id)));
-        await supabase.from('users').upsert({ telegram_id: Number(id), first_name: firstName || '', last_name: lastName || '', username: username || '' }, { onConflict: 'telegram_id' });
+        const admin = ADMIN_IDS.includes(Number(id));
+        setIsAdmin(admin);
+        await supabase
+          .from('users')
+          .upsert({
+            telegram_id: Number(id),
+            first_name: firstName || '',
+            last_name: lastName || '',
+            username: username || '',
+          }, { onConflict: 'telegram_id' });
       } else {
         const tg = (window as any).Telegram?.WebApp;
         if (tg) {
@@ -1195,8 +1579,16 @@ function App() {
           if (user?.id) {
             const id = user.id.toString();
             setUserId(id);
-            setIsAdmin(ADMIN_IDS.includes(Number(id)));
-            await supabase.from('users').upsert({ telegram_id: Number(id), first_name: user.first_name || '', last_name: user.last_name || '', username: user.username || '' }, { onConflict: 'telegram_id' });
+            const admin = ADMIN_IDS.includes(Number(id));
+            setIsAdmin(admin);
+            await supabase
+              .from('users')
+              .upsert({
+                telegram_id: Number(id),
+                first_name: user.first_name || '',
+                last_name: user.last_name || '',
+                username: user.username || '',
+              }, { onConflict: 'telegram_id' });
           }
         }
       }
@@ -1209,17 +1601,15 @@ function App() {
     loadPrograms();
   }, [userId, isAdmin]);
 
-  useEffect(() => {
-    if (userId === 'guest' || isAdmin) return;
-    loadPrograms();
-  }, [refreshKey]);
-
   const loadPrograms = async () => {
     if (isAdmin) {
       const progs = await getAllPrograms();
       const creatorIds = progs.map(p => p.created_by).filter(id => id);
       const nameMap = await getUsersByIds(creatorIds);
-      const progsWithNames = progs.map(p => ({ ...p, creator_name: nameMap[p.created_by] || p.created_by?.toString() || 'Неизвестный' }));
+      const progsWithNames = progs.map(p => ({
+        ...p,
+        creator_name: nameMap[p.created_by] || p.created_by?.toString() || 'Неизвестный',
+      }));
       const sorted = progsWithNames.sort((a, b) => {
         const aIsMine = a.created_by === Number(userId);
         const bIsMine = b.created_by === Number(userId);
@@ -1286,7 +1676,11 @@ function App() {
 
   const handleSaveProgram = async (name: string, structure: any) => {
     if (editingProgramId) {
-      const success = await updateProgram(editingProgramId, { name, structure, visible: editingProgramVisible });
+      const success = await updateProgram(editingProgramId, {
+        name,
+        structure,
+        visible: editingProgramVisible,
+      });
       if (success) {
         alert('Программа обновлена!');
         setEditingProgramId(null);
@@ -1312,8 +1706,11 @@ function App() {
     const action = newState ? 'открыть' : 'скрыть';
     if (!confirm(`Вы уверены, что хотите ${action} программу для учеников?`)) return;
     const success = await toggleProgramVisibility(programId, currentVisible);
-    if (success) loadPrograms();
-    else alert('Ошибка переключения видимости');
+    if (success) {
+      loadPrograms();
+    } else {
+      alert('Ошибка переключения видимости');
+    }
   };
 
   const handleCreateNewProgram = () => {
@@ -1325,13 +1722,10 @@ function App() {
   };
 
   const handleCancelEditor = () => {
-    setEditorVisible(false);
-    setTimeout(() => {
-      setEditingProgramId(null);
-      setEditingStructure(null);
-      setEditingProgramName('');
-      setView('programs');
-    }, 200);
+    setEditingProgramId(null);
+    setEditingStructure(null);
+    setEditingProgramName('');
+    setView('programs');
   };
 
   const handleDeleteProgram = async (programId: string, programName: string) => {
@@ -1351,7 +1745,6 @@ function App() {
     setApplications(apps);
     const accepted = await getAcceptedStudents(currentProgramId!);
     setAcceptedStudents(accepted);
-    setRefreshKey(prev => prev + 1);
   };
 
   const handleRejectApplication = async (appId: string) => {
@@ -1365,6 +1758,7 @@ function App() {
     if (success) {
       alert('Заявка отправлена!');
       setRefreshKey(prev => prev + 1);
+      // Не вызываем loadPrograms(), чтобы не сбить список принятых программ
     } else {
       alert('Ошибка отправки заявки');
     }
@@ -1375,27 +1769,23 @@ function App() {
       alert('Структура программы не загружена. Попробуйте позже.');
       return;
     }
-    setStudentEditorVisible(false);
-    setTimeout(async () => {
-      setSelectedStudentId(studentId);
-      const prog = await loadProgressForProgram(studentId, currentProgramId!);
-      setProgress(prog);
-      const student = acceptedStudents.find(s => s.id === studentId);
-      setSelectedStudentName(student ? student.name : null);
-    }, 200);
+    setSelectedStudentId(studentId);
+    const prog = await loadProgressForProgram(studentId, currentProgramId!);
+    setProgress(prog);
+    const student = acceptedStudents.find(s => s.id === studentId);
+    setSelectedStudentName(student ? student.name : null);
   };
 
   const backToAdmin = () => {
-    setStudentEditorVisible(false);
-    setTimeout(() => {
-      setSelectedStudentId(null);
-      setSelectedStudentName(null);
-      loadProgressForProgram(userId, currentProgramId!).then(p => setProgress(p));
-    }, 200);
+    setSelectedStudentId(null);
+    setSelectedStudentName(null);
+    loadProgressForProgram(userId, currentProgramId!).then(p => setProgress(p));
   };
 
   const toggleLessonForStudent = async (lessonId: string) => {
-    if (!selectedStudentId || !currentProgramId || !structure) return;
+    if (!selectedStudentId || !currentProgramId) return;
+    if (!structure) return;
+
     const prerequisitesMap = collectLessonsWithPrerequisites(structure);
     const prereqs = prerequisitesMap[lessonId] || [];
     const isLocked = prereqs.some((id: string) => !progress[id]);
@@ -1403,9 +1793,11 @@ function App() {
       alert('Этот урок ещё не открыт. Пройдите предыдущие уроки.');
       return;
     }
+
     let newProgress = { ...progress };
     newProgress[lessonId] = !progress[lessonId];
     newProgress = recalculateProgress(structure, newProgress);
+
     setProgress(newProgress);
     await saveProgressForProgram(selectedStudentId, currentProgramId, newProgress);
   };
@@ -1452,20 +1844,39 @@ function App() {
     setLessonModalOpen(true);
   };
 
-  const closeLessonModal = () => setLessonModalOpen(false);
+  const closeLessonModal = () => {
+    setLessonModalOpen(false);
+  };
 
   useEffect(() => {
     if (!userId || userId === 'guest' || !currentProgramId) return;
+
     const channel = supabase
       .channel(`progress-${userId}-${currentProgramId}`)
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'progress', filter: `user_id=eq.${userId},program_id=eq.${currentProgramId}` }, (payload) => {
-        const { lesson_id, completed } = payload.new;
-        setProgress(prev => ({ ...prev, [lesson_id]: completed }));
-      })
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'progress',
+          filter: `user_id=eq.${userId},program_id=eq.${currentProgramId}`,
+        },
+        (payload) => {
+          const { lesson_id, completed } = payload.new;
+          setProgress(prev => ({
+            ...prev,
+            [lesson_id]: completed,
+          }));
+        }
+      )
       .subscribe();
-    return () => { supabase.removeChannel(channel); };
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [userId, currentProgramId]);
 
+  // Защита от серого экрана (для ученика)
   useEffect(() => {
     if (currentProgramId && view === 'tree') {
       const prog = programs.find(p => p.id === currentProgramId);
@@ -1491,7 +1902,6 @@ function App() {
           initialName={editingProgramName}
           onSave={handleSaveProgram}
           onCancel={handleCancelEditor}
-          visible={editorVisible}
         />
       </div>
     );
@@ -1501,63 +1911,64 @@ function App() {
     const currentProgram = programs.find(p => p.id === currentProgramId);
     const isCreator = currentProgram?.created_by === Number(userId);
 
-    const pendingApps = applications.filter(a => a.status === 'pending').map(app => ({ ...app, _type: 'pending', _name: app.student_name || app.student_id.toString() }));
-    const acceptedList = acceptedStudents.map(s => ({ id: s.id, student_id: Number(s.id), student_name: s.name, _type: 'accepted', _name: s.name || s.id }));
+    const pendingApps = applications.filter(a => a.status === 'pending').map(app => ({
+      ...app,
+      _type: 'pending',
+      _name: app.student_name || app.student_id.toString(),
+    }));
+    const acceptedList = acceptedStudents.map(s => ({
+      id: s.id,
+      student_id: Number(s.id),
+      student_name: s.name,
+      _type: 'accepted',
+      _name: s.name || s.id,
+    }));
     const combinedList = [...pendingApps, ...acceptedList];
 
     if (selectedStudentId) {
-      if (!structure) {
-        return <div style={{ color: '#fff', padding: '20px', backgroundColor: '#1a1a2e', minHeight: '100vh' }}>Загрузка структуры...</div>;
-      }
-      return (
-        <div className={`fade-slide ${studentEditorVisible ? 'fade-slide-visible' : ''}`} style={{ width: '100vw', height: '100vh', backgroundColor: '#1a1a2e' }}>
-          <div style={{ position: 'absolute', top: 10, left: 10, right: 10, zIndex: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0 10px' }}>
-            <button
-              onClick={backToAdmin}
-              className="hover-scale"
-              style={{ background: 'transparent', border: 'none', color: 'rgba(255,255,255,0.3)', fontSize: '28px', cursor: 'pointer', padding: '4px 8px' }}
-            >
-              ←
-            </button>
-            <span style={{ color: '#fff', fontWeight: 'bold', fontSize: '18px' }}>{selectedStudentName || '...'}</span>
-          </div>
-          {isCreator ? (
-            <SkillTreeView structure={structure} progress={progress} onToggleLesson={toggleLessonForStudent} onLessonClick={handleLessonClick} />
-          ) : (
-            <div style={{ color: '#fff', padding: '20px', textAlign: 'center' }}>
-              <h3>Только для просмотра</h3>
-              <SkillTreeView structure={structure} progress={progress} onLessonClick={handleLessonClick} />
-            </div>
-          )}
-          <LessonModal
-            isOpen={lessonModalOpen}
-            onClose={closeLessonModal}
-            title={lessonModalTitle}
-            textClosed={lessonModalTextClosed}
-            textOpen={lessonModalTextOpen}
-            textCompleted={lessonModalTextCompleted}
-            locked={lessonModalLocked}
-            completed={lessonModalCompleted}
-            isPreview={lessonModalIsPreview}
-            prereqNames={lessonModalPrereqNames}
-          />
-        </div>
-      );
-    }
+  if (!structure) {
+    return <div style={{ color: '#fff', padding: '20px', backgroundColor: '#1a1a2e', minHeight: '100vh' }}>Загрузка структуры...</div>;
+  }
+  return (
+    <>
+      <AdminStudentProgressEditor
+        structure={structure}
+        progress={progress}
+        studentName={selectedStudentName}
+        onBack={backToAdmin}
+        onToggleLesson={toggleLessonForStudent}
+        onLessonClick={handleLessonClick}
+      />
+      <LessonModal
+        isOpen={lessonModalOpen}
+        onClose={closeLessonModal}
+        title={lessonModalTitle}
+        textClosed={lessonModalTextClosed}
+        textOpen={lessonModalTextOpen}
+        textCompleted={lessonModalTextCompleted}
+        locked={lessonModalLocked}
+        completed={lessonModalCompleted}
+        isPreview={lessonModalIsPreview}
+        prereqNames={lessonModalPrereqNames}
+      />
+    </>
+  );
+}
 
     return (
-      <div className={`fade-slide ${adminViewVisible ? 'fade-slide-visible' : ''}`} style={{ padding: '20px', color: '#fff', backgroundColor: '#1a1a2e', minHeight: '100vh' }}>
+      <div style={{ padding: '20px', color: '#fff', backgroundColor: '#1a1a2e', minHeight: '100vh' }}>
         <div style={{ display: 'flex', alignItems: 'center', marginBottom: '16px' }}>
           <button
-            onClick={() => {
-              setAdminViewVisible(false);
-              setTimeout(() => {
-                setView('programs');
-                setCurrentProgramId(null);
-              }, 200);
-            }}
+            onClick={() => { setView('programs'); setCurrentProgramId(null); }}
             className="hover-scale"
-            style={{ background: 'transparent', border: 'none', color: 'rgba(255,255,255,0.3)', fontSize: '28px', cursor: 'pointer', padding: '4px 8px' }}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              color: 'rgba(255,255,255,0.3)',
+              fontSize: '28px',
+              cursor: 'pointer',
+              padding: '4px 8px',
+            }}
           >
             ←
           </button>
@@ -1566,7 +1977,12 @@ function App() {
         <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap' }}>
           <div style={{ flex: 1, minWidth: '300px' }}>
             <div style={{ height: '400px', overflow: 'auto', border: '1px solid #555', borderRadius: '8px', padding: '10px' }}>
-              <SkillTreeView structure={structure} progress={progress} onLessonClick={handleLessonClick} isPreview={true} />
+              <SkillTreeView
+                structure={structure}
+                progress={progress}
+                onLessonClick={handleLessonClick}
+                isPreview={true}
+              />
               <LessonModal
                 isOpen={lessonModalOpen}
                 onClose={closeLessonModal}
@@ -1592,7 +2008,16 @@ function App() {
                   <div
                     key={isPending ? item.id : item.id}
                     className="card-hover"
-                    style={{ marginBottom: '10px', backgroundColor: '#333', padding: '10px', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: isPending ? 'default' : (isCreator ? 'pointer' : 'default') }}
+                    style={{
+                      marginBottom: '10px',
+                      backgroundColor: '#333',
+                      padding: '10px',
+                      borderRadius: '8px',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      cursor: isPending ? 'default' : (isCreator ? 'pointer' : 'default'),
+                    }}
                     onMouseEnter={(e) => { if (!isPending && isCreator) e.currentTarget.style.backgroundColor = '#444'; }}
                     onMouseLeave={(e) => { if (!isPending && isCreator) e.currentTarget.style.backgroundColor = '#333'; }}
                     onClick={() => { if (!isPending && isCreator) handleSelectStudent(item.student_id.toString()); }}
@@ -1604,14 +2029,30 @@ function App() {
                           <button
                             onClick={(e) => { e.stopPropagation(); handleAcceptApplication(item.id); }}
                             className="hover-scale"
-                            style={{ background: 'rgba(76, 175, 80, 0.2)', border: 'none', borderRadius: '4px', padding: '4px 6px', color: '#4CAF50', cursor: 'pointer', fontSize: '18px' }}
+                            style={{
+                              background: 'rgba(76, 175, 80, 0.2)',
+                              border: 'none',
+                              borderRadius: '4px',
+                              padding: '4px 6px',
+                              color: '#4CAF50',
+                              cursor: 'pointer',
+                              fontSize: '18px',
+                            }}
                           >
                             ✅
                           </button>
                           <button
                             onClick={(e) => { e.stopPropagation(); handleRejectApplication(item.id); }}
                             className="hover-scale"
-                            style={{ background: 'rgba(244, 67, 54, 0.2)', border: 'none', borderRadius: '4px', padding: '4px 6px', color: '#f44336', cursor: 'pointer', fontSize: '18px' }}
+                            style={{
+                              background: 'rgba(244, 67, 54, 0.2)',
+                              border: 'none',
+                              borderRadius: '4px',
+                              padding: '4px 6px',
+                              color: '#f44336',
+                              cursor: 'pointer',
+                              fontSize: '18px',
+                            }}
                           >
                             ❌
                           </button>
@@ -1621,7 +2062,15 @@ function App() {
                         <button
                           onClick={(e) => { e.stopPropagation(); handleDeleteStudent(item.student_id.toString(), studentName); }}
                           className="hover-scale"
-                          style={{ background: 'rgba(255,0,0,0.1)', border: 'none', borderRadius: '4px', padding: '4px 6px', color: '#f44336', fontSize: '1.2rem', cursor: 'pointer' }}
+                          style={{
+                            background: 'rgba(255,0,0,0.1)',
+                            border: 'none',
+                            borderRadius: '4px',
+                            padding: '4px 6px',
+                            color: '#f44336',
+                            fontSize: '1.2rem',
+                            cursor: 'pointer',
+                          }}
                         >
                           🗑️
                         </button>
@@ -1637,46 +2086,35 @@ function App() {
     );
   }
 
-  // ===== УЧЕНИЧЕСКИЙ ЭКРАН =====
   if (!isAdmin && view === 'tree' && currentProgramId) {
-    const progName = programs.find(p => p.id === currentProgramId)?.name || '';
-    if (!structure) {
-      return <div style={{ color: '#fff', padding: '20px', backgroundColor: '#1a1a2e', minHeight: '100vh' }}>Загрузка...</div>;
-    }
-    return (
-      <div className={`fade-slide ${studentViewVisible ? 'fade-slide-visible' : ''}`} style={{ width: '100vw', height: '100vh', backgroundColor: '#1a1a2e' }}>
-        <div style={{ position: 'absolute', top: 10, left: 10, right: 10, zIndex: 10, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '0 10px' }}>
-          <button
-            onClick={() => {
-              setStudentViewVisible(false);
-              setTimeout(() => {
-                setView('programs');
-                setCurrentProgramId(null);
-              }, 200);
-            }}
-            className="hover-scale"
-            style={{ background: 'transparent', border: 'none', color: 'rgba(255,255,255,0.3)', fontSize: '28px', cursor: 'pointer', padding: '4px 8px', position: 'absolute', left: 0 }}
-          >
-            ←
-          </button>
-          <span style={{ color: '#fff', fontWeight: 'bold', fontSize: '18px' }}>{progName}</span>
-        </div>
-        {studentViewVisible && <SkillTreeView structure={structure} progress={progress} onLessonClick={handleLessonClick} />}
-        <LessonModal
-          isOpen={lessonModalOpen}
-          onClose={closeLessonModal}
-          title={lessonModalTitle}
-          textClosed={lessonModalTextClosed}
-          textOpen={lessonModalTextOpen}
-          textCompleted={lessonModalTextCompleted}
-          locked={lessonModalLocked}
-          completed={lessonModalCompleted}
-          isPreview={lessonModalIsPreview}
-          prereqNames={lessonModalPrereqNames}
-        />
-      </div>
-    );
+  if (!structure) {
+    return <div style={{ color: '#fff', padding: '20px', backgroundColor: '#1a1a2e', minHeight: '100vh' }}>Загрузка...</div>;
   }
+  const progName = programs.find(p => p.id === currentProgramId)?.name || '';
+  return (
+    <>
+      <StudentTreeViewContainer
+        structure={structure}
+        progress={progress}
+        onLessonClick={handleLessonClick}
+        onBack={() => { setView('programs'); setCurrentProgramId(null); }}
+        programName={progName}
+      />
+      <LessonModal
+        isOpen={lessonModalOpen}
+        onClose={closeLessonModal}
+        title={lessonModalTitle}
+        textClosed={lessonModalTextClosed}
+        textOpen={lessonModalTextOpen}
+        textCompleted={lessonModalTextCompleted}
+        locked={lessonModalLocked}
+        completed={lessonModalCompleted}
+        isPreview={lessonModalIsPreview}
+        prereqNames={lessonModalPrereqNames}
+      />
+    </>
+  );
+}
 
   if (view === 'programs') {
     if (isAdmin) {
@@ -1687,7 +2125,15 @@ function App() {
             <button
               onClick={handleCreateNewProgram}
               className="hover-scale"
-              style={{ background: 'transparent', border: 'none', color: 'rgba(255,255,255,0.3)', fontSize: '34px', cursor: 'pointer', padding: '0 12px', lineHeight: 1 }}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: 'rgba(255,255,255,0.3)',
+                fontSize: '34px',
+                cursor: 'pointer',
+                padding: '0 12px',
+                lineHeight: 1,
+              }}
             >
               +
             </button>
@@ -1700,31 +2146,67 @@ function App() {
                 <div
                   key={prog.id}
                   className="card-hover"
-                  style={{ margin: '10px 0', backgroundColor: '#333', padding: '15px', borderRadius: '8px', display: 'flex', flexDirection: 'column', cursor: 'pointer' }}
+                  style={{
+                    margin: '10px 0',
+                    backgroundColor: '#333',
+                    padding: '15px',
+                    borderRadius: '8px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    cursor: 'pointer',
+                  }}
                   onClick={() => selectProgram(prog.id)}
                 >
-                  <div style={{ fontSize: '0.75rem', color: '#aaa', marginBottom: '2px' }}>{prog.creator_name || 'Неизвестный создатель'}</div>
-                  <div style={{ fontWeight: 'bold', fontSize: '1.1rem' }}>{prog.name}</div>
+                  <div style={{ fontSize: '0.75rem', color: '#aaa', marginBottom: '2px' }}>
+                    {prog.creator_name || 'Неизвестный создатель'}
+                  </div>
+                  <div style={{ fontWeight: 'bold', fontSize: '1.1rem' }}>
+                    {prog.name}
+                  </div>
                   {isCreator && (
                     <div style={{ display: 'flex', gap: '6px', marginTop: '6px', justifyContent: 'flex-end' }}>
                       <button
                         onClick={(e) => { e.stopPropagation(); handleToggleVisibility(prog.id, prog.visible); }}
                         className="hover-scale"
-                        style={{ background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '4px', padding: '4px 6px', color: prog.visible ? '#4CAF50' : '#f44336', cursor: 'pointer', fontSize: '1.2rem' }}
+                        style={{
+                          background: 'rgba(255,255,255,0.1)',
+                          border: 'none',
+                          borderRadius: '4px',
+                          padding: '4px 6px',
+                          color: prog.visible ? '#4CAF50' : '#f44336',
+                          cursor: 'pointer',
+                          fontSize: '1.2rem',
+                        }}
                       >
                         {prog.visible ? '👁️' : '🚫'}
                       </button>
                       <button
                         onClick={(e) => { e.stopPropagation(); startEditingProgram(prog.id); }}
                         className="hover-scale"
-                        style={{ background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '4px', padding: '4px 6px', color: '#4CAF50', cursor: 'pointer', fontSize: '1.2rem' }}
+                        style={{
+                          background: 'rgba(255,255,255,0.1)',
+                          border: 'none',
+                          borderRadius: '4px',
+                          padding: '4px 6px',
+                          color: '#4CAF50',
+                          cursor: 'pointer',
+                          fontSize: '1.2rem',
+                        }}
                       >
                         ✏️
                       </button>
                       <button
                         onClick={(e) => { e.stopPropagation(); handleDeleteProgram(prog.id, prog.name); }}
                         className="hover-scale"
-                        style={{ background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '4px', padding: '4px 6px', color: '#f44336', cursor: 'pointer', fontSize: '1.2rem' }}
+                        style={{
+                          background: 'rgba(255,255,255,0.1)',
+                          border: 'none',
+                          borderRadius: '4px',
+                          padding: '4px 6px',
+                          color: '#f44336',
+                          cursor: 'pointer',
+                          fontSize: '1.2rem',
+                        }}
                       >
                         🗑️
                       </button>
@@ -1746,16 +2228,28 @@ function App() {
               <div
                 key={prog.id}
                 className="card-hover"
-                style={{ margin: '10px 0', backgroundColor: '#333', padding: '15px', borderRadius: '8px', cursor: 'pointer' }}
+                style={{
+                  margin: '10px 0',
+                  backgroundColor: '#333',
+                  padding: '15px',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                }}
                 onClick={() => selectProgram(prog.id)}
               >
                 <span>{prog.name}</span>
               </div>
             ))}
           </div>
+
           <hr style={{ margin: '30px 0' }} />
           <h3>Доступные программы</h3>
-          <StudentProgramList userId={userId} onApply={handleApply} existingProgramIds={programs.map(p => p.id)} refreshKey={refreshKey} />
+          <StudentProgramList
+            userId={userId}
+            onApply={handleApply}
+            existingProgramIds={programs.map(p => p.id)}
+            refreshKey={refreshKey}
+          />
         </div>
       );
     }
@@ -1764,37 +2258,4 @@ function App() {
   return <div style={{ color: '#fff', padding: '20px', backgroundColor: '#1a1a2e', minHeight: '100vh' }}>Неизвестный экран</div>;
 }
 
-// ========== ERROR BOUNDARY ==========
-class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean; error: Error | null }> {
-  constructor(props: any) {
-    super(props);
-    this.state = { hasError: false, error: null };
-  }
-  static getDerivedStateFromError(error: any) {
-    return { hasError: true, error };
-  }
-  componentDidCatch(error: any, errorInfo: any) {
-    console.error('ErrorBoundary поймал ошибку:', error, errorInfo);
-  }
-  render() {
-    if (this.state.hasError) {
-      return (
-        <div style={{ color: '#fff', padding: '20px', backgroundColor: '#1a1a2e', minHeight: '100vh', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>
-          <h2>Что-то пошло не так 😢</h2>
-          <p style={{ color: '#ff6b6b', maxWidth: '600px', textAlign: 'center', wordBreak: 'break-word' }}>Ошибка: {this.state.error?.toString() || 'Неизвестная ошибка'}</p>
-          <p>Попробуйте перезагрузить страницу или обратитесь к администратору.</p>
-          <button onClick={() => window.location.reload()} style={{ marginTop: '20px', padding: '10px 20px', background: '#4CAF50', border: 'none', borderRadius: '6px', color: '#fff', cursor: 'pointer' }}>Перезагрузить</button>
-        </div>
-      );
-    }
-    return this.props.children;
-  }
-}
-
-export default function AppWithErrorBoundary() {
-  return (
-    <ErrorBoundary>
-      <App />
-    </ErrorBoundary>
-  );
-}
+export default App;
