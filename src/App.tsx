@@ -1258,16 +1258,9 @@ function StudentProgramList({ userId, onApply, existingProgramIds, refreshKey }:
       {availablePrograms.map(prog => (
   <div key={prog.id} className="card-hover" style={{ margin: '10px 0', backgroundColor: '#333', padding: '15px', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
     <span>{prog.name}</span>
-    {prog.appStatus === 'pending' && <span style={{ color: '#ffa500' }}>⏳</span>}
-    {prog.appStatus === 'rejected' && (
-      <>
-        <span style={{ color: '#ff4444' }}>❌</span>
-        <button
-  onClick={() => onApply(prog.id)}
-  className="hover-scale"
-  style={{
+    {prog.appStatus === 'pending' && (
+  <span style={{
     background: 'rgba(255,255,255,0.1)',
-    border: 'none',
     borderRadius: '4px',
     padding: 0,
     width: '32px',
@@ -1275,15 +1268,50 @@ function StudentProgramList({ userId, onApply, existingProgramIds, refreshKey }:
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    color: '#fff',
-    cursor: 'pointer',
+    color: '#ffa500',
     fontSize: '18px',
-  }}
->
-  📩
-</button>
-      </>
-    )}
+  }}>
+    ⏳
+  </span>
+)}
+    {prog.appStatus === 'rejected' && (
+  <>
+    <span style={{
+      background: 'rgba(255,255,255,0.1)',
+      borderRadius: '4px',
+      padding: 0,
+      width: '32px',
+      height: '32px',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      color: '#ff4444',
+      fontSize: '18px',
+    }}>
+      ❌
+    </span>
+    <button
+      onClick={() => onApply(prog.id)}
+      className="hover-scale"
+      style={{
+        background: 'rgba(255,255,255,0.1)',
+        border: 'none',
+        borderRadius: '4px',
+        padding: 0,
+        width: '32px',
+        height: '32px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        color: '#fff',
+        cursor: 'pointer',
+        fontSize: '18px',
+      }}
+    >
+      📩
+    </button>
+  </>
+)}
     {!prog.appStatus && (
       <button
   onClick={() => onApply(prog.id)}
@@ -1325,39 +1353,31 @@ function LessonModal({ isOpen, onClose, title, textClosed, textOpen, textComplet
   isPreview: boolean;
   prereqNames: string[];
 }) {
-  const [modalOpen, setModalOpen] = useState(false);
-  const [modalVisible, setModalVisible] = useState(false);
+  const [visible, setVisible] = useState(false);
   const closeTimeoutRef = useRef<number | null>(null);
 
-  // Синхронизация с isOpen
   useEffect(() => {
     if (isOpen) {
-      // Открываем
       if (closeTimeoutRef.current) {
         clearTimeout(closeTimeoutRef.current);
         closeTimeoutRef.current = null;
       }
-      setModalOpen(true);
-      // Запускаем анимацию появления с небольшой задержкой
+      // Даём браузеру отрендерить элемент с opacity: 0
       requestAnimationFrame(() => {
         setTimeout(() => {
-          setModalVisible(true);
+          setVisible(true);
         }, 10);
       });
     } else {
-      // Закрываем
-      if (modalOpen) {
-        setModalVisible(false);
-        if (closeTimeoutRef.current) {
-          clearTimeout(closeTimeoutRef.current);
-          closeTimeoutRef.current = null;
-        }
-        closeTimeoutRef.current = window.setTimeout(() => {
-  setModalOpen(false);
-  onClose();
-  closeTimeoutRef.current = null;
-}, ANIMATION_DURATION_MS);
+      setVisible(false);
+      if (closeTimeoutRef.current) {
+        clearTimeout(closeTimeoutRef.current);
+        closeTimeoutRef.current = null;
       }
+      closeTimeoutRef.current = window.setTimeout(() => {
+        onClose();
+        closeTimeoutRef.current = null;
+      }, ANIMATION_DURATION_MS);
     }
     return () => {
       if (closeTimeoutRef.current) {
@@ -1365,15 +1385,15 @@ function LessonModal({ isOpen, onClose, title, textClosed, textOpen, textComplet
         closeTimeoutRef.current = null;
       }
     };
-  }, [isOpen, onClose, modalOpen]);
+  }, [isOpen, onClose]);
 
-  if (!modalOpen) return null;
+  if (!isOpen && !visible) return null;
 
   const hasContent = textClosed || textOpen || textCompleted;
 
   return (
     <div
-      className="modal-overlay"
+      className={`modal-overlay ${visible ? 'modal-overlay-visible' : ''}`}
       style={{
         position: 'fixed',
         top: 0,
@@ -1386,17 +1406,15 @@ function LessonModal({ isOpen, onClose, title, textClosed, textOpen, textComplet
         alignItems: 'center',
         zIndex: 999,
         cursor: 'pointer',
-        opacity: modalVisible ? 1 : 0,
-        transition: 'opacity 0.25s ease',
       }}
       onClick={() => {
-        if (modalVisible) {
+        if (visible) {
           onClose();
         }
       }}
     >
       <div
-        className="modal-content"
+        className={`modal-content ${visible ? 'modal-content-visible' : ''}`}
         style={{
           backgroundColor: '#2a2a4e',
           padding: '30px',
@@ -1407,9 +1425,6 @@ function LessonModal({ isOpen, onClose, title, textClosed, textOpen, textComplet
           cursor: 'default',
           color: '#fff',
           boxShadow: '0 8px 32px rgba(0,0,0,0.7)',
-          transform: modalVisible ? 'scale(1)' : 'scale(0.95)',
-          transition: 'transform 0.25s ease, opacity 0.25s ease',
-          opacity: modalVisible ? 1 : 0,
         }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -1447,7 +1462,7 @@ function LessonModal({ isOpen, onClose, title, textClosed, textOpen, textComplet
         </div>
         <button
           onClick={() => {
-            if (modalVisible) {
+            if (visible) {
               onClose();
             }
           }}

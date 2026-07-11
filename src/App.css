@@ -15,14 +15,23 @@ body {
 
 /* ===== ПЛАВНЫЕ АНИМАЦИИ ===== */
 
-/* Для всех модальных окон (overlay) */
+/* ===== МОДАЛЬНЫЕ ОКНА (с анимацией) ===== */
 .modal-overlay {
+  opacity: 0;
   transition: opacity 0.3s ease;
 }
+.modal-overlay-visible {
+  opacity: 1;
+}
 
-/* Для контента модалок */
 .modal-content {
+  transform: scale(0.95);
+  opacity: 0;
   transition: transform 0.3s ease, opacity 0.3s ease;
+}
+.modal-content-visible {
+  transform: scale(1);
+  opacity: 1;
 }
 
 /* Для панелей и блоков, которые появляются/исчезают */
