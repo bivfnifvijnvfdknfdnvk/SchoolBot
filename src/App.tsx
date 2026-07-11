@@ -665,7 +665,7 @@ function ProgramEditor({ initialStructure, initialName, onSave, onCancel }: {
           left: 0,
           width: '100vw',
           height: '100vh',
-          backgroundColor: 'rgba(0,0,0,0.6)',
+          backgroundColor: 'rgba(0,0,0,0.3)',
           display: 'flex',
           justifyContent: 'center',
           alignItems: 'center',
@@ -1346,7 +1346,7 @@ function LessonModal({ isOpen, onClose, title, textClosed, textOpen, textComplet
         left: 0,
         width: '100vw',
         height: '100vh',
-        backgroundColor: 'rgba(0,0,0,0.6)',
+        backgroundColor: 'rgba(0,0,0,0.3)',
         display: 'flex',
         justifyContent: 'center',
         alignItems: 'center',
@@ -1476,6 +1476,17 @@ function App() {
     return () => clearTimeout(timer);
   }, []);
 
+  // Анимация админки при переходе в неё (исправление подлага)
+useEffect(() => {
+  if (view === 'admin') {
+    setAdminViewVisible(false);
+    const timer = setTimeout(() => setAdminViewVisible(true), 50); // задержка 50 мс после рендера
+    return () => clearTimeout(timer);
+  } else {
+    setAdminViewVisible(false);
+  }
+}, [view]);
+
   // Инициализация пользователя
   useEffect(() => {
     const init = async () => {
@@ -1575,19 +1586,17 @@ function App() {
     const progData = await loadProgressForProgram(userId, programId);
     setProgress(progData);
     if (isAdmin) {
-      const apps = await getApplicationsForProgram(programId);
-      setApplications(apps);
-      const accepted = await getAcceptedStudents(programId);
-      setAcceptedStudents(accepted);
-      setView('admin');
-      setSelectedStudentId(null);
-      setSelectedStudentName(null);
-      // Анимация входа в админку
-      setAdminViewVisible(false);
-      setTimeout(() => setAdminViewVisible(true), 10);
-    } else {
-      setView('tree');
-    }
+  const apps = await getApplicationsForProgram(programId);
+  setApplications(apps);
+  const accepted = await getAcceptedStudents(programId);
+  setAcceptedStudents(accepted);
+  setView('admin');
+  setSelectedStudentId(null);
+  setSelectedStudentName(null);
+  // Анимация будет включена через useEffect, убираем ручное управление
+} else {
+  setView('tree');
+}
   };
 
   const startEditingProgram = (programId: string) => {
