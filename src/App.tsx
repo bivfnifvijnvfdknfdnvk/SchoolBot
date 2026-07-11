@@ -5,7 +5,7 @@ import './App.css';
 
 // ========== КОНСТАНТЫ ==========
 const STORAGE_URL = 'https://wmfjjpsakhmwwyvimqwx.supabase.co/storage/v1/object/public/icons/';
-const ADMIN_IDS: number[] = [1394891154]; // ID учителей
+const ADMIN_IDS: number[] = [1394891154];
 
 // ========== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ==========
 function extractUserInfoFromHash(): { id: string | null, firstName: string | null, lastName: string | null, username: string | null } {
@@ -32,11 +32,8 @@ function extractUserInfoFromHash(): { id: string | null, firstName: string | nul
 }
 
 // ========== ФУНКЦИИ ДЛЯ РАБОТЫ С БАЗОЙ ==========
-
 async function getAllPrograms() {
-  const { data, error } = await supabase
-    .from('programs')
-    .select('*');
+  const { data, error } = await supabase.from('programs').select('*');
   if (error) {
     console.error('Ошибка загрузки всех программ:', error);
     return [];
@@ -45,10 +42,7 @@ async function getAllPrograms() {
 }
 
 async function getVisiblePrograms() {
-  const { data, error } = await supabase
-    .from('programs')
-    .select('*')
-    .eq('visible', true);
+  const { data, error } = await supabase.from('programs').select('*').eq('visible', true);
   if (error) {
     console.error('Ошибка загрузки видимых программ:', error);
     return [];
@@ -58,10 +52,7 @@ async function getVisiblePrograms() {
 
 async function getUsersByIds(userIds: number[]): Promise<Record<number, string>> {
   if (userIds.length === 0) return {};
-  const { data, error } = await supabase
-    .from('users')
-    .select('telegram_id, first_name, last_name')
-    .in('telegram_id', userIds);
+  const { data, error } = await supabase.from('users').select('telegram_id, first_name, last_name').in('telegram_id', userIds);
   if (error) {
     console.error('Ошибка загрузки имён пользователей:', error);
     return {};
@@ -77,13 +68,7 @@ async function getUsersByIds(userIds: number[]): Promise<Record<number, string>>
 async function createProgram(name: string, teacherId: string, structure: any) {
   const { data, error } = await supabase
     .from('programs')
-    .insert({
-      name,
-      teacher_id: Number(teacherId),
-      created_by: Number(teacherId),
-      visible: false,
-      structure,
-    })
+    .insert({ name, teacher_id: Number(teacherId), created_by: Number(teacherId), visible: false, structure })
     .select('id')
     .single();
   if (error) {
@@ -94,10 +79,7 @@ async function createProgram(name: string, teacherId: string, structure: any) {
 }
 
 async function updateProgram(programId: string, updates: { name?: string; structure?: any; visible?: boolean }) {
-  const { error } = await supabase
-    .from('programs')
-    .update(updates)
-    .eq('id', programId);
+  const { error } = await supabase.from('programs').update(updates).eq('id', programId);
   if (error) {
     console.error('Ошибка обновления программы:', error);
     return false;
@@ -110,10 +92,7 @@ async function toggleProgramVisibility(programId: string, currentVisible: boolea
 }
 
 async function deleteProgram(programId: string) {
-  const { error } = await supabase
-    .from('programs')
-    .delete()
-    .eq('id', programId);
+  const { error } = await supabase.from('programs').delete().eq('id', programId);
   if (error) {
     console.error('Ошибка удаления программы:', error);
     return false;
@@ -122,40 +101,25 @@ async function deleteProgram(programId: string) {
 }
 
 async function getApplicationsForProgram(programId: string) {
-  const { data, error } = await supabase
-    .from('applications')
-    .select('*')
-    .eq('program_id', programId);
+  const { data, error } = await supabase.from('applications').select('*').eq('program_id', programId);
   if (error) {
     console.error('Ошибка загрузки заявок:', error);
     return [];
   }
   const studentIds = data.map(app => app.student_id);
   if (studentIds.length === 0) return data;
-  const { data: users, error: userError } = await supabase
-    .from('users')
-    .select('telegram_id, first_name, last_name')
-    .in('telegram_id', studentIds);
+  const { data: users, error: userError } = await supabase.from('users').select('telegram_id, first_name, last_name').in('telegram_id', studentIds);
   if (userError) return data;
   const userMap: { [key: number]: string } = {};
   users.forEach(u => {
     const name = `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.telegram_id.toString();
     userMap[u.telegram_id] = name;
   });
-  return data.map(app => ({
-    ...app,
-    student_name: userMap[app.student_id] || app.student_id.toString(),
-  }));
+  return data.map(app => ({ ...app, student_name: userMap[app.student_id] || app.student_id.toString() }));
 }
 
 async function createApplication(programId: string, studentId: string) {
-  const { error } = await supabase
-    .from('applications')
-    .insert({
-      program_id: programId,
-      student_id: Number(studentId),
-      status: 'pending',
-    });
+  const { error } = await supabase.from('applications').insert({ program_id: programId, student_id: Number(studentId), status: 'pending' });
   if (error) {
     console.error('Ошибка создания заявки:', error);
     return false;
@@ -164,10 +128,7 @@ async function createApplication(programId: string, studentId: string) {
 }
 
 async function updateApplicationStatus(applicationId: string, status: string) {
-  const { error } = await supabase
-    .from('applications')
-    .update({ status })
-    .eq('id', applicationId);
+  const { error } = await supabase.from('applications').update({ status }).eq('id', applicationId);
   if (error) {
     console.error('Ошибка обновления заявки:', error);
     return false;
@@ -176,19 +137,11 @@ async function updateApplicationStatus(applicationId: string, status: string) {
 }
 
 async function getAcceptedStudents(programId: string) {
-  const { data, error } = await supabase
-    .from('applications')
-    .select('student_id')
-    .eq('program_id', programId)
-    .eq('status', 'accepted');
+  const { data, error } = await supabase.from('applications').select('student_id').eq('program_id', programId).eq('status', 'accepted');
   if (error || !data) return [];
   const studentIds = data.map(item => item.student_id);
   if (studentIds.length === 0) return [];
-
-  const { data: users, error: userError } = await supabase
-    .from('users')
-    .select('telegram_id, first_name, last_name')
-    .in('telegram_id', studentIds);
+  const { data: users, error: userError } = await supabase.from('users').select('telegram_id, first_name, last_name').in('telegram_id', studentIds);
   if (userError) return [];
   return users.map(u => ({
     id: u.telegram_id.toString(),
@@ -197,11 +150,7 @@ async function getAcceptedStudents(programId: string) {
 }
 
 async function loadProgressForProgram(userId: string, programId: string): Promise<Record<string, boolean>> {
-  const { data, error } = await supabase
-    .from('progress')
-    .select('lesson_id, completed')
-    .eq('user_id', Number(userId))
-    .eq('program_id', programId);
+  const { data, error } = await supabase.from('progress').select('lesson_id, completed').eq('user_id', Number(userId)).eq('program_id', programId);
   if (error) {
     console.error('Ошибка загрузки прогресса:', error);
     return {};
@@ -221,45 +170,29 @@ async function saveProgressForProgram(userId: string, programId: string, progres
     completed,
     updated_at: new Date().toISOString(),
   }));
-  const { error } = await supabase
-    .from('progress')
-    .upsert(entries, { onConflict: 'user_id, program_id, lesson_id' });
+  const { error } = await supabase.from('progress').upsert(entries, { onConflict: 'user_id, program_id, lesson_id' });
   if (error) {
     console.error('Ошибка сохранения прогресса:', error);
   }
 }
 
 async function getStudentPrograms(studentId: string) {
-  const { data: applications, error: appError } = await supabase
-    .from('applications')
-    .select('program_id')
-    .eq('student_id', Number(studentId))
-    .eq('status', 'accepted');
+  const { data: applications, error: appError } = await supabase.from('applications').select('program_id').eq('student_id', Number(studentId)).eq('status', 'accepted');
   if (appError || !applications) return [];
   const programIds = applications.map(item => item.program_id);
   if (programIds.length === 0) return [];
-  const { data: programs, error: progError } = await supabase
-    .from('programs')
-    .select('*')
-    .in('id', programIds)
-    .eq('visible', true);
+  const { data: programs, error: progError } = await supabase.from('programs').select('*').in('id', programIds).eq('visible', true);
   if (progError) return [];
   return programs || [];
 }
 
 async function getApplicationStatus(studentId: string, programId: string) {
-  const { data, error } = await supabase
-    .from('applications')
-    .select('status, id')
-    .eq('student_id', Number(studentId))
-    .eq('program_id', programId)
-    .maybeSingle();
+  const { data, error } = await supabase.from('applications').select('status, id').eq('student_id', Number(studentId)).eq('program_id', programId).maybeSingle();
   if (error || !data) return null;
   return data;
 }
 
 // ========== ФУНКЦИИ ДЛЯ РАБОТЫ С ДЕРЕВОМ ==========
-
 function collectLessonsWithPrerequisites(node: any): Record<string, string[]> {
   const map: Record<string, string[]> = {};
   function traverse(n: any) {
@@ -288,7 +221,6 @@ function buildNodeMap(node: any, map: Record<string, any>) {
 }
 
 // ========== КОМПОНЕНТЫ ДЛЯ РЕДАКТОРА ==========
-
 function updateNodeInTree(tree: any, id: string, updates: any): any {
   if (tree.id === id) {
     return { ...tree, ...updates };
@@ -384,7 +316,6 @@ const renderEditorNode = ({ nodeDatum, onNodeClick, isSelectMode, onSelectToggle
           <circle cx="0" cy="0" r={radius} />
         </clipPath>
       </defs>
-
       {imageUrl ? (
         <image
           href={imageUrl}
@@ -405,9 +336,7 @@ const renderEditorNode = ({ nodeDatum, onNodeClick, isSelectMode, onSelectToggle
           style={{ cursor: isSelectMode && isLesson ? 'pointer' : 'pointer' }}
         />
       )}
-
       <circle cx="0" cy="0" r={radius} fill="none" stroke="#fff" strokeWidth="2" onClick={handleClick} style={{ pointerEvents: 'none' }} />
-
       <text
         fill="#fff"
         stroke="none"
@@ -506,7 +435,6 @@ function ProgramEditor({ initialStructure, initialName, onSave, onCancel, visibl
   });
 
   const [programName, setProgramName] = useState(initialName || 'Новая программа');
-
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
   const [editIsLesson, setEditIsLesson] = useState(false);
@@ -519,9 +447,10 @@ function ProgramEditor({ initialStructure, initialName, onSave, onCancel, visibl
   const [loadingIcons, setLoadingIcons] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
-
   const [isSelectingPrerequisites, setIsSelectingPrerequisites] = useState(false);
   const [tempSelectedIds, setTempSelectedIds] = useState<string[]>([]);
+
+  // Удаляем локальное состояние editorVisible и useEffect
 
   useEffect(() => {
     const fetchIcons = async () => {
@@ -702,7 +631,6 @@ function ProgramEditor({ initialStructure, initialName, onSave, onCancel, visibl
           >
             ✕
           </button>
-
           <h2 style={{ marginBottom: '16px' }}>Редактировать узел</h2>
           <div style={{ marginBottom: '12px' }}>
             <label>Название</label>
@@ -911,7 +839,6 @@ function ProgramEditor({ initialStructure, initialName, onSave, onCancel, visibl
 }
 
 // ========== КОМПОНЕНТЫ ДЛЯ ОТОБРАЖЕНИЯ ==========
-
 function recalculateProgress(structure: any, progress: Record<string, boolean>): Record<string, boolean> {
   const newProgress = { ...progress };
   const lessons: any[] = [];
@@ -1021,7 +948,6 @@ const renderCustomNode = ({ nodeDatum, onLessonClick, onToggleLesson, isPreview 
           <circle cx="0" cy="0" r={radius} />
         </clipPath>
       </defs>
-
       {imageUrl ? (
         <image
           href={imageUrl}
@@ -1043,7 +969,6 @@ const renderCustomNode = ({ nodeDatum, onLessonClick, onToggleLesson, isPreview 
           style={{ cursor: isLesson && !locked ? 'pointer' : 'default' }}
         />
       )}
-
       <circle
         cx="0"
         cy="0"
@@ -1055,7 +980,6 @@ const renderCustomNode = ({ nodeDatum, onLessonClick, onToggleLesson, isPreview 
         className="tree-node-ring"
         style={{ pointerEvents: 'none' }}
       />
-
       {isLesson && completed && (
         <>
           <circle
@@ -1085,7 +1009,6 @@ const renderCustomNode = ({ nodeDatum, onLessonClick, onToggleLesson, isPreview 
           </text>
         </>
       )}
-
       {isLesson && locked && !completed && (
         <>
           <text
@@ -1122,7 +1045,6 @@ const renderCustomNode = ({ nodeDatum, onLessonClick, onToggleLesson, isPreview 
           )}
         </>
       )}
-
       <text
         fill={textColor}
         stroke="none"
@@ -1450,12 +1372,24 @@ function App() {
   const [lessonModalPrereqNames, setLessonModalPrereqNames] = useState<string[]>([]);
 
   const [refreshKey, setRefreshKey] = useState(0);
+
+  // Состояния для анимаций
+  const [editorVisible, setEditorVisible] = useState(false);
   const [studentEditorVisible, setStudentEditorVisible] = useState(false);
   const [studentViewVisible, setStudentViewVisible] = useState(false);
   const [adminViewVisible, setAdminViewVisible] = useState(false);
-  const [editorVisible, setEditorVisible] = useState(false); // для редактора программ
 
-  // Анимация редактора ученика при входе/выходе
+  // Управление анимацией редактора программ (карандаш и плюс)
+  useEffect(() => {
+    if (view === 'create') {
+      const timer = setTimeout(() => setEditorVisible(true), 10);
+      return () => clearTimeout(timer);
+    } else {
+      setEditorVisible(false);
+    }
+  }, [view]);
+
+  // Управление анимацией редактора ученика
   useEffect(() => {
     if (selectedStudentId) {
       const timer = setTimeout(() => setStudentEditorVisible(true), 10);
@@ -1465,7 +1399,7 @@ function App() {
     }
   }, [selectedStudentId]);
 
-  // Анимация ученического дерева при входе/выходе
+  // Управление анимацией ученического дерева
   useEffect(() => {
     if (view === 'tree') {
       const timer = setTimeout(() => setStudentViewVisible(true), 10);
@@ -1475,23 +1409,13 @@ function App() {
     }
   }, [view]);
 
-  // Анимация админки при входе/выходе
+  // Управление анимацией админки
   useEffect(() => {
     if (view === 'admin') {
       const timer = setTimeout(() => setAdminViewVisible(true), 10);
       return () => clearTimeout(timer);
     } else {
       setAdminViewVisible(false);
-    }
-  }, [view]);
-
-  // Анимация редактора программ (карандаш и плюс)
-  useEffect(() => {
-    if (view === 'create') {
-      const timer = setTimeout(() => setEditorVisible(true), 10);
-      return () => clearTimeout(timer);
-    } else {
-      setEditorVisible(false);
     }
   }, [view]);
 
@@ -1539,13 +1463,11 @@ function App() {
   useEffect(() => {
     if (userId === 'guest') return;
     loadPrograms();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId, isAdmin]);
 
   useEffect(() => {
     if (userId === 'guest' || isAdmin) return;
     loadPrograms();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refreshKey]);
 
   const loadPrograms = async () => {
@@ -1669,7 +1591,7 @@ function App() {
   };
 
   const handleCancelEditor = () => {
-    // Выход из редактора программ
+    // Выход из редактора программ (управляется анимацией через editorVisible)
     setEditorVisible(false);
     setTimeout(() => {
       setEditingProgramId(null);
@@ -1720,11 +1642,14 @@ function App() {
       alert('Структура программы не загружена. Попробуйте позже.');
       return;
     }
+    // Сбрасываем анимацию, чтобы при переключении она снова появилась
+    setStudentEditorVisible(false);
     setSelectedStudentId(studentId);
     const prog = await loadProgressForProgram(studentId, currentProgramId!);
     setProgress(prog);
     const student = acceptedStudents.find(s => s.id === studentId);
     setSelectedStudentName(student ? student.name : null);
+    // Анимация включится через useEffect, так как selectedStudentId изменился
   };
 
   const backToAdmin = () => {
@@ -1932,6 +1857,7 @@ function App() {
       );
     }
 
+    // Админка
     return (
       <div className={`fade-slide ${adminViewVisible ? 'fade-slide-visible' : ''}`} style={{ padding: '20px', color: '#fff', backgroundColor: '#1a1a2e', minHeight: '100vh' }}>
         <div style={{ display: 'flex', alignItems: 'center', marginBottom: '16px' }}>
