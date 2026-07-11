@@ -1719,13 +1719,10 @@ useEffect(() => {
   };
 
   const backToAdmin = () => {
-    setStudentEditorVisible(false);
-    setTimeout(() => {
-      setSelectedStudentId(null);
-      setSelectedStudentName(null);
-      loadProgressForProgram(userId, currentProgramId!).then(p => setProgress(p));
-    }, 200);
-  };
+  setSelectedStudentId(null);
+  setSelectedStudentName(null);
+  loadProgressForProgram(userId, currentProgramId!).then(p => setProgress(p));
+};
 
   const toggleLessonForStudent = async (lessonId: string) => {
     if (!selectedStudentId || !currentProgramId) return;
@@ -1927,26 +1924,22 @@ useEffect(() => {
       <div className={`fade-slide ${adminViewVisible ? 'fade-slide-visible' : ''}`} style={{ padding: '20px', color: '#fff', backgroundColor: '#1a1a2e', minHeight: '100vh' }}>
         <div style={{ display: 'flex', alignItems: 'center', marginBottom: '16px' }}>
           <button
-            onClick={() => {
-              // Анимация выхода из админки
-              setAdminViewVisible(false);
-              setTimeout(() => {
-                setView('programs');
-                setCurrentProgramId(null);
-              }, 200);
-            }}
-            className="hover-scale"
-            style={{
-              background: 'transparent',
-              border: 'none',
-              color: 'rgba(255,255,255,0.3)',
-              fontSize: '28px',
-              cursor: 'pointer',
-              padding: '4px 8px',
-            }}
-          >
-            ←
-          </button>
+  onClick={() => {
+    setView('programs');
+    setCurrentProgramId(null);
+  }}
+  className="hover-scale"
+  style={{
+    background: 'transparent',
+    border: 'none',
+    color: 'rgba(255,255,255,0.3)',
+    fontSize: '28px',
+    cursor: 'pointer',
+    padding: '4px 8px',
+  }}
+>
+  ←
+</button>
           <h2 style={{ margin: 0, marginLeft: '8px' }}>{currentProgram?.name || 'Программа'}</h2>
         </div>
         <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap' }}>
@@ -2073,27 +2066,24 @@ useEffect(() => {
       <div className={`fade-slide ${studentViewVisible ? 'fade-slide-visible' : ''}`} style={{ width: '100vw', height: '100vh', backgroundColor: '#1a1a2e' }}>
         <div style={{ position: 'absolute', top: 10, left: 10, right: 10, zIndex: 10, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '0 10px' }}>
           <button
-            onClick={() => {
-              setStudentViewVisible(false);
-              setTimeout(() => {
-                setView('programs');
-                setCurrentProgramId(null);
-              }, 200);
-            }}
-            className="hover-scale"
-            style={{
-              background: 'transparent',
-              border: 'none',
-              color: 'rgba(255,255,255,0.3)',
-              fontSize: '28px',
-              cursor: 'pointer',
-              padding: '4px 8px',
-              position: 'absolute',
-              left: 0,
-            }}
-          >
-            ←
-          </button>
+  onClick={() => {
+    setView('programs');
+    setCurrentProgramId(null);
+  }}
+  className="hover-scale"
+  style={{
+    background: 'transparent',
+    border: 'none',
+    color: 'rgba(255,255,255,0.3)',
+    fontSize: '28px',
+    cursor: 'pointer',
+    padding: '4px 8px',
+    position: 'absolute',
+    left: 0,
+  }}
+>
+  ←
+</button>
           <span style={{ color: '#fff', fontWeight: 'bold', fontSize: '18px' }}>{progName}</span>
         </div>
         {studentViewVisible && (
