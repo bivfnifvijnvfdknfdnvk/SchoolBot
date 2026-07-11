@@ -1464,11 +1464,15 @@ function App() {
   const [studentViewVisible, setStudentViewVisible] = useState(false);
   const [adminViewVisible, setAdminViewVisible] = useState(false); // <-- НОВОЕ СОСТОЯНИЕ
 
-  // Анимация редактора ученика (при монтировании)
-  useEffect(() => {
+  // Анимация редактора ученика при входе/выходе
+useEffect(() => {
+  if (selectedStudentId) {
     const timer = setTimeout(() => setStudentEditorVisible(true), 10);
     return () => clearTimeout(timer);
-  }, []);
+  } else {
+    setStudentEditorVisible(false);
+  }
+}, [selectedStudentId]);
 
   // Анимация дерева ученика (при монтировании)
   useEffect(() => {
@@ -1714,7 +1718,6 @@ useEffect(() => {
   setProgress(prog);
   const student = acceptedStudents.find(s => s.id === studentId);
   setSelectedStudentName(student ? student.name : null);
-  // Анимация входа уже активна, не сбрасываем её
 };
 
   const backToAdmin = () => {
