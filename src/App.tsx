@@ -7,6 +7,9 @@ import './App.css';
 const STORAGE_URL = 'https://wmfjjpsakhmwwyvimqwx.supabase.co/storage/v1/object/public/icons/';
 const ADMIN_IDS: number[] = [1394891154]; // ID учителей
 
+// ========== КОНСТАНТЫ АНИМАЦИЙ ==========
+const ANIMATION_DURATION_MS = 300; // единое время для всех анимаций (в миллисекундах)
+
 // ========== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ==========
 function extractUserInfoFromHash(): { id: string | null, firstName: string | null, lastName: string | null, username: string | null } {
   const hash = window.location.hash;
@@ -1322,10 +1325,10 @@ function LessonModal({ isOpen, onClose, title, textClosed, textOpen, textComplet
           closeTimeoutRef.current = null;
         }
         closeTimeoutRef.current = window.setTimeout(() => {
-          setModalOpen(false);
-          onClose();
-          closeTimeoutRef.current = null;
-        }, 300);
+  setModalOpen(false);
+  onClose();
+  closeTimeoutRef.current = null;
+}, ANIMATION_DURATION_MS);
       }
     }
     return () => {
@@ -1455,12 +1458,12 @@ function StudentTreeViewContainer({
   }, [isExiting]);
 
   const handleBack = () => {
-    setIsExiting(true);
-    setVisible(false);
-    setTimeout(() => {
-      onBack();
-    }, 300);
-  };
+  setIsExiting(true);
+  setVisible(false);
+  setTimeout(() => {
+    onBack();
+  }, ANIMATION_DURATION_MS);
+};
 
   return (
     <div className={`fade-slide ${visible ? 'fade-slide-visible' : ''}`} style={{ width: '100vw', height: '100vh', backgroundColor: '#1a1a2e' }}>
@@ -1519,12 +1522,12 @@ function AdminStudentProgressEditor({
   }, [isExiting]);
 
   const handleBack = () => {
-    setIsExiting(true);
-    setVisible(false);
-    setTimeout(() => {
-      onBack();
-    }, 300);
-  };
+  setIsExiting(true);
+  setVisible(false);
+  setTimeout(() => {
+    onBack();
+  }, ANIMATION_DURATION_MS);
+};
 
   return (
     <div className={`fade-slide ${visible ? 'fade-slide-visible' : ''}`} style={{ width: '100vw', height: '100vh', backgroundColor: '#1a1a2e' }}>

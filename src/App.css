@@ -1,5 +1,13 @@
-* { margin: 0; padding: 0; box-sizing: border-box; }
-body { overflow: hidden; }
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  overflow: hidden;
+}
+
 /* Убираем синюю подсветку на Android */
 * {
   -webkit-tap-highlight-color: transparent !important;
@@ -9,17 +17,24 @@ body { overflow: hidden; }
 
 /* Для всех модальных окон (overlay) */
 .modal-overlay {
-  transition: opacity 0.25s ease;
+  transition: opacity 0.3s ease;
 }
 
 /* Для контента модалок */
 .modal-content {
-  transition: transform 0.25s ease, opacity 0.25s ease;
+  transition: transform 0.3s ease, opacity 0.3s ease;
 }
 
 /* Для панелей и блоков, которые появляются/исчезают */
 .fade-slide {
-  transition: opacity 0.2s ease, transform 0.2s ease;
+  opacity: 0;
+  transform: translateY(10px);
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.fade-slide-visible {
+  opacity: 1;
+  transform: translateY(0);
 }
 
 /* Для кнопок и интерактивных элементов при наведении и нажатии */
@@ -77,6 +92,7 @@ button:active,
   from { opacity: 0; }
   to { opacity: 1; }
 }
+
 /* ===== АНИМАЦИИ ДЛЯ УЗЛОВ ДЕРЕВА ===== */
 .tree-node-circle {
   transition: fill 0.25s ease, opacity 0.25s ease;
@@ -101,19 +117,4 @@ button:active,
 }
 .tree-node-ring {
   transition: stroke 0.25s ease;
-}
-.modal-overlay {
-  transition: opacity 0.25s ease;
-}
-.modal-content {
-  transition: transform 0.25s ease, opacity 0.25s ease;
-}
-.fade-slide {
-  opacity: 0;
-  transform: translateY(10px);
-  transition: opacity 0.25s ease, transform 0.25s ease;
-}
-.fade-slide-visible {
-  opacity: 1;
-  transform: translateY(0);
 }
