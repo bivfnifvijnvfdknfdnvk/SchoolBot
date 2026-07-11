@@ -2227,14 +2227,14 @@ function App() {
 }
 
 // ========== ERROR BOUNDARY ==========
-class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean }> {
+class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean; error: Error | null }> {
   constructor(props: any) {
     super(props);
-    this.state = { hasError: false };
+    this.state = { hasError: false, error: null };
   }
 
-  static getDerivedStateFromError(_error: any) {
-    return { hasError: true };
+  static getDerivedStateFromError(error: any) {
+    return { hasError: true, error };
   }
 
   componentDidCatch(error: any, errorInfo: any) {
@@ -2246,6 +2246,9 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { has
       return (
         <div style={{ color: '#fff', padding: '20px', backgroundColor: '#1a1a2e', minHeight: '100vh', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>
           <h2>Что-то пошло не так 😢</h2>
+          <p style={{ color: '#ff6b6b', maxWidth: '600px', textAlign: 'center', wordBreak: 'break-word' }}>
+            Ошибка: {this.state.error?.toString() || 'Неизвестная ошибка'}
+          </p>
           <p>Попробуйте перезагрузить страницу или обратитесь к администратору.</p>
           <button onClick={() => window.location.reload()} style={{ marginTop: '20px', padding: '10px 20px', background: '#4CAF50', border: 'none', borderRadius: '6px', color: '#fff', cursor: 'pointer' }}>
             Перезагрузить
