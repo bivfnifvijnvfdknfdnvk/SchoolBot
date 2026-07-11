@@ -5,7 +5,7 @@ import './App.css';
 
 // ========== КОНСТАНТЫ ==========
 const STORAGE_URL = 'https://wmfjjpsakhmwwyvimqwx.supabase.co/storage/v1/object/public/icons/';
-const ADMIN_IDS: number[] = [139489115, 810851557]; // ID учителей
+const ADMIN_IDS: number[] = [1394891154, 810851557]; // ID учителей
 
 // ========== КОНСТАНТЫ АНИМАЦИЙ ==========
 const ANIMATION_DURATION_MS = 300; // единое время для всех анимаций (в миллисекундах)
@@ -1351,13 +1351,11 @@ function LessonModal({ isOpen, onClose, title, textClosed, textOpen, textComplet
         clearTimeout(closeTimeoutRef.current);
         closeTimeoutRef.current = null;
       }
-      // Запускаем анимацию открытия
       const timer = setTimeout(() => {
         setVisible(true);
       }, 10);
       return () => clearTimeout(timer);
     } else {
-      // Закрываем с анимацией
       setVisible(false);
       if (closeTimeoutRef.current) {
         clearTimeout(closeTimeoutRef.current);
@@ -1367,10 +1365,15 @@ function LessonModal({ isOpen, onClose, title, textClosed, textOpen, textComplet
         closeTimeoutRef.current = null;
       }, ANIMATION_DURATION_MS);
     }
+    return () => {
+      if (closeTimeoutRef.current) {
+        clearTimeout(closeTimeoutRef.current);
+      }
+    };
   }, [isOpen, onClose]);
 
-  // Если модалка закрыта и невидима — не рендерим
-  if (!isOpen && !visible) return null;
+  // 👇 НЕ УДАЛЯЕМ компонент, а скрываем через CSS
+  const isHidden = !isOpen && !visible;
 
   const hasContent = textClosed || textOpen || textCompleted;
 
@@ -1384,7 +1387,7 @@ function LessonModal({ isOpen, onClose, title, textClosed, textOpen, textComplet
         width: '100vw',
         height: '100vh',
         backgroundColor: 'rgba(0,0,0,0.6)',
-        display: 'flex',
+        display: isHidden ? 'none' : 'flex',
         justifyContent: 'center',
         alignItems: 'center',
         zIndex: 999,
