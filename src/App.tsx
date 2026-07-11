@@ -1926,32 +1926,34 @@ function App() {
   };
 
   useEffect(() => {
-    if (!userId || userId === 'guest' || !currentProgramId) return;
+  if (!userId || userId === 'guest' || !currentProgramId) return;
 
-    const channel = supabase
-      .channel(`progress-${userId}-${currentProgramId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'progress',
-          filter: `user_id=eq.${userId},program_id=eq.${currentProgramId}`,
-        },
-        (payload) => {
-          const { lesson_id, completed } = payload.new;
-          setProgress(prev => ({
-            ...prev,
-            [lesson_id]: completed,
-          }));
-        }
-      )
-      .subscribe();
+  const channel = supabase
+    .channel(`progress-${userId}-${currentProgramId}`)
+    .on(
+      'postgres_changes',
+      {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'progress',
+        filter: `user_id=eq.${userId},program_id=eq.${currentProgramId}`,
+      },
+      (payload) => {
+        // Если идёт сохранение, игнорируем входящие обновления, чтобы избежать мерцания
+        if (isSaving) return;
+        const { lesson_id, completed } = payload.new;
+        setProgress(prev => ({
+          ...prev,
+          [lesson_id]: completed,
+        }));
+      }
+    )
+    .subscribe();
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [userId, currentProgramId]);
+  return () => {
+    supabase.removeChannel(channel);
+  };
+}, [userId, currentProgramId, isSaving]); // добавляем зависимость isSaving
 
   // Защита от серого экрана (для ученика)
   useEffect(() => {
