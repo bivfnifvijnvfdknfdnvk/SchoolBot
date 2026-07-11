@@ -5,7 +5,7 @@ import './App.css';
 
 // ========== КОНСТАНТЫ ==========
 const STORAGE_URL = 'https://wmfjjpsakhmwwyvimqwx.supabase.co/storage/v1/object/public/icons/';
-const ADMIN_IDS: number[] = [1394891154, 810851557]; // ID учителей
+const ADMIN_IDS: number[] = [1394891154, 810851557,]; // ID учителей
 
 // ========== КОНСТАНТЫ АНИМАЦИЙ ==========
 const ANIMATION_DURATION_MS = 300; // единое время для всех анимаций (в миллисекундах)
