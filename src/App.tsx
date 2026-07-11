@@ -1372,9 +1372,6 @@ function LessonModal({ isOpen, onClose, title, textClosed, textOpen, textComplet
     };
   }, [isOpen, onClose]);
 
-  // 👇 НЕ УДАЛЯЕМ компонент, а скрываем через CSS
-  const isHidden = !isOpen && !visible;
-
   const hasContent = textClosed || textOpen || textCompleted;
 
   return (
@@ -1387,11 +1384,12 @@ function LessonModal({ isOpen, onClose, title, textClosed, textOpen, textComplet
         width: '100vw',
         height: '100vh',
         backgroundColor: 'rgba(0,0,0,0.6)',
-        display: isHidden ? 'none' : 'flex',
+        display: 'flex',
         justifyContent: 'center',
         alignItems: 'center',
         zIndex: 999,
         cursor: 'pointer',
+        pointerEvents: visible ? 'auto' : 'none', // блокируем клики, когда невидимо
       }}
       onClick={() => {
         if (visible) onClose();
