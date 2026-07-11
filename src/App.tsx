@@ -1459,6 +1459,18 @@ function App() {
   const [lessonModalPrereqNames, setLessonModalPrereqNames] = useState<string[]>([]);
 
   const [refreshKey, setRefreshKey] = useState(0);
+  const [studentEditorVisible, setStudentEditorVisible] = useState(false);
+  const [studentViewVisible, setStudentViewVisible] = useState(false);
+
+  useEffect(() => {
+  const timer = setTimeout(() => setStudentEditorVisible(true), 10);
+  return () => clearTimeout(timer);
+}, []);
+
+useEffect(() => {
+  const timer = setTimeout(() => setStudentViewVisible(true), 10);
+  return () => clearTimeout(timer);
+}, []);
 
   useEffect(() => {
     const init = async () => {
@@ -1835,13 +1847,7 @@ function App() {
     }));
     const combinedList = [...pendingApps, ...acceptedList];
 
-    const [studentEditorVisible, setStudentEditorVisible] = useState(false);
 if (selectedStudentId) {
-
-      useEffect(() => {
-        const timer = setTimeout(() => setStudentEditorVisible(true), 10);
-        return () => clearTimeout(timer);
-      }, []);
 
       if (!structure) {
         return <div style={{ color: '#fff', padding: '20px', backgroundColor: '#1a1a2e', minHeight: '100vh' }}>Загрузка структуры...</div>;
@@ -2029,12 +2035,6 @@ if (selectedStudentId) {
   // ===== УЧЕНИЧЕСКИЙ ЭКРАН (ИСПРАВЛЕН) =====
   if (!isAdmin && view === 'tree' && currentProgramId) {
     const progName = programs.find(p => p.id === currentProgramId)?.name || '';
-    const [studentViewVisible, setStudentViewVisible] = useState(false);
-
-    useEffect(() => {
-      const timer = setTimeout(() => setStudentViewVisible(true), 10);
-      return () => clearTimeout(timer);
-    }, []);
 
     if (!structure) {
       return <div style={{ color: '#fff', padding: '20px', backgroundColor: '#1a1a2e', minHeight: '100vh' }}>Загрузка...</div>;
