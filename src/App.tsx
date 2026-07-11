@@ -1477,10 +1477,10 @@ function App() {
   }, []);
 
   // Анимация админки при переходе в неё (исправление подлага)
+// Анимация админки при входе
 useEffect(() => {
   if (view === 'admin') {
-    setAdminViewVisible(false);
-    const timer = setTimeout(() => setAdminViewVisible(true), 50); // задержка 50 мс после рендера
+    const timer = setTimeout(() => setAdminViewVisible(true), 10);
     return () => clearTimeout(timer);
   } else {
     setAdminViewVisible(false);
@@ -1705,23 +1705,25 @@ useEffect(() => {
   };
 
   const handleSelectStudent = async (studentId: string) => {
-    if (!structure) {
-      alert('Структура программы не загружена. Попробуйте позже.');
-      return;
-    }
-    setStudentEditorVisible(false);
-    setSelectedStudentId(studentId);
-    const prog = await loadProgressForProgram(studentId, currentProgramId!);
-    setProgress(prog);
-    const student = acceptedStudents.find(s => s.id === studentId);
-    setSelectedStudentName(student ? student.name : null);
-    setTimeout(() => setStudentEditorVisible(true), 10);
-  };
+  if (!structure) {
+    alert('Структура программы не загружена. Попробуйте позже.');
+    return;
+  }
+  setSelectedStudentId(studentId);
+  const prog = await loadProgressForProgram(studentId, currentProgramId!);
+  setProgress(prog);
+  const student = acceptedStudents.find(s => s.id === studentId);
+  setSelectedStudentName(student ? student.name : null);
+  // Анимация входа уже активна, не сбрасываем её
+};
 
   const backToAdmin = () => {
-  setSelectedStudentId(null);
-  setSelectedStudentName(null);
-  loadProgressForProgram(userId, currentProgramId!).then(p => setProgress(p));
+  setStudentEditorVisible(false);
+  setTimeout(() => {
+    setSelectedStudentId(null);
+    setSelectedStudentName(null);
+    loadProgressForProgram(userId, currentProgramId!).then(p => setProgress(p));
+  }, 200);
 };
 
   const toggleLessonForStudent = async (lessonId: string) => {
@@ -1925,8 +1927,11 @@ useEffect(() => {
         <div style={{ display: 'flex', alignItems: 'center', marginBottom: '16px' }}>
           <button
   onClick={() => {
-    setView('programs');
-    setCurrentProgramId(null);
+    setAdminViewVisible(false);
+    setTimeout(() => {
+      setView('programs');
+      setCurrentProgramId(null);
+    }, 200);
   }}
   className="hover-scale"
   style={{
@@ -2067,8 +2072,11 @@ useEffect(() => {
         <div style={{ position: 'absolute', top: 10, left: 10, right: 10, zIndex: 10, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '0 10px' }}>
           <button
   onClick={() => {
-    setView('programs');
-    setCurrentProgramId(null);
+    setStudentViewVisible(false);
+    setTimeout(() => {
+      setView('programs');
+      setCurrentProgramId(null);
+    }, 200);
   }}
   className="hover-scale"
   style={{
