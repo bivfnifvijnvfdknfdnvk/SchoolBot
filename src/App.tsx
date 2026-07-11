@@ -1585,6 +1585,7 @@ function AdminStudentProgressEditor({
 function App() {
   const [userId, setUserId] = useState('guest');
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   const [programs, setPrograms] = useState<any[]>([]);
   const [currentProgramId, setCurrentProgramId] = useState<string | null>(null);
@@ -1855,24 +1856,31 @@ function App() {
   };
 
   const toggleLessonForStudent = async (lessonId: string) => {
-    if (!selectedStudentId || !currentProgramId) return;
-    if (!structure) return;
+  if (isSaving) return;
+  if (!selectedStudentId || !currentProgramId) return;
+  if (!structure) return;
 
-    const prerequisitesMap = collectLessonsWithPrerequisites(structure);
-    const prereqs = prerequisitesMap[lessonId] || [];
-    const isLocked = prereqs.some((id: string) => !progress[id]);
-    if (isLocked) {
-      alert('Этот урок ещё не открыт. Пройдите предыдущие уроки.');
-      return;
-    }
+  const prerequisitesMap = collectLessonsWithPrerequisites(structure);
+  const prereqs = prerequisitesMap[lessonId] || [];
+  const isLocked = prereqs.some((id: string) => !progress[id]);
+  if (isLocked) {
+    alert('Этот урок ещё не открыт. Пройдите предыдущие уроки.');
+    return;
+  }
 
-    let newProgress = { ...progress };
-    newProgress[lessonId] = !progress[lessonId];
-    newProgress = recalculateProgress(structure, newProgress);
+  setIsSaving(true);
 
-    setProgress(newProgress);
-    await saveProgressForProgram(selectedStudentId, currentProgramId, newProgress);
-  };
+  let newProgress = { ...progress };
+  newProgress[lessonId] = !progress[lessonId];
+  newProgress = recalculateProgress(structure, newProgress);
+
+  await saveProgressForProgram(selectedStudentId, currentProgramId, newProgress);
+
+  const freshProgress = await loadProgressForProgram(selectedStudentId, currentProgramId);
+  setProgress(freshProgress);
+
+  setIsSaving(false);
+};
 
   const handleDeleteStudent = async (studentId: string, studentName: string | null) => {
     if (!confirm(`Вы уверены, что хотите удалить ученика "${studentName || studentId}" из программы?`)) return;
