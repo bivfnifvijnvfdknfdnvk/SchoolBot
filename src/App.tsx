@@ -1835,8 +1835,8 @@ function App() {
     }));
     const combinedList = [...pendingApps, ...acceptedList];
 
-    if (selectedStudentId) {
-      const [studentEditorVisible, setStudentEditorVisible] = useState(false);
+    const [studentEditorVisible, setStudentEditorVisible] = useState(false);
+if (selectedStudentId) {
 
       useEffect(() => {
         const timer = setTimeout(() => setStudentEditorVisible(true), 10);
