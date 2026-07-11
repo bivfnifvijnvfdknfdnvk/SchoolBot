@@ -485,11 +485,12 @@ function EditableTreeView({ structure, onNodeClick, isSelectMode, onSelectToggle
 }
 
 // ========== ВИЗУАЛЬНЫЙ РЕДАКТОР ПРОГРАММ ==========
-function ProgramEditor({ initialStructure, initialName, onSave, onCancel }: {
+function ProgramEditor({ initialStructure, initialName, onSave, onCancel, visible }: {
   initialStructure?: any;
   initialName?: string;
   onSave: (name: string, structure: any) => void;
   onCancel: () => void;
+  visible: boolean;
 }) {
   const [tree, setTree] = useState<any>(() => {
     if (initialStructure) {
@@ -521,13 +522,6 @@ function ProgramEditor({ initialStructure, initialName, onSave, onCancel }: {
 
   const [isSelectingPrerequisites, setIsSelectingPrerequisites] = useState(false);
   const [tempSelectedIds, setTempSelectedIds] = useState<string[]>([]);
-
-  const [editorVisible, setEditorVisible] = useState(false);
-
-  useEffect(() => {
-    const timer = setTimeout(() => setEditorVisible(true), 10);
-    return () => clearTimeout(timer);
-  }, []);
 
   useEffect(() => {
     const fetchIcons = async () => {
@@ -840,16 +834,10 @@ function ProgramEditor({ initialStructure, initialName, onSave, onCancel }: {
   };
 
   return (
-    <div className={`fade-slide ${editorVisible ? 'fade-slide-visible' : ''}`} style={{ padding: 20, color: '#fff', backgroundColor: '#1a1a2e', minHeight: '100vh', overflow: 'hidden' }}>
+    <div className={`fade-slide ${visible ? 'fade-slide-visible' : ''}`} style={{ padding: 20, color: '#fff', backgroundColor: '#1a1a2e', minHeight: '100vh', overflow: 'hidden' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: 20 }}>
         <button
-          onClick={() => {
-            // Плавный выход из редактора
-            setEditorVisible(false);
-            setTimeout(() => {
-              onCancel();
-            }, 200);
-          }}
+          onClick={onCancel}
           className="hover-scale"
           style={{
             background: 'transparent',
@@ -1465,6 +1453,7 @@ function App() {
   const [studentEditorVisible, setStudentEditorVisible] = useState(false);
   const [studentViewVisible, setStudentViewVisible] = useState(false);
   const [adminViewVisible, setAdminViewVisible] = useState(false);
+  const [editorVisible, setEditorVisible] = useState(false); // для редактора программ
 
   // Анимация редактора ученика при входе/выходе
   useEffect(() => {
@@ -1493,6 +1482,16 @@ function App() {
       return () => clearTimeout(timer);
     } else {
       setAdminViewVisible(false);
+    }
+  }, [view]);
+
+  // Анимация редактора программ (карандаш и плюс)
+  useEffect(() => {
+    if (view === 'create') {
+      const timer = setTimeout(() => setEditorVisible(true), 10);
+      return () => clearTimeout(timer);
+    } else {
+      setEditorVisible(false);
     }
   }, [view]);
 
@@ -1670,9 +1669,14 @@ function App() {
   };
 
   const handleCancelEditor = () => {
-    // Выход из редактора теперь управляется внутри ProgramEditor
-    // здесь просто меняем view
-    setView('programs');
+    // Выход из редактора программ
+    setEditorVisible(false);
+    setTimeout(() => {
+      setEditingProgramId(null);
+      setEditingStructure(null);
+      setEditingProgramName('');
+      setView('programs');
+    }, 200);
   };
 
   const handleDeleteProgram = async (programId: string, programName: string) => {
@@ -1851,6 +1855,7 @@ function App() {
           initialName={editingProgramName}
           onSave={handleSaveProgram}
           onCancel={handleCancelEditor}
+          visible={editorVisible}
         />
       </div>
     );
@@ -1927,7 +1932,6 @@ function App() {
       );
     }
 
-    // Админка
     return (
       <div className={`fade-slide ${adminViewVisible ? 'fade-slide-visible' : ''}`} style={{ padding: '20px', color: '#fff', backgroundColor: '#1a1a2e', minHeight: '100vh' }}>
         <div style={{ display: 'flex', alignItems: 'center', marginBottom: '16px' }}>
