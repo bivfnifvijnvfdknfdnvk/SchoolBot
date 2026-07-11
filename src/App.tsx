@@ -5,7 +5,7 @@ import './App.css';
 
 // ========== КОНСТАНТЫ ==========
 const STORAGE_URL = 'https://wmfjjpsakhmwwyvimqwx.supabase.co/storage/v1/object/public/icons/';
-const ADMIN_IDS: number[] = [1394891154]; // ID учителей
+const ADMIN_IDS: number[] = [139489115, 810851557]; // ID учителей
 
 // ========== КОНСТАНТЫ АНИМАЦИЙ ==========
 const ANIMATION_DURATION_MS = 300; // единое время для всех анимаций (в миллисекундах)
@@ -1275,21 +1275,9 @@ function StudentProgramList({ userId, onApply, existingProgramIds, refreshKey }:
   </span>
 )}
     {prog.appStatus === 'rejected' && (
-  <>
-    <span style={{
-      background: 'rgba(255,255,255,0.1)',
-      borderRadius: '4px',
-      padding: 0,
-      width: '32px',
-      height: '32px',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      color: '#ff4444',
-      fontSize: '18px',
-    }}>
-      ❌
-    </span>
+  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+    <span style={{ color: '#ff4444', fontSize: '14px' }}>Отклонено</span>
+    <span style={{ color: '#ff4444', fontSize: '18px' }}>❌</span>
     <button
       onClick={() => onApply(prog.id)}
       className="hover-scale"
@@ -1310,8 +1298,9 @@ function StudentProgramList({ userId, onApply, existingProgramIds, refreshKey }:
     >
       📩
     </button>
-  </>
+  </div>
 )}
+
     {!prog.appStatus && (
       <button
   onClick={() => onApply(prog.id)}
