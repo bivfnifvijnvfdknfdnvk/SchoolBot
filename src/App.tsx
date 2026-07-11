@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';import Tree from 'react-d3-tree';
+import React, { useState, useEffect, useRef } from 'react';
+import Tree from 'react-d3-tree';
 import { supabase } from './supabaseClient';
 import './App.css';
 
@@ -1461,17 +1462,21 @@ function App() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [studentEditorVisible, setStudentEditorVisible] = useState(false);
   const [studentViewVisible, setStudentViewVisible] = useState(false);
+  const [adminViewVisible, setAdminViewVisible] = useState(false); // <-- НОВОЕ СОСТОЯНИЕ
 
+  // Анимация редактора ученика (при монтировании)
   useEffect(() => {
-  const timer = setTimeout(() => setStudentEditorVisible(true), 10);
-  return () => clearTimeout(timer);
-}, []);
+    const timer = setTimeout(() => setStudentEditorVisible(true), 10);
+    return () => clearTimeout(timer);
+  }, []);
 
-useEffect(() => {
-  const timer = setTimeout(() => setStudentViewVisible(true), 10);
-  return () => clearTimeout(timer);
-}, []);
+  // Анимация дерева ученика (при монтировании)
+  useEffect(() => {
+    const timer = setTimeout(() => setStudentViewVisible(true), 10);
+    return () => clearTimeout(timer);
+  }, []);
 
+  // Инициализация пользователя
   useEffect(() => {
     const init = async () => {
       const { id, firstName, lastName, username } = extractUserInfoFromHash();
@@ -1577,6 +1582,9 @@ useEffect(() => {
       setView('admin');
       setSelectedStudentId(null);
       setSelectedStudentName(null);
+      // Анимация входа в админку
+      setAdminViewVisible(false);
+      setTimeout(() => setAdminViewVisible(true), 10);
     } else {
       setView('tree');
     }
@@ -1692,17 +1700,22 @@ useEffect(() => {
       alert('Структура программы не загружена. Попробуйте позже.');
       return;
     }
+    setStudentEditorVisible(false);
     setSelectedStudentId(studentId);
     const prog = await loadProgressForProgram(studentId, currentProgramId!);
     setProgress(prog);
     const student = acceptedStudents.find(s => s.id === studentId);
     setSelectedStudentName(student ? student.name : null);
+    setTimeout(() => setStudentEditorVisible(true), 10);
   };
 
   const backToAdmin = () => {
-    setSelectedStudentId(null);
-    setSelectedStudentName(null);
-    loadProgressForProgram(userId, currentProgramId!).then(p => setProgress(p));
+    setStudentEditorVisible(false);
+    setTimeout(() => {
+      setSelectedStudentId(null);
+      setSelectedStudentName(null);
+      loadProgressForProgram(userId, currentProgramId!).then(p => setProgress(p));
+    }, 200);
   };
 
   const toggleLessonForStudent = async (lessonId: string) => {
@@ -1847,8 +1860,7 @@ useEffect(() => {
     }));
     const combinedList = [...pendingApps, ...acceptedList];
 
-if (selectedStudentId) {
-
+    if (selectedStudentId) {
       if (!structure) {
         return <div style={{ color: '#fff', padding: '20px', backgroundColor: '#1a1a2e', minHeight: '100vh' }}>Загрузка структуры...</div>;
       }
@@ -1901,11 +1913,19 @@ if (selectedStudentId) {
       );
     }
 
+    // Админка с анимацией
     return (
-      <div style={{ padding: '20px', color: '#fff', backgroundColor: '#1a1a2e', minHeight: '100vh' }}>
+      <div className={`fade-slide ${adminViewVisible ? 'fade-slide-visible' : ''}`} style={{ padding: '20px', color: '#fff', backgroundColor: '#1a1a2e', minHeight: '100vh' }}>
         <div style={{ display: 'flex', alignItems: 'center', marginBottom: '16px' }}>
           <button
-            onClick={() => { setView('programs'); setCurrentProgramId(null); }}
+            onClick={() => {
+              // Анимация выхода из админки
+              setAdminViewVisible(false);
+              setTimeout(() => {
+                setView('programs');
+                setCurrentProgramId(null);
+              }, 200);
+            }}
             className="hover-scale"
             style={{
               background: 'transparent',
@@ -2032,7 +2052,7 @@ if (selectedStudentId) {
     );
   }
 
-  // ===== УЧЕНИЧЕСКИЙ ЭКРАН (ИСПРАВЛЕН) =====
+  // ===== УЧЕНИЧЕСКИЙ ЭКРАН (уже с анимацией) =====
   if (!isAdmin && view === 'tree' && currentProgramId) {
     const progName = programs.find(p => p.id === currentProgramId)?.name || '';
 
@@ -2044,7 +2064,13 @@ if (selectedStudentId) {
       <div className={`fade-slide ${studentViewVisible ? 'fade-slide-visible' : ''}`} style={{ width: '100vw', height: '100vh', backgroundColor: '#1a1a2e' }}>
         <div style={{ position: 'absolute', top: 10, left: 10, right: 10, zIndex: 10, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '0 10px' }}>
           <button
-            onClick={() => { setView('programs'); setCurrentProgramId(null); }}
+            onClick={() => {
+              setStudentViewVisible(false);
+              setTimeout(() => {
+                setView('programs');
+                setCurrentProgramId(null);
+              }, 200);
+            }}
             className="hover-scale"
             style={{
               background: 'transparent',
